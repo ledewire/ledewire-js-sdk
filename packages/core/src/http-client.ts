@@ -147,8 +147,8 @@ export class HttpClient {
       // Non-JSON body - fall through to use statusText
     }
 
-    const message = body?.error?.message ?? response.statusText
-    const code = body?.error?.code
+    const message = body?.error.message ?? response.statusText
+    const code = body?.error.code
 
     switch (response.status) {
       case 401:

@@ -39,6 +39,6 @@ export { http, HttpResponse } from 'msw'
  * @param handlers - Initial request handlers. Additional handlers can be
  *   added per-test with `server.use(...)`.
  */
-export function createTestServer(...handlers: RequestHandler[]) {
+export function createTestServer(...handlers: RequestHandler[]): ReturnType<typeof setupServer> {
   return setupServer(...handlers)
 }

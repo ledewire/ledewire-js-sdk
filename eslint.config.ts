@@ -31,6 +31,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'coverage/**', '.turbo/**', 'node_modules/**'],
+    ignores: ['dist/**', 'coverage/**', '.turbo/**', 'node_modules/**', '**/api.gen.ts'],
   },
 )

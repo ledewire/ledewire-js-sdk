@@ -7,9 +7,15 @@ import { errorResponseFixture } from './test-utils/fixtures.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient(overrides?: ConstructorParameters<typeof HttpClient>[0]) {
   return new HttpClient({ baseUrl: BASE, ...overrides })
@@ -142,8 +148,7 @@ describe('HttpClient 401 retry', () => {
 describe('HttpClient.delete', () => {
   it('returns undefined on 204 No Content', async () => {
     server.use(http.delete(`${BASE}/v1/test/1`, () => new HttpResponse(null, { status: 204 })))
-    const result = await makeClient().delete('/v1/test/1')
-    expect(result).toBeUndefined()
+    await expect(makeClient().delete('/v1/test/1')).resolves.toBeUndefined()
   })
 })
 
@@ -151,7 +156,7 @@ describe('HttpClient.put and .patch', () => {
   it('PUT sends the right method and body', async () => {
     let method = ''
     server.use(
-      http.put(`${BASE}/v1/test/1`, async ({ request }) => {
+      http.put(`${BASE}/v1/test/1`, ({ request }) => {
         method = request.method
         return HttpResponse.json({ updated: true })
       }),
@@ -164,7 +169,7 @@ describe('HttpClient.put and .patch', () => {
   it('PATCH sends the right method', async () => {
     let method = ''
     server.use(
-      http.patch(`${BASE}/v1/test/1`, async ({ request }) => {
+      http.patch(`${BASE}/v1/test/1`, ({ request }) => {
         method = request.method
         return HttpResponse.json({ patched: true })
       }),

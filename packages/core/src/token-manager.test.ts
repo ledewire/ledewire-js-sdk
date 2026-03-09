@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { TokenManager, MemoryTokenStorage, parseExpiresAt } from './token-manager.js'
 import { AuthError } from './errors.js'
 import type { StoredTokens } from './types.js'
@@ -25,7 +25,8 @@ function makeManager(options?: MakeManagerOptions) {
   const storage = new MemoryTokenStorage()
   if (options?.initialTokens) storage.setTokens(options.initialTokens)
 
-  const refreshFn: RefreshFn = options?.refreshFn ?? vi.fn<RefreshFn>().mockResolvedValue(makeTokens())
+  const refreshFn: RefreshFn =
+    options?.refreshFn ?? vi.fn<RefreshFn>().mockResolvedValue(makeTokens())
 
   const manager = new TokenManager({
     storage,
@@ -50,7 +51,9 @@ describe('TokenManager.getAccessToken', () => {
 
   it('proactively refreshes when token expires within 60 seconds', async () => {
     const expiringSoon = makeTokens({ expiresAt: Date.now() + 30_000 }) // 30s left
-    const refreshFn = vi.fn<RefreshFn>().mockResolvedValue(makeTokens({ accessToken: 'new-access-token' }))
+    const refreshFn = vi
+      .fn<RefreshFn>()
+      .mockResolvedValue(makeTokens({ accessToken: 'new-access-token' }))
     const { manager } = makeManager({ initialTokens: expiringSoon, refreshFn })
 
     const token = await manager.getAccessToken()
