@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Node.js Guide — LedeWire SDK</title>
+    <style>
+      :root { --accent: #4f46e5; --bg: #f9fafb; --text: #111827; --muted: #6b7280; --code-bg: #1e1e2e; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+      header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+      header h1 { font-size: 1.25rem; font-weight: 700; }
+      header nav a { color: var(--accent); text-decoration: none; margin-left: 1.5rem; font-size: 0.95rem; }
+      header nav a:hover { text-decoration: underline; }
+      .content { max-width: 760px; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+      h2 { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.75rem; }
+      h3 { font-size: 1.15rem; font-weight: 700; margin: 2rem 0 0.5rem; }
+      p { color: var(--muted); margin-bottom: 1rem; }
+      p strong { color: var(--text); }
+      pre { background: var(--code-bg); color: #cdd6f4; border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.875rem; line-height: 1.6; }
+      code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+      p code { background: #e5e7eb; color: var(--text); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.875em; }
+      .callout { background: #eff6ff; border-left: 4px solid var(--accent); padding: 0.75rem 1rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; color: var(--text); font-size: 0.9rem; }
+      table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.9rem; }
+      th { text-align: left; padding: 0.6rem 0.75rem; background: white; border-bottom: 2px solid #e5e7eb; color: var(--text); font-weight: 600; }
+      td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #e5e7eb; color: var(--muted); }
+      td code { background: #e5e7eb; color: var(--text); padding: 0.1em 0.35em; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>LedeWire SDK</h1>
+      <nav>
+        <a href="../">Home</a>
+        <a href="browser-cdn.html">Browser CDN Guide</a>
+        <a href="../api/">API Reference</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <h2>Node.js — Getting Started</h2>
+      <p>
+        <code>@ledewire/node</code> provides the <strong>full LedeWire API surface</strong>
+        — merchant authentication, content management, sales reporting, buyer
+        flows, wallet, and purchases — in a single typed npm package.
+      </p>
+
+      <div class="callout">
+        <strong>Who this is for:</strong> Developers building merchant stores,
+        admin tools, or server-side integrations with the LedeWire API.
+      </div>
+
+      <h3>Installation</h3>
+      <pre><code>npm install @ledewire/node
+# or
+pnpm add @ledewire/node</code></pre>
+
+      <h3>Authentication modes</h3>
+      <p>
+        <code>createClient()</code> supports two authentication strategies that
+        can be combined or used independently:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th>Use case</th>
+            <th>Config</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>API key + secret</strong></td>
+            <td>Seller operations: automated content publishing, sales dashboards</td>
+            <td><code>apiKey</code> + <code>apiSecret</code></td>
+          </tr>
+          <tr>
+            <td><strong>Email / password</strong></td>
+            <td>Merchant operations: user management, store config, content moderation</td>
+            <td>Call <code>client.merchant.auth.loginWithEmail()</code></td>
+          </tr>
+          <tr>
+            <td><strong>Buyer session</strong></td>
+            <td>Server-side buyer flows on behalf of a logged-in end user</td>
+            <td>Call <code>client.auth.loginWithEmail()</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Quick start — seller (API key)</h3>
+      <pre><code>import { createClient } from '@ledewire/node'
+
+const client = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+  onAuthExpired: () => { throw new Error('Session expired') },
+})
+
+// List your content
+const items = await client.seller.content.list()
+console.log(items)</code></pre>
+
+      <h3>Quick start — merchant (email login)</h3>
+      <pre><code>import { createClient } from '@ledewire/node'
+
+const client = createClient()
+
+// Authenticate
+await client.merchant.auth.loginWithEmail({
+  email: process.env.LEDEWIRE_EMAIL,
+  password: process.env.LEDEWIRE_PASSWORD,
+})
+
+// List stores you manage
+const stores = await client.merchant.auth.stores()
+const storeId = stores[0].store_id
+
+// Sales summary
+const summary = await client.merchant.sales.summary({ storeId })
+console.log(`Revenue: ${summary.total_revenue_cents / 100} USD`)</code></pre>
+
+      <h3>Error handling</h3>
+      <p>
+        All SDK errors extend <code>LedewireError</code> and carry a
+        <code>statusCode</code> and structured <code>code</code> / <code>message</code>
+        from the API. Import specific error classes to handle individual cases:
+      </p>
+      <pre><code>import { createClient, LedewireError, NotFoundError, UnauthorizedError } from '@ledewire/node'
+
+try {
+  const content = await client.seller.content.get('some-id')
+} catch (err) {
+  if (err instanceof NotFoundError) {
+    console.log('Content not found')
+  } else if (err instanceof UnauthorizedError) {
+    console.log('Not authenticated — call loginWithEmail first')
+  } else if (err instanceof LedewireError) {
+    console.error(`API error ${err.statusCode}: ${err.message}`)
+  } else {
+    throw err  // unexpected — rethrow
+  }
+}</code></pre>
+
+      <h3>Full namespace reference</h3>
+      <table>
+        <thead><tr><th>Namespace</th><th>Methods</th></tr></thead>
+        <tbody>
+          <tr><td><code>client.auth.*</code></td><td>signup, loginWithEmail, loginWithGoogle, logout, requestPasswordReset, resetPassword</td></tr>
+          <tr><td><code>client.merchant.auth.*</code></td><td>loginWithEmail, loginWithGoogle, stores</td></tr>
+          <tr><td><code>client.merchant.users.*</code></td><td>list, invite, remove</td></tr>
+          <tr><td><code>client.merchant.sales.*</code></td><td>summary, list, get, buyers</td></tr>
+          <tr><td><code>client.merchant.config.*</code></td><td>get</td></tr>
+          <tr><td><code>client.seller.content.*</code></td><td>create, list, get, update, delete, search</td></tr>
+          <tr><td><code>client.wallet.*</code></td><td>balance, transactions, createPaymentSession, getPaymentStatus</td></tr>
+          <tr><td><code>client.purchases.*</code></td><td>create, list, get</td></tr>
+          <tr><td><code>client.content.*</code></td><td>getWithAccess</td></tr>
+          <tr><td><code>client.checkout.*</code></td><td>state</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        For full parameter and return type documentation, see the
+        <a href="../api/">API Reference</a>.
+        For a complete runnable example, see
+        <a href="https://github.com/ledewire/ledewire-js-sdk/tree/main/examples/node-merchant">
+          examples/node-merchant/
+        </a>.
+      </p>
+    </main>
+  </body>
+</html>
