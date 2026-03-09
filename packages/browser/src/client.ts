@@ -1,5 +1,10 @@
 import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
 import type { TokenStorage } from '@ledewire/core'
+import { BrowserAuthNamespace } from './resources/auth.js'
+import { BrowserContentNamespace } from './resources/content.js'
+import { BrowserPurchasesNamespace } from './resources/purchases.js'
+import { BrowserWalletNamespace } from './resources/wallet.js'
+import { CheckoutNamespace } from './resources/checkout.js'
 
 /**
  * Configuration options for the LedeWire browser client.
@@ -129,29 +134,4 @@ export class BrowserClient {
     this.purchases = new BrowserPurchasesNamespace(_http)
     this.content = new BrowserContentNamespace(_http)
   }
-}
-
-// Placeholder namespace classes - replaced by real implementations in build step 5
-/** @internal */
-class BrowserAuthNamespace {
-  constructor(
-    protected readonly http: HttpClient,
-    protected readonly tokenManager: TokenManager,
-  ) {}
-}
-/** @internal */
-class CheckoutNamespace {
-  constructor(protected readonly http: HttpClient) {}
-}
-/** @internal */
-class BrowserWalletNamespace {
-  constructor(protected readonly http: HttpClient) {}
-}
-/** @internal */
-class BrowserPurchasesNamespace {
-  constructor(protected readonly http: HttpClient) {}
-}
-/** @internal */
-class BrowserContentNamespace {
-  constructor(protected readonly http: HttpClient) {}
 }

@@ -91,16 +91,16 @@ Each phase is designed to fit in a single focused session.
 
 > Mirrors Phase 1 + Phase 4 buyer APIs. Adds the CDN bundle.
 
-- [ ] `packages/browser/src/resources/auth.ts` — buyer auth (signup, email login, google, refresh)
-- [ ] `packages/browser/src/resources/wallet.ts` — balance, transactions, createPaymentSession, getPaymentStatus
-- [ ] `packages/browser/src/resources/purchases.ts` — create, list, get
-- [ ] `packages/browser/src/resources/content.ts` — getWithAccess
-- [ ] `packages/browser/src/resources/checkout.ts` — state
-- [ ] Wire all into `BrowserClient`; all placeholder classes removed
-- [ ] Vite IIFE bundle build (`dist/ledewire.min.js`) with `Ledewire` global
-- [ ] Tests (with `jsdom` environment) for all browser resource methods
-- [ ] `pnpm test:coverage` for `packages/browser` ≥90%
-- [ ] Manual CDN smoke test via `examples/browser-cdn/index.html`
+- [x] `packages/browser/src/resources/auth.ts` — buyer auth (signup, email login, google, refresh)
+- [x] `packages/browser/src/resources/wallet.ts` — balance, transactions, createPaymentSession, getPaymentStatus
+- [x] `packages/browser/src/resources/purchases.ts` — create, list, get
+- [x] `packages/browser/src/resources/content.ts` — getWithAccess
+- [x] `packages/browser/src/resources/checkout.ts` — state
+- [x] Wire all into `BrowserClient`; all placeholder classes removed
+- [x] Vite IIFE bundle build (`dist/ledewire.min.js`) with `Ledewire` global
+- [x] Tests (with `jsdom` environment) for all browser resource methods
+- [x] `pnpm test:coverage` for `packages/browser` ≥90%
+- [x] Manual CDN smoke test via `examples/browser-cdn/index.html`
 
 ---
 
