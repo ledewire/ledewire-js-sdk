@@ -1,0 +1,62 @@
+{
+  "name": "LedeWire JS SDK",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": false
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  // Runs once when the container is first created.
+  // Installs pnpm globally, installs all workspace dependencies, and does
+  // an initial build so TypeScript intellisense works immediately on open.
+  "onCreateCommand": "npm install -g pnpm@9 && pnpm install",
+  // Runs once after onCreateCommand, with VS Code attached.
+  "postCreateCommand": "pnpm build",
+  // Runs every time new content is pulled into an existing container
+  // (e.g. after a git pull in Codespaces). Keeps dependencies in sync.
+  "updateContentCommand": "pnpm install",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true,
+        "eslint.useFlatConfig": true,
+        "vitest.enable": true,
+        "vitest.workspaceConfig": "vitest.workspace.ts",
+        "search.exclude": {
+          "**/node_modules": true,
+          "**/dist": true,
+          "**/.turbo": true,
+          "**/coverage": true
+        }
+      },
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-vscode.vscode-typescript-next",
+        "vitest.explorer",
+        "github.copilot",
+        "github.copilot-chat",
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        "github.vscode-github-actions",
+        "streetsidesoftware.code-spell-checker",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "remoteEnv": {
+    // Points tests and examples at staging by default.
+    // Override by creating a .env file or setting LEDEWIRE_BASE_URL in your shell.
+    "LEDEWIRE_BASE_URL": "https://api-staging.ledewire.com"
+  },
+  // Forward SSH agent so git operations using SSH keys work inside the container.
+  "initializeCommand": "ssh-add -l > /dev/null 2>&1 || true"
+}

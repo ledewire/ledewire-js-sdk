@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LedeWire CDN Example — Embedded Paywall</title>
+    <style>
+      body { font-family: sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      #paywall { border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-top: 1rem; }
+      button { padding: 0.5rem 1rem; cursor: pointer; }
+      #status { color: #666; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Sample Article</h1>
+    <p>This is the free preview of the article content...</p>
+
+    <div id="paywall" style="display:none">
+      <p id="status">Checking access...</p>
+      <button id="btn-action" style="display:none"></button>
+    </div>
+
+    <!--
+      In production, pin to a specific major version:
+      https://cdn.jsdelivr.net/npm/@ledewire/browser@1/dist/ledewire.min.js
+    -->
+    <script src="../../packages/browser/dist/ledewire.min.js"></script>
+    <script>
+      // Replace these with your real values
+      const API_KEY    = 'your_api_key'
+      const CONTENT_ID = 'your_content_id'
+
+      const lw  = Ledewire.init({
+        apiKey: API_KEY,
+        onAuthExpired: () => {
+          document.getElementById('status').textContent = 'Your session expired. Please log in again.'
+          document.getElementById('btn-action').style.display = 'none'
+          showLoginButton()
+        }
+      })
+
+      async function checkAccess() {
+        const state = await lw.checkout.state(CONTENT_ID)
+        const action = state.checkout_state.next_required_action
+
+        if (action === 'view_content') {
+          document.getElementById('paywall').style.display = 'none'
+          // TODO: Render full content
+          return
+        }
+
+        document.getElementById('paywall').style.display = 'block'
+        const btn = document.getElementById('btn-action')
+        btn.style.display = 'block'
+
+        if (action === 'authenticate') {
+          showLoginButton()
+        } else if (action === 'fund_wallet') {
+          document.getElementById('status').textContent = 'You need to add funds to purchase this article.'
+          btn.textContent = 'Add funds'
+          btn.onclick = () => fundWallet()
+        } else if (action === 'purchase') {
+          document.getElementById('status').textContent = 'Purchase this article to read the full content.'
+          btn.textContent = 'Buy article'
+          btn.onclick = () => purchase()
+        }
+      }
+
+      function showLoginButton() {
+        const btn = document.getElementById('btn-action')
+        document.getElementById('status').textContent = 'Sign in to access this article.'
+        btn.textContent = 'Sign in'
+        btn.style.display = 'block'
+        btn.onclick = () => login()
+      }
+
+      async function login() {
+        const email    = prompt('Email')
+        const password = prompt('Password')
+        if (!email || !password) return
+        await lw.auth.loginWithEmail({ email, password })
+        await checkAccess()
+      }
+
+      async function fundWallet() {
+        // Create a payment session and present the Stripe widget
+        const session = await lw.wallet.createPaymentSession({ amount_cents: 500 })
+        // TODO: Use session.public_key + session.client_secret with Stripe.js
+        console.log('Payment session:', session)
+      }
+
+      async function purchase() {
+        await lw.purchases.create({ content_id: CONTENT_ID })
+        await checkAccess()
+      }
+
+      checkAccess()
+    </script>
+  </body>
+</html>

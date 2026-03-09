@@ -1,0 +1,39 @@
+name: Nightly Integration Tests
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'staging'
+
+jobs:
+  integration:
+    name: Integration tests against staging API
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Run integration tests
+        run: pnpm test -- --reporter=verbose
+        env:
+          LEDEWIRE_BASE_URL: https://api-staging.ledewire.com
+          LEDEWIRE_TEST_API_KEY: ${{ secrets.STAGING_API_KEY }}
+          LEDEWIRE_TEST_API_SECRET: ${{ secrets.STAGING_API_SECRET }}
+          INTEGRATION: 'true'

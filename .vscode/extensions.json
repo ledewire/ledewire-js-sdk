@@ -1,0 +1,26 @@
+{
+  // Recommended extensions for contributors not using the devcontainer.
+  // The devcontainer installs these automatically.
+  "recommendations": [
+    // Formatting
+    "esbenp.prettier-vscode",
+    // Linting
+    "dbaeumer.vscode-eslint",
+    // TypeScript
+    "ms-vscode.vscode-typescript-next",
+    // Testing
+    "vitest.explorer",
+    // AI assistance
+    "github.copilot",
+    "github.copilot-chat",
+    // Git
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+    // GitHub Actions
+    "github.vscode-github-actions",
+    // Spell check
+    "streetsidesoftware.code-spell-checker",
+    // YAML (for workflow files)
+    "redhat.vscode-yaml"
+  ]
+}
