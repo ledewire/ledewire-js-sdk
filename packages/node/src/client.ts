@@ -1,5 +1,7 @@
 import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
 import type { TokenStorage, StoredTokens } from '@ledewire/core'
+import { AuthNamespace } from './resources/auth.js'
+import { MerchantNamespace } from './resources/merchant/index.js'
 
 /**
  * Configuration options for the LedeWire Node.js client.
@@ -162,21 +164,7 @@ export class NodeClient {
   }
 }
 
-// Placeholder namespace classes - replaced by real implementations in build step 4
-/** @internal */
-class AuthNamespace {
-  constructor(
-    protected readonly http: HttpClient,
-    protected readonly tokenManager: TokenManager,
-  ) {}
-}
-/** @internal */
-class MerchantNamespace {
-  constructor(
-    protected readonly http: HttpClient,
-    protected readonly tokenManager: TokenManager,
-  ) {}
-}
+// Placeholder namespace classes - replaced by real implementations in later phases
 /** @internal */
 class SellerNamespace {
   constructor(protected readonly http: HttpClient) {}
