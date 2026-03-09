@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["packages/browser/src/index.ts", "packages/node/src/index.ts"],
+  "out": "docs/api",
+  "name": "LedeWire SDK API Reference",
+  "readme": "none",
+  "includeVersion": true,
+  "hideGenerator": true,
+  "searchInComments": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "Home": "../",
+    "Browser CDN Guide": "../guides/browser-cdn.html",
+    "Node.js Guide": "../guides/node-npm.html",
+    "GitHub": "https://github.com/ledewire/ledewire-js-sdk"
+  },
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": false
+}

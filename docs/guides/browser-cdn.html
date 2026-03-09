@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser CDN Guide — LedeWire SDK</title>
+    <style>
+      :root { --accent: #4f46e5; --bg: #f9fafb; --text: #111827; --muted: #6b7280; --code-bg: #1e1e2e; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+      header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+      header h1 { font-size: 1.25rem; font-weight: 700; }
+      header nav a { color: var(--accent); text-decoration: none; margin-left: 1.5rem; font-size: 0.95rem; }
+      header nav a:hover { text-decoration: underline; }
+      .content { max-width: 760px; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+      h2 { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.75rem; }
+      h3 { font-size: 1.15rem; font-weight: 700; margin: 2rem 0 0.5rem; }
+      p { color: var(--muted); margin-bottom: 1rem; }
+      p strong { color: var(--text); }
+      pre { background: var(--code-bg); color: #cdd6f4; border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1rem 0 1.5rem; font-size: 0.875rem; line-height: 1.6; }
+      code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+      p code { background: #e5e7eb; color: var(--text); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.875em; }
+      .callout { background: #eff6ff; border-left: 4px solid var(--accent); padding: 0.75rem 1rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; color: var(--text); font-size: 0.9rem; }
+      .steps { counter-reset: steps; }
+      .step { counter-increment: steps; margin-bottom: 2rem; }
+      .step::before { content: counter(steps); background: var(--accent); color: white; width: 1.75rem; height: 1.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; margin-right: 0.6rem; vertical-align: middle; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>LedeWire SDK</h1>
+      <nav>
+        <a href="../">Home</a>
+        <a href="node-npm.html">Node.js Guide</a>
+        <a href="../api/">API Reference</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <h2>Browser CDN — Getting Started</h2>
+      <p>
+        Add a paywall to any webpage <strong>without a build step</strong>.
+        Drop in a single <code>&lt;script&gt;</code> tag and the
+        <code>Ledewire</code> global is ready to use.
+      </p>
+
+      <div class="callout">
+        <strong>Who this is for:</strong> Site owners publishing articles,
+        guides, or media who want to gate content without modifying an existing
+        build pipeline.
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <h3>Add the script tag</h3>
+          <p>
+            Include the CDN bundle on every page that needs paywall logic.
+            Pin to a major version so you receive non-breaking updates
+            automatically.
+          </p>
+          <pre><code>&lt;!-- Pin to a major version in production --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/@ledewire/browser@1/dist/ledewire.min.js"&gt;&lt;/script&gt;</code></pre>
+        </div>
+
+        <div class="step">
+          <h3>Initialise the client</h3>
+          <p>
+            Call <code>Ledewire.init()</code> with your API key (available in
+            the LedeWire merchant dashboard).
+          </p>
+          <pre><code>const lw = Ledewire.init({
+  apiKey: 'your_api_key',
+
+  // Optional: called when the buyer's session expires
+  onAuthExpired: () =&gt; showLoginModal(),
+})</code></pre>
+        </div>
+
+        <div class="step">
+          <h3>Check checkout state</h3>
+          <p>
+            Call <code>lw.checkout.state(contentId)</code> to determine what
+            the current visitor needs to do next.
+            The <code>next_required_action</code> field drives your UI.
+          </p>
+          <pre><code>const state = await lw.checkout.state('content-id')
+
+switch (state.checkout_state.next_required_action) {
+  case 'view_content':
+    showFullArticle()
+    break
+  case 'authenticate':
+    showLoginPrompt()
+    break
+  case 'fund_wallet':
+    showFundWalletPrompt(state.price_cents)
+    break
+  case 'purchase':
+    showPurchaseButton()
+    break
+}</code></pre>
+        </div>
+
+        <div class="step">
+          <h3>Authenticate the buyer</h3>
+          <p>
+            Use email/password or Google OAuth. On success, tokens are stored
+            in memory (or <code>localStorage</code> if you prefer persistence).
+          </p>
+          <pre><code>// Email + password
+await lw.auth.loginWithEmail({ email, password })
+
+// Google OAuth (receives the id_token from Google Sign-In)
+await lw.auth.loginWithGoogle({ id_token: googleIdToken })</code></pre>
+        </div>
+
+        <div class="step">
+          <h3>Fund the wallet (Stripe)</h3>
+          <p>
+            LedeWire uses a wallet model. Buyers deposit funds first, then
+            purchase content. Use <code>createPaymentSession</code> to get a
+            Stripe client secret, then present the Stripe Elements UI.
+          </p>
+          <pre><code>const session = await lw.wallet.createPaymentSession({ amount_cents: 1000 })
+// session.public_key  → Stripe publishable key
+// session.client_secret → pass to Stripe Elements / PaymentElement</code></pre>
+        </div>
+
+        <div class="step">
+          <h3>Purchase and reveal content</h3>
+          <p>
+            Once the wallet has sufficient funds, create a purchase and refresh
+            the checkout state — <code>next_required_action</code> will become
+            <code>'view_content'</code>.
+          </p>
+          <pre><code>await lw.purchases.create({ content_id: 'content-id' })
+const updated = await lw.checkout.state('content-id')
+// updated.checkout_state.next_required_action === 'view_content' ✓</code></pre>
+        </div>
+      </div>
+
+      <h3>Full example</h3>
+      <p>
+        See
+        <a href="https://github.com/ledewire/ledewire-js-sdk/tree/main/examples/browser-cdn">
+          examples/browser-cdn/index.html
+        </a>
+        for a complete working page including wallet funding and the full
+        paywall state machine.
+      </p>
+
+      <h3>Persistent sessions</h3>
+      <p>
+        By default, tokens are stored in memory and lost on page reload.
+        To keep the buyer logged in across reloads, pass the built-in
+        <code>localStorageAdapter</code> (imported via ES module, not CDN):
+      </p>
+      <pre><code>import { init, localStorageAdapter } from '@ledewire/browser'
+
+const lw = init({
+  apiKey: 'your_api_key',
+  storage: localStorageAdapter(),  // persists to localStorage
+})</code></pre>
+    </main>
+  </body>
+</html>

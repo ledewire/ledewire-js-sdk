@@ -1,0 +1,93 @@
+# LedeWire JS SDK
+
+> Official JavaScript/TypeScript SDK for the LedeWire API.
+> Source: https://github.com/ledewire/ledewire-js-sdk
+> Docs: https://ledewire.github.io/ledewire-js-sdk/
+> API Reference: https://ledewire.github.io/ledewire-js-sdk/api/
+
+## Packages
+
+- `@ledewire/browser` — Browser SDK (ESM + CDN IIFE `Ledewire` global). Buyer flows only.
+- `@ledewire/node` — Node.js SDK. Full API: merchant, seller, and buyer flows.
+
+## Browser CDN usage
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@ledewire/browser@1/dist/ledewire.min.js"></script>
+<script>
+  const lw = Ledewire.init({ apiKey: 'your_api_key' })
+  const state = await lw.checkout.state('content-id')
+  // state.checkout_state.next_required_action:
+  //   'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+</script>
+```
+
+## Node.js usage
+
+```ts
+import { createClient } from '@ledewire/node'
+const client = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+```
+
+## Client namespaces
+
+### @ledewire/browser — init()
+- `lw.auth.signup(body)` — create buyer account
+- `lw.auth.loginWithEmail({ email, password })` — buyer email login
+- `lw.auth.loginWithGoogle({ id_token })` — buyer Google login
+- `lw.checkout.state(contentId)` → `CheckoutStateResponse` — next action for content
+- `lw.wallet.balance()` → `{ balance_cents }` — buyer wallet balance
+- `lw.wallet.transactions()` → list of wallet transactions
+- `lw.wallet.createPaymentSession({ amount_cents })` → Stripe payment session
+- `lw.wallet.getPaymentStatus(sessionId)` → payment status
+- `lw.purchases.create({ content_id })` → create purchase
+- `lw.purchases.list()` → list purchases
+- `lw.purchases.get(id)` → single purchase
+- `lw.content.getWithAccess(contentId, options?)` → content + access info
+
+### @ledewire/node — createClient()
+- `client.auth.*` — buyer auth (signup, email, google, logout, password reset)
+- `client.merchant.auth.*` — merchant email/google login; `.stores()` → store list
+- `client.merchant.users.*` — team management (list, invite, remove)
+- `client.merchant.sales.*` — summary, list, get; `buyers(storeId)`
+- `client.merchant.config.get(storeId)` → store config (google_client_id)
+- `client.seller.content.*` — content CRUD + search
+- `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
+- `client.purchases.*` — create, list, get
+- `client.content.getWithAccess(contentId, options?)` → content + access info
+- `client.checkout.state(contentId)` → `CheckoutStateResponse`
+
+## Key types (packages/core)
+
+```ts
+interface CheckoutStateResponse {
+  content_id: string
+  content_title: string
+  price_cents: number
+  checkout_state: {
+    is_authenticated: boolean
+    has_sufficient_funds: boolean | null
+    has_purchased: boolean
+    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  }
+}
+
+// All SDK errors extend LedewireError
+class LedewireError extends Error { statusCode: number; code: number }
+class UnauthorizedError extends LedewireError {}
+class NotFoundError extends LedewireError {}
+class ValidationError extends LedewireError {}
+class ServerError extends LedewireError {}
+```
+
+## Architecture notes
+
+- `packages/core` is private (not published). Shared by browser and node packages.
+- `TokenManager` handles JWT refresh automatically — do NOT manually refresh.
+- HTTP errors are mapped to typed error classes in `packages/core/src/errors.ts`.
+- OpenAPI source of truth: `ledewire.yml` at the repo root.
+- All exported public symbols have JSDoc (enforced by ESLint `jsdoc/require-jsdoc`).
+- Tests use Vitest + MSW for HTTP mocking. Coverage ≥ 90% enforced in CI.

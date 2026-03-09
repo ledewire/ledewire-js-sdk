@@ -120,11 +120,11 @@ Each phase is designed to fit in a single focused session.
 
 > Changesets + TypeDoc + GitHub Pages.
 
-- [ ] Initialize Changesets (`.changeset/config.json`)
-- [ ] TypeDoc config (`typedoc.json`) — generates API reference from JSDoc
-- [ ] GitHub Pages deploy step in `release.yml` for TypeDoc output
-- [ ] Minimal Docusaurus skeleton in `docs/` — getting-started guides for browser CDN and node npm patterns
-- [ ] `AGENTS.md` + `llms.txt` at repo root
+- [x] Initialize Changesets (`.changeset/config.json`)
+- [x] TypeDoc config (`typedoc.json`) — generates API reference from JSDoc
+- [x] GitHub Pages deploy step in `release.yml` for TypeDoc output
+- [x] Minimal docs skeleton in `docs/` — static HTML getting-started guides for browser CDN and node npm patterns
+- [x] `AGENTS.md` + `llms.txt` at repo root
 
 ---
 
@@ -141,9 +141,9 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed                         |
-| ------- | ---------- | ---------------------------------------- |
-| 1       | 2026-03-09 | Phase 1 ✅                               |
-| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅       |
-| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅                   |
-| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅                   |
+| Session | Date       | Phases completed                   |
+| ------- | ---------- | ---------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                         |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ |
+| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅             |
+| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅, Phase 8 ✅ |

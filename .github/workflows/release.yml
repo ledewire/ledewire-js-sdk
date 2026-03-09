@@ -88,12 +88,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Generate TypeDoc API reference
-        run: |
-          pnpm dlx typedoc \
-            --out docs/api \
-            --name "LedeWire SDK API Reference" \
-            packages/browser/src/index.ts \
-            packages/node/src/index.ts
+        run: pnpm dlx typedoc
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/

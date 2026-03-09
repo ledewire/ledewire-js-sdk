@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LedeWire JS SDK</title>
+    <style>
+      :root { --accent: #4f46e5; --bg: #f9fafb; --text: #111827; --muted: #6b7280; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+      header { background: white; border-bottom: 1px solid #e5e7eb; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+      header h1 { font-size: 1.25rem; font-weight: 700; }
+      header nav a { color: var(--accent); text-decoration: none; margin-left: 1.5rem; font-size: 0.95rem; }
+      header nav a:hover { text-decoration: underline; }
+      .hero { max-width: 800px; margin: 4rem auto; padding: 0 1.5rem; }
+      .hero h2 { font-size: 2rem; font-weight: 800; line-height: 1.2; }
+      .hero p { margin-top: 1rem; color: var(--muted); font-size: 1.1rem; max-width: 600px; }
+      .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 3rem; }
+      @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+      .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; text-decoration: none; color: inherit; transition: border-color 0.15s; }
+      .card:hover { border-color: var(--accent); }
+      .card .tag { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+      .card h3 { font-size: 1.1rem; margin-top: 0.5rem; }
+      .card p { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+      .card .arrow { display: inline-block; margin-top: 1rem; font-size: 0.85rem; color: var(--accent); font-weight: 500; }
+      footer { text-align: center; padding: 3rem; color: var(--muted); font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>LedeWire SDK</h1>
+      <nav>
+        <a href="guides/browser-cdn.html">Browser CDN Guide</a>
+        <a href="guides/node-npm.html">Node.js Guide</a>
+        <a href="api/">API Reference</a>
+        <a href="https://github.com/ledewire/ledewire-js-sdk" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="hero">
+      <h2>Official JavaScript SDK for the LedeWire API</h2>
+      <p>
+        Sell articles, guides and media behind a paywall — embedded directly on
+        your site or via a full Node.js integration.
+      </p>
+
+      <div class="cards">
+        <a class="card" href="guides/browser-cdn.html">
+          <div class="tag">Quick start</div>
+          <h3>Browser CDN</h3>
+          <p>
+            Drop one <code>&lt;script&gt;</code> tag on any page. No build step
+            required. Enable buyer auth, wallet funding and content purchases in
+            minutes.
+          </p>
+          <div class="arrow">Read the guide →</div>
+        </a>
+
+        <a class="card" href="guides/node-npm.html">
+          <div class="tag">Quick start</div>
+          <h3>Node.js npm</h3>
+          <p>
+            Install <code>@ledewire/node</code> for the full API — merchant
+            authentication, content management, sales reporting, and buyer flows.
+          </p>
+          <div class="arrow">Read the guide →</div>
+        </a>
+
+        <a class="card" href="api/">
+          <div class="tag">Reference</div>
+          <h3>API Reference</h3>
+          <p>Full TypeDoc-generated reference for every exported type, method, and class in <code>@ledewire/browser</code> and <code>@ledewire/node</code>.</p>
+          <div class="arrow">Browse reference →</div>
+        </a>
+
+        <a class="card" href="https://api.ledewire.com/api-docs/index.html" target="_blank" rel="noopener">
+          <div class="tag">REST</div>
+          <h3>REST API Docs</h3>
+          <p>
+            Full OpenAPI specification for the LedeWire backend — for advanced
+            integrations or custom client generation.
+          </p>
+          <div class="arrow">Open docs →</div>
+        </a>
+      </div>
+    </main>
+
+    <footer>
+      &copy; LedeWire &bull; MIT License &bull;
+      <a href="https://github.com/ledewire/ledewire-js-sdk">ledewire/ledewire-js-sdk</a>
+    </footer>
+  </body>
+</html>
