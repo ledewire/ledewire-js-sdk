@@ -51,9 +51,9 @@ Each phase is designed to fit in a single focused session.
 
 **Endpoints:** `GET/POST /v1/merchant/{store_id}/content`, `GET /v1/merchant/{store_id}/content/search`, `GET/PATCH/DELETE /v1/merchant/{store_id}/content/{id}`
 
-- [ ] `packages/node/src/resources/seller/content.ts` — `SellerContentNamespace` with `list`, `create`, `search`, `get`, `update`, `delete`
-- [ ] Wire into `SellerNamespace` + `NodeClient`
-- [ ] Tests for all methods (happy path + 401/404 error cases)
+- [x] `packages/node/src/resources/seller/content.ts` — `SellerContentNamespace` with `list`, `create`, `search`, `get`, `update`, `delete`
+- [x] Wire into `SellerNamespace` + `NodeClient`
+- [x] Tests for all methods (happy path + 401/404 error cases)
 
 ---
 
@@ -143,5 +143,4 @@ Each phase is designed to fit in a single focused session.
 
 | Session | Date       | Phases completed |
 | ------- | ---------- | ---------------- |
-| 1       | 2026-03-09 | Phase 1 ✅       |
-| 2       | 2026-03-09 | Phase 2 ✅       |
+| 1       | 2026-03-09 | Phase 1 ✅       || 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ || 2       | 2026-03-09 | Phase 2 ✅       |

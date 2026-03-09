@@ -64,6 +64,9 @@ export type ContentListItem = components['schemas']['ContentListItem']
 /** Full content response returned by get/create/update operations. */
 export type Content = components['schemas']['Content']
 
+/** Full content item returned by all seller content endpoints. */
+export type ContentResponse = components['schemas']['ContentResponse']
+
 /** Request body for updating content. */
 export type ContentUpdateRequest = components['schemas']['ContentUpdateRequest']
 

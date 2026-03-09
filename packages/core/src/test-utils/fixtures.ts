@@ -9,6 +9,7 @@ type AuthResponse = components['schemas']['AuthenticationResponse']
 type MerchantAuthResponse = components['schemas']['MerchantAuthenticationResponse']
 type MerchantUserSchema = components['schemas']['MerchantUser']
 type ManageableStoreSchema = components['schemas']['ManageableStore']
+type ContentResponseSchema = components['schemas']['ContentResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -78,6 +79,24 @@ export function manageableStoreFixture(
     role: 'owner',
     is_author: true,
     logo: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a valid content response fixture.
+ */
+export function contentResponseFixture(
+  overrides?: Partial<ContentResponseSchema>,
+): ContentResponseSchema {
+  return {
+    id: 'content-id-1',
+    content_type: 'markdown',
+    title: 'Test Article',
+    content_body: btoa('# Test Article\nBody text.'),
+    teaser: btoa('A short teaser.'),
+    price_cents: 500,
+    visibility: 'public',
     ...overrides,
   }
 }
