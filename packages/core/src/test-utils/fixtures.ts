@@ -18,6 +18,10 @@ type WalletPaymentStatusSchema = components['schemas']['WalletPaymentStatusRespo
 type PurchaseResponseSchema = components['schemas']['PurchaseResponse']
 type ContentAccessInfoSchema = components['schemas']['ContentAccessInfo']
 type CheckoutStateSchema = components['schemas']['CheckoutStateResponse']
+type SalesSummarySchema = components['schemas']['SalesSummaryResponse']
+type SalesStatisticsSchema = components['schemas']['SalesStatisticsItem']
+type MerchantSaleSchema = components['schemas']['MerchantSaleResponse']
+type BuyerStatisticsSchema = components['schemas']['BuyerStatisticsItem']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -235,6 +239,70 @@ export function checkoutStateFixture(
       has_purchased: false,
       next_required_action: 'purchase',
     },
+    ...overrides,
+  }
+}
+/**
+ * Returns a sales summary response fixture.
+ */
+export function salesSummaryFixture(overrides?: Partial<SalesSummarySchema>): SalesSummarySchema {
+  return {
+    total_revenue_cents: 15000,
+    total_sales: 3,
+    monthly_revenue_cents: { '2099': { '1': 15000 } },
+    monthly_sales: { '2099': { '1': 3 } },
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a sales statistics item fixture (per-title rollup).
+ */
+export function salesStatisticsItemFixture(
+  overrides?: Partial<SalesStatisticsSchema>,
+): SalesStatisticsSchema {
+  return {
+    content_id: 'content-id-1',
+    title: 'Test Article',
+    total_sales: 3,
+    total_revenue_cents: 1500,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a merchant sale detail fixture (includes fee breakdown).
+ */
+export function merchantSaleFixture(overrides?: Partial<MerchantSaleSchema>): MerchantSaleSchema {
+  return {
+    id: 'sale-id-1',
+    content_id: 'content-id-1',
+    content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
+    buyer_id: 'user-id-1',
+    buyer: { id: 'user-id-1', name: 'Test Buyer' },
+    seller_id: 'seller-id-1',
+    seller: { id: 'seller-id-1', name: 'Test Seller' },
+    amount_cents: 500,
+    fees: { platform_fee_cents: 50, store_net_cents: 450, author_net_cents: 0 },
+    status: 'completed',
+    timestamp: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a buyer statistics item fixture.
+ */
+export function buyerStatisticsItemFixture(
+  overrides?: Partial<BuyerStatisticsSchema>,
+): BuyerStatisticsSchema {
+  return {
+    buyer_ref: 'buyer-ref-1',
+    purchases_count: 2,
+    total_spent_cents: 1000,
+    first_purchase_at: '2099-01-01T00:00:00Z',
+    last_purchase_at: '2099-01-02T00:00:00Z',
+    buyer_status: 'repeat',
     ...overrides,
   }
 }

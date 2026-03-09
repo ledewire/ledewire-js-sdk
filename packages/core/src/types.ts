@@ -100,11 +100,27 @@ export type PurchaseVerifyResponse = components['schemas']['PurchaseVerifyRespon
 /** Sales summary statistics for a store. */
 export type SalesSummaryResponse = components['schemas']['SalesSummaryResponse']
 
-/** A single sale record for a merchant store. */
+/** A single sale record for a merchant store, including platform fee breakdown. */
 export type MerchantSaleResponse = components['schemas']['MerchantSaleResponse']
+
+/** Per-content-title sales rollup returned by the merchant sales list endpoint. */
+export type SalesStatisticsItem = components['schemas']['SalesStatisticsItem']
 
 /** Buyer statistics item for a merchant store. */
 export type BuyerStatisticsItem = components['schemas']['BuyerStatisticsItem']
+
+// ---------------------------------------------------------------------------
+// SDK-level types (inline API shapes not promoted to named schemas)
+// ---------------------------------------------------------------------------
+
+/**
+ * Store public configuration returned by `GET /v1/merchant/{store_id}/config`.
+ * The `google_client_id` is used to initialise the Google OAuth button on the
+ * buyer-facing storefront.
+ */
+export interface StoreConfig {
+  google_client_id?: string
+}
 
 // ---------------------------------------------------------------------------
 // SDK-internal types (not in the OpenAPI spec)

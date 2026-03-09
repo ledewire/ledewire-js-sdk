@@ -78,12 +78,12 @@ Each phase is designed to fit in a single focused session.
 
 **Endpoints:** `GET /v1/merchant/{store_id}/sales/summary`, `GET /v1/merchant/{store_id}/sales`, `GET /v1/merchant/{store_id}/sales/{id}`, `GET /v1/merchant/{store_id}/buyers`, `GET/PATCH /v1/merchant/{store_id}/config`
 
-- [ ] `packages/node/src/resources/merchant/sales.ts` — `summary`, `list`, `get`
-- [ ] `packages/node/src/resources/merchant/buyers.ts` — `list`
-- [ ] `packages/node/src/resources/merchant/config.ts` — `get`, `update`
-- [ ] All merchant resources wired into `MerchantNamespace`; all placeholder classes removed from `NodeClient`
-- [ ] Tests for all methods
-- [ ] `pnpm test:coverage` for `packages/node` ≥90%
+- [x] `packages/node/src/resources/merchant/sales.ts` — `summary`, `list`, `get`
+- [x] `packages/node/src/resources/merchant/buyers.ts` — `list`
+- [x] `packages/node/src/resources/merchant/config.ts` — `get`
+- [x] All merchant resources wired into `MerchantNamespace`; all placeholder classes removed from `NodeClient`
+- [x] Tests for all methods
+- [x] `pnpm test:coverage` for `packages/node` ≥90%
 
 ---
 
@@ -141,8 +141,8 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed                                |
-| ------- | ---------- | ----------------------------------------------- |
-| 1       | 2026-03-09 | Phase 1 ✅                                      |
-| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅              |
-| 3       | 2026-03-09 | Phase 4 ✅                                      |
+| Session | Date       | Phases completed                   |
+| ------- | ---------- | ---------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                         |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ |
+| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅             |
