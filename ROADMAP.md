@@ -63,12 +63,12 @@ Each phase is designed to fit in a single focused session.
 
 **Endpoints:** `GET /v1/wallet/balance`, `GET /v1/wallet/transactions`, `POST /v1/wallet/payment-session`, `GET /v1/wallet/payment-status/{session_id}`, `GET/POST /v1/purchases`, `GET /v1/purchases/{id}`, `GET /v1/content/{id}/with-access`
 
-- [ ] `packages/node/src/resources/wallet.ts` — `balance`, `transactions`, `createPaymentSession`, `getPaymentStatus`
-- [ ] `packages/node/src/resources/purchases.ts` — `create`, `list`, `get`
-- [ ] `packages/node/src/resources/content.ts` — `getWithAccess`
-- [ ] `packages/node/src/resources/checkout.ts` — `state` (wraps `getWithAccess`, maps to `CheckoutState`)
-- [ ] Wire all into `NodeClient`; replace all placeholder classes
-- [ ] Tests for all methods
+- [x] `packages/node/src/resources/wallet.ts` — `balance`, `transactions`, `createPaymentSession`, `getPaymentStatus`
+- [x] `packages/node/src/resources/purchases.ts` — `create`, `list`, `get`
+- [x] `packages/node/src/resources/content.ts` — `getWithAccess`
+- [x] `packages/node/src/resources/checkout.ts` — `state` (wraps `getWithAccess`, maps to `CheckoutState`)
+- [x] Wire all into `NodeClient`; replace all placeholder classes
+- [x] Tests for all methods
 
 ---
 
@@ -141,6 +141,8 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed |
-| ------- | ---------- | ---------------- |
-| 1       | 2026-03-09 | Phase 1 ✅       || 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ || 2       | 2026-03-09 | Phase 2 ✅       |
+| Session | Date       | Phases completed                                |
+| ------- | ---------- | ----------------------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                                      |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅              |
+| 3       | 2026-03-09 | Phase 4 ✅                                      |

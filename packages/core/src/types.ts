@@ -91,6 +91,9 @@ export type PurchaseCreateRequest = components['schemas']['PurchaseCreateRequest
 /** A purchase record. */
 export type PurchaseResponse = components['schemas']['PurchaseResponse']
 
+/** Full checkout state for a buyer/content pair, including auth and fund status. */
+export type CheckoutStateResponse = components['schemas']['CheckoutStateResponse']
+
 /** Purchase verification result. */
 export type PurchaseVerifyResponse = components['schemas']['PurchaseVerifyResponse']
 

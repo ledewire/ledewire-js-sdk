@@ -10,6 +10,14 @@ type MerchantAuthResponse = components['schemas']['MerchantAuthenticationRespons
 type MerchantUserSchema = components['schemas']['MerchantUser']
 type ManageableStoreSchema = components['schemas']['ManageableStore']
 type ContentResponseSchema = components['schemas']['ContentResponse']
+type ContentWithAccessSchema = components['schemas']['ContentWithAccessResponse']
+type WalletBalanceSchema = components['schemas']['WalletBalanceResponse']
+type WalletTransactionSchema = components['schemas']['WalletTransactionItem']
+type WalletPaymentSessionSchema = components['schemas']['WalletPaymentSessionResponse']
+type WalletPaymentStatusSchema = components['schemas']['WalletPaymentStatusResponse']
+type PurchaseResponseSchema = components['schemas']['PurchaseResponse']
+type ContentAccessInfoSchema = components['schemas']['ContentAccessInfo']
+type CheckoutStateSchema = components['schemas']['CheckoutStateResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -97,6 +105,136 @@ export function contentResponseFixture(
     teaser: btoa('A short teaser.'),
     price_cents: 500,
     visibility: 'public',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a content access info fixture (used within ContentWithAccessResponse).
+ */
+export function contentAccessInfoFixture(
+  overrides?: Partial<ContentAccessInfoSchema>,
+): ContentAccessInfoSchema {
+  return {
+    user_id: 'user-id-1',
+    has_purchased: false,
+    has_sufficient_funds: true,
+    wallet_balance_cents: 1000,
+    next_required_action: 'purchase',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a content-with-access response fixture.
+ */
+export function contentWithAccessFixture(
+  overrides?: Partial<ContentWithAccessSchema>,
+): ContentWithAccessSchema {
+  return {
+    ...contentResponseFixture(),
+    access_info: contentAccessInfoFixture(),
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a wallet balance response fixture.
+ */
+export function walletBalanceFixture(
+  overrides?: Partial<WalletBalanceSchema>,
+): WalletBalanceSchema {
+  return {
+    balance_cents: 12500,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a wallet transaction item fixture.
+ */
+export function walletTransactionFixture(
+  overrides?: Partial<WalletTransactionSchema>,
+): WalletTransactionSchema {
+  return {
+    id: 'txn-id-1',
+    type: 'credit',
+    reason: 'wallet_funding',
+    amount_cents: 5000,
+    balance_after_cents: 12500,
+    status: 'completed',
+    reference_id: 'ref-id-1',
+    description: 'Wallet top-up',
+    occurred_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a wallet payment session response fixture.
+ */
+export function walletPaymentSessionFixture(
+  overrides?: Partial<WalletPaymentSessionSchema>,
+): WalletPaymentSessionSchema {
+  return {
+    client_secret: 'pi_test_secret',
+    session_id: 'pi_test_session',
+    public_key: 'pk_test_pubkey',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a wallet payment status response fixture.
+ */
+export function walletPaymentStatusFixture(
+  overrides?: Partial<WalletPaymentStatusSchema>,
+): WalletPaymentStatusSchema {
+  return {
+    status: 'completed',
+    updated_at: '2099-01-01T00:01:00Z',
+    balance_cents: 12500,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a purchase response fixture.
+ */
+export function purchaseResponseFixture(
+  overrides?: Partial<PurchaseResponseSchema>,
+): PurchaseResponseSchema {
+  return {
+    id: 'purchase-id-1',
+    content_id: 'content-id-1',
+    content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
+    buyer_id: 'user-id-1',
+    buyer: { id: 'user-id-1', name: 'Test Buyer' },
+    seller_id: 'seller-id-1',
+    seller: { id: 'seller-id-1', name: 'Test Seller' },
+    amount_cents: 500,
+    timestamp: '2099-01-01T00:00:00Z',
+    status: 'completed',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a checkout state response fixture.
+ */
+export function checkoutStateFixture(
+  overrides?: Partial<CheckoutStateSchema>,
+): CheckoutStateSchema {
+  return {
+    content_id: 'content-id-1',
+    content_title: 'Test Article',
+    price_cents: 500,
+    checkout_state: {
+      is_authenticated: true,
+      has_sufficient_funds: true,
+      has_purchased: false,
+      next_required_action: 'purchase',
+    },
     ...overrides,
   }
 }

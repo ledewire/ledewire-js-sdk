@@ -1,8 +1,12 @@
 import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
 import type { TokenStorage, StoredTokens } from '@ledewire/core'
 import { AuthNamespace } from './resources/auth.js'
+import { CheckoutNamespace } from './resources/checkout.js'
+import { ContentNamespace } from './resources/content.js'
 import { MerchantNamespace } from './resources/merchant/index.js'
+import { PurchasesNamespace } from './resources/purchases.js'
 import { SellerNamespace } from './resources/seller/index.js'
+import { WalletNamespace } from './resources/wallet.js'
 
 /**
  * Configuration options for the LedeWire Node.js client.
@@ -147,6 +151,9 @@ export class NodeClient {
   /** Public content with per-user access information */
   readonly content: ContentNamespace
 
+  /** Buyer checkout state — what action is required before accessing content */
+  readonly checkout: CheckoutNamespace
+
   /**
    * @internal
    * Exposed for testing and advanced use cases.
@@ -162,19 +169,6 @@ export class NodeClient {
     this.wallet = new WalletNamespace(_http)
     this.purchases = new PurchasesNamespace(_http)
     this.content = new ContentNamespace(_http)
+    this.checkout = new CheckoutNamespace(_http)
   }
-}
-
-// Placeholder namespace classes - replaced by real implementations in later phases
-/** @internal */
-class WalletNamespace {
-  constructor(protected readonly http: HttpClient) {}
-}
-/** @internal */
-class PurchasesNamespace {
-  constructor(protected readonly http: HttpClient) {}
-}
-/** @internal */
-class ContentNamespace {
-  constructor(protected readonly http: HttpClient) {}
 }
