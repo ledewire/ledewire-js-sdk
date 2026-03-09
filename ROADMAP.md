@@ -19,29 +19,29 @@ Each phase is designed to fit in a single focused session.
 
 ---
 
-## Phase 1 — `@ledewire/node`: Auth namespace
+## Phase 1 — `@ledewire/node`: Auth namespace ✅ **DONE**
 
 > First real API surface. Establishes namespace implementation pattern for all later phases.
 
 **Endpoints:** `POST /v1/auth/signup`, `POST /v1/auth/login/email`, `POST /v1/auth/login/google`, `POST /v1/auth/login/api-key`, `POST /v1/auth/token/refresh`
 
-- [ ] `packages/node/src/resources/auth.ts` — `AuthNamespace` with `signup`, `loginWithEmail`, `loginWithGoogle`, `loginWithApiKey`
-- [ ] Wire `AuthNamespace` into `NodeClient` constructor (replace placeholder)
-- [ ] `packages/node/src/resources/auth.test.ts` — MSW boundary tests for all methods + token storage verification
-- [ ] Additional types in `core/types.ts`: `AuthSignupRequest`, `AuthLoginEmailRequest`, etc. (or generated aliases)
+- [x] `packages/node/src/resources/auth.ts` — `AuthNamespace` with `signup`, `loginWithEmail`, `loginWithGoogle`, `loginWithApiKey`
+- [x] Wire `AuthNamespace` into `NodeClient` constructor (replace placeholder)
+- [x] `packages/node/src/resources/auth.test.ts` — MSW boundary tests for all methods + token storage verification
+- [x] Additional types in `core/types.ts`: `AuthSignupRequest`, `AuthLoginEmailRequest`, etc. (or generated aliases)
 
 ---
 
-## Phase 2 — `@ledewire/node`: Merchant auth + team management
+## Phase 2 — `@ledewire/node`: Merchant auth + team management ✅ **DONE**
 
 > Merchant login flow and user management.
 
 **Endpoints:** `POST /v1/auth/merchant/login/email`, `POST /v1/auth/merchant/login/google`, `GET /v1/auth/merchant/stores`, `GET/POST /v1/merchant/{store_id}/users`, `DELETE /v1/merchant/{store_id}/users/{id}`
 
-- [ ] `packages/node/src/resources/merchant/auth.ts` — `MerchantAuthNamespace` with `loginWithEmail`, `loginWithGoogle`, `listStores`
-- [ ] `packages/node/src/resources/merchant/users.ts` — `MerchantUsersNamespace` with `list`, `invite`, `remove`
-- [ ] Wire into `MerchantNamespace` + `NodeClient`
-- [ ] Tests for all methods
+- [x] `packages/node/src/resources/merchant/auth.ts` — `MerchantAuthNamespace` with `loginWithEmail`, `loginWithGoogle`, `listStores`
+- [x] `packages/node/src/resources/merchant/users.ts` — `MerchantUsersNamespace` with `list`, `invite`, `remove`
+- [x] Wire into `MerchantNamespace` + `NodeClient`
+- [x] Tests for all methods
 
 ---
 
@@ -143,4 +143,5 @@ Each phase is designed to fit in a single focused session.
 
 | Session | Date       | Phases completed |
 | ------- | ---------- | ---------------- |
-| 1       | 2026-03-09 | Phase 0 ✅       |
+| 1       | 2026-03-09 | Phase 1 ✅       |
+| 2       | 2026-03-09 | Phase 2 ✅       |

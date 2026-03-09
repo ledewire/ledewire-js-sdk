@@ -1,0 +1,133 @@
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
+import { AuthError } from '@ledewire/core'
+import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
+import {
+  merchantTokenFixture,
+  manageableStoreFixture,
+  errorResponseFixture,
+} from '@ledewire/core/test-utils'
+import { createClient } from '../../client.js'
+
+const BASE = 'https://api.ledewire.com'
+
+const server = createTestServer()
+beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
+afterEach(() => { server.resetHandlers() })
+afterAll(() => { server.close() })
+
+function makeClient() {
+  return createClient()
+}
+
+// ---------------------------------------------------------------------------
+// merchant.auth.loginWithEmail
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.loginWithEmail', () => {
+  it('returns the merchant token response', async () => {
+    const fixture = merchantTokenFixture()
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeClient().merchant.auth.loginWithEmail({
+      email: 'owner@example.com',
+      password: 'password123',
+    })
+
+    expect(result).toEqual(fixture)
+  })
+
+  it('stores tokens automatically after successful login', async () => {
+    const fixture = merchantTokenFixture({ access_token: 'merchant-email-token' })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)),
+    )
+
+    const client = makeClient()
+    await client.merchant.auth.loginWithEmail({ email: 'owner@example.com', password: 'pw' })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBe('merchant-email-token')
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Invalid credentials'), { status: 401 }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.auth.loginWithEmail({ email: 'x@x.com', password: 'bad' }),
+    ).rejects.toThrow(AuthError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.loginWithGoogle
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.loginWithGoogle', () => {
+  it('returns the merchant token response', async () => {
+    const fixture = merchantTokenFixture()
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeClient().merchant.auth.loginWithGoogle({ id_token: 'google-jwt' })
+
+    expect(result).toEqual(fixture)
+  })
+
+  it('stores tokens automatically after successful login', async () => {
+    const fixture = merchantTokenFixture({ access_token: 'merchant-google-token' })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)),
+    )
+
+    const client = makeClient()
+    await client.merchant.auth.loginWithGoogle({ id_token: 'google-jwt' })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBe('merchant-google-token')
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Invalid token'), { status: 401 }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.auth.loginWithGoogle({ id_token: 'bad-token' }),
+    ).rejects.toThrow(AuthError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.listStores
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.listStores', () => {
+  it('returns the list of manageable stores', async () => {
+    const fixture = [manageableStoreFixture(), manageableStoreFixture({ store_id: 'store-id-2' })]
+    server.use(
+      http.get(`${BASE}/v1/auth/merchant/stores`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeClient().merchant.auth.listStores()
+
+    expect(result).toEqual(fixture)
+    expect(result).toHaveLength(2)
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.get(`${BASE}/v1/auth/merchant/stores`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Unauthorized'), { status: 401 }),
+      ),
+    )
+
+    await expect(makeClient().merchant.auth.listStores()).rejects.toThrow(AuthError)
+  })
+})
