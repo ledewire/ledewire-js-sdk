@@ -7,9 +7,15 @@ import { init } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return init({ apiKey: 'test-api-key' })
@@ -20,7 +26,10 @@ describe('purchases.create', () => {
     const fixture = purchaseResponseFixture()
     server.use(http.post(`${BASE}/v1/purchases`, () => HttpResponse.json(fixture)))
 
-    const result = await makeClient().purchases.create({ content_id: 'content-id-1', price_cents: 500 })
+    const result = await makeClient().purchases.create({
+      content_id: 'content-id-1',
+      price_cents: 500,
+    })
 
     expect(result).toEqual(fixture)
     expect(result.status).toBe('completed')
@@ -82,9 +91,7 @@ describe('purchases.list', () => {
 describe('purchases.get', () => {
   it('returns a single purchase by ID', async () => {
     const fixture = purchaseResponseFixture()
-    server.use(
-      http.get(`${BASE}/v1/purchases/purchase-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/purchases/purchase-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().purchases.get('purchase-id-1')
 

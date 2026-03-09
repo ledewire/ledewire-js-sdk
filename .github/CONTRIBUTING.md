@@ -38,19 +38,20 @@ both published packages via the internal workspace dependency.
 
 ## Code Style
 
-| Rule | Enforcement |
-|---|---|
-| TypeScript strict mode | CI type-check |
-| No `any` without comment | ESLint |
-| JSDoc on all exports | ESLint |
-| Prettier formatting | CI format check |
-| 90% line coverage | Vitest coverage threshold |
+| Rule                     | Enforcement               |
+| ------------------------ | ------------------------- |
+| TypeScript strict mode   | CI type-check             |
+| No `any` without comment | ESLint                    |
+| JSDoc on all exports     | ESLint                    |
+| Prettier formatting      | CI format check           |
+| 90% line coverage        | Vitest coverage threshold |
 
 Run `pnpm format` before committing to avoid CI format failures.
 
 ## Releases
 
 Releases are fully automated:
+
 1. Merge changesets PR ("Version Packages") to `main`
 2. CI publishes to npm, creates GitHub Release with CDN bundle attached
 3. Docs are deployed to GitHub Pages automatically

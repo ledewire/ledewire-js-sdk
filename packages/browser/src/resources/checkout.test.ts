@@ -7,9 +7,15 @@ import { init } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return init({ apiKey: 'test-api-key' })
@@ -18,9 +24,7 @@ function makeClient() {
 describe('checkout.state', () => {
   it('returns the checkout state for a content item', async () => {
     const fixture = checkoutStateFixture()
-    server.use(
-      http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().checkout.state('content-id-1')
 
@@ -29,9 +33,7 @@ describe('checkout.state', () => {
 
   it('includes content metadata', async () => {
     const fixture = checkoutStateFixture()
-    server.use(
-      http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().checkout.state('content-id-1')
 
@@ -49,9 +51,7 @@ describe('checkout.state', () => {
         next_required_action: 'purchase',
       },
     })
-    server.use(
-      http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().checkout.state('content-id-1')
 
@@ -67,9 +67,7 @@ describe('checkout.state', () => {
         next_required_action: 'authenticate',
       },
     })
-    server.use(
-      http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().checkout.state('content-id-1')
 

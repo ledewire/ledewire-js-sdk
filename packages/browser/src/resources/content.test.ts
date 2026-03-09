@@ -7,9 +7,15 @@ import { init } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return init({ apiKey: 'test-api-key' })

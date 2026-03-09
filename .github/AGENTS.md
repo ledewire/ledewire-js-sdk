@@ -9,29 +9,30 @@ See `OVERVIEW.md` for the full design rationale and build order.
 
 ## Package Map
 
-| Package | npm name | Purpose |
-|---|---|---|
-| `packages/core` | (private — not published) | HTTP client, token manager, error classes, shared types |
-| `packages/browser` | `@ledewire/browser` | Buyer-facing SDK for browsers. CDN `<script>` tag + npm |
-| `packages/node` | `@ledewire/node` | Full API surface for Node.js. Merchant + seller + buyer |
+| Package            | npm name                  | Purpose                                                 |
+| ------------------ | ------------------------- | ------------------------------------------------------- |
+| `packages/core`    | (private — not published) | HTTP client, token manager, error classes, shared types |
+| `packages/browser` | `@ledewire/browser`       | Buyer-facing SDK for browsers. CDN `<script>` tag + npm |
+| `packages/node`    | `@ledewire/node`          | Full API surface for Node.js. Merchant + seller + buyer |
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `ledewire.yml` | OpenAPI 3.1 spec — source of truth for all endpoints and types |
-| `OVERVIEW.md` | Architecture overview, design decisions, build order |
-| `packages/core/src/errors.ts` | `LedewireError` class hierarchy |
-| `packages/core/src/http-client.ts` | Fetch wrapper — auth injection, error mapping, 401 retry |
-| `packages/core/src/token-manager.ts` | Proactive + reactive JWT refresh, deduplication |
-| `packages/core/src/types.ts` | Shared TypeScript types from the OpenAPI spec |
-| `packages/node/src/client.ts` | `createClient()` factory for Node.js |
-| `packages/browser/src/client.ts` | `init()` factory for browsers |
-| `packages/browser/src/local-storage-adapter.ts` | Optional persistent token storage |
+| File                                            | Purpose                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `ledewire.yml`                                  | OpenAPI 3.1 spec — source of truth for all endpoints and types |
+| `OVERVIEW.md`                                   | Architecture overview, design decisions, build order           |
+| `packages/core/src/errors.ts`                   | `LedewireError` class hierarchy                                |
+| `packages/core/src/http-client.ts`              | Fetch wrapper — auth injection, error mapping, 401 retry       |
+| `packages/core/src/token-manager.ts`            | Proactive + reactive JWT refresh, deduplication                |
+| `packages/core/src/types.ts`                    | Shared TypeScript types from the OpenAPI spec                  |
+| `packages/node/src/client.ts`                   | `createClient()` factory for Node.js                           |
+| `packages/browser/src/client.ts`                | `init()` factory for browsers                                  |
+| `packages/browser/src/local-storage-adapter.ts` | Optional persistent token storage                              |
 
 ## Client Namespace Structure
 
 ### Node client (`createClient()`)
+
 ```
 client.auth.*              buyer auth (email, google, api-key, refresh, password reset)
 client.merchant.auth.*     merchant auth (email, google) + store listing
@@ -46,6 +47,7 @@ client.content.*           public content with access info
 ```
 
 ### Browser client (`init()`)
+
 ```
 lw.auth.*       signup, login (email + google), logout, password reset
 lw.checkout.*   checkout state machine for a content item
@@ -57,14 +59,17 @@ lw.content.*    content with access info
 ## Critical Patterns
 
 ### Token management is automatic
+
 Never call token refresh manually. `TokenManager` handles it inside `HttpClient`.
 The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 
 ### Errors
+
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`).
 
 ### Adding a new API endpoint
+
 1. Add/update types in `packages/core/src/types.ts`
 2. Re-run type generation when the spec changes: `pnpm generate-types`
 3. Add the method to the correct namespace in `packages/node/src/resources/` or
@@ -73,6 +78,7 @@ the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseE
 5. Run `pnpm typecheck && pnpm test` — both must pass
 
 ### JSDoc is required on all exports
+
 CI fails if public API members lack JSDoc. Every exported function, class,
 interface, and type must have at minimum a one-sentence description.
 

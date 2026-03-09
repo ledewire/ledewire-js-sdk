@@ -13,7 +13,10 @@
   },
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly",
     "dev": "vite build --watch",
@@ -25,7 +28,13 @@
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist coverage .turbo"
   },
-  "keywords": ["ledewire", "sdk", "browser", "cdn", "paywall"],
+  "keywords": [
+    "ledewire",
+    "sdk",
+    "browser",
+    "cdn",
+    "paywall"
+  ],
   "license": "MIT",
   "dependencies": {
     "@ledewire/core": "workspace:*"

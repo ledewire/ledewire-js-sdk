@@ -13,9 +13,15 @@ import { init } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return init({ apiKey: 'test-api-key' })
@@ -76,7 +82,10 @@ describe('wallet.createPaymentSession', () => {
     const fixture = walletPaymentSessionFixture()
     server.use(http.post(`${BASE}/v1/wallet/payment-session`, () => HttpResponse.json(fixture)))
 
-    const result = await makeClient().wallet.createPaymentSession({ amount_cents: 5000, currency: 'usd' })
+    const result = await makeClient().wallet.createPaymentSession({
+      amount_cents: 5000,
+      currency: 'usd',
+    })
 
     expect(result).toEqual(fixture)
     expect(result.session_id).toBe('pi_test_session')

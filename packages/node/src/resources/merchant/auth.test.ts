@@ -11,9 +11,15 @@ import { createClient } from '../../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -26,9 +32,7 @@ function makeClient() {
 describe('merchant.auth.loginWithEmail', () => {
   it('returns the merchant token response', async () => {
     const fixture = merchantTokenFixture()
-    server.use(
-      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.auth.loginWithEmail({
       email: 'owner@example.com',
@@ -40,9 +44,7 @@ describe('merchant.auth.loginWithEmail', () => {
 
   it('stores tokens automatically after successful login', async () => {
     const fixture = merchantTokenFixture({ access_token: 'merchant-email-token' })
-    server.use(
-      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)))
 
     const client = makeClient()
     await client.merchant.auth.loginWithEmail({ email: 'owner@example.com', password: 'pw' })
@@ -70,9 +72,7 @@ describe('merchant.auth.loginWithEmail', () => {
 describe('merchant.auth.loginWithGoogle', () => {
   it('returns the merchant token response', async () => {
     const fixture = merchantTokenFixture()
-    server.use(
-      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.auth.loginWithGoogle({ id_token: 'google-jwt' })
 
@@ -81,9 +81,7 @@ describe('merchant.auth.loginWithGoogle', () => {
 
   it('stores tokens automatically after successful login', async () => {
     const fixture = merchantTokenFixture({ access_token: 'merchant-google-token' })
-    server.use(
-      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)))
 
     const client = makeClient()
     await client.merchant.auth.loginWithGoogle({ id_token: 'google-jwt' })
@@ -111,9 +109,7 @@ describe('merchant.auth.loginWithGoogle', () => {
 describe('merchant.auth.listStores', () => {
   it('returns the list of manageable stores', async () => {
     const fixture = [manageableStoreFixture(), manageableStoreFixture({ store_id: 'store-id-2' })]
-    server.use(
-      http.get(`${BASE}/v1/auth/merchant/stores`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/auth/merchant/stores`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.auth.listStores()
 

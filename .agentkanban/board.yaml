@@ -5,4 +5,4 @@ lanes:
     name: Doing
   - id: done
     name: Done
-basePrompt: ""
+basePrompt: ''

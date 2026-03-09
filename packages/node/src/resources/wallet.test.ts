@@ -13,9 +13,15 @@ import { createClient } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -52,7 +58,10 @@ describe('wallet.balance', () => {
 
 describe('wallet.transactions', () => {
   it('returns a list of transactions', async () => {
-    const fixture = [walletTransactionFixture(), walletTransactionFixture({ id: 'txn-id-2', type: 'debit' })]
+    const fixture = [
+      walletTransactionFixture(),
+      walletTransactionFixture({ id: 'txn-id-2', type: 'debit' }),
+    ]
     server.use(http.get(`${BASE}/v1/wallet/transactions`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().wallet.transactions()
@@ -145,9 +154,7 @@ describe('wallet.getPaymentStatus', () => {
   it('returns a pending status', async () => {
     const fixture = walletPaymentStatusFixture({ status: 'pending', balance_cents: 0 })
     server.use(
-      http.get(`${BASE}/v1/wallet/payment-status/pi_pending`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/wallet/payment-status/pi_pending`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().wallet.getPaymentStatus('pi_pending')

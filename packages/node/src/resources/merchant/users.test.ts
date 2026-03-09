@@ -1,19 +1,22 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, ForbiddenError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import {
-  merchantUserFixture,
-  errorResponseFixture,
-} from '@ledewire/core/test-utils'
+import { merchantUserFixture, errorResponseFixture } from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
 const BASE = 'https://api.ledewire.com'
 const STORE_ID = 'store-id-1'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -29,9 +32,7 @@ describe('merchant.users.list', () => {
       merchantUserFixture(),
       merchantUserFixture({ id: 'store-user-id-2', email: 'author@example.com', role: null }),
     ]
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.users.list(STORE_ID)
 
@@ -67,9 +68,7 @@ describe('merchant.users.list', () => {
 describe('merchant.users.invite', () => {
   it('returns a MerchantUser when the invited user already has an account', async () => {
     const fixture = merchantUserFixture({ email: 'existing@example.com', role: null })
-    server.use(
-      http.post(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.post(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.users.invite(STORE_ID, {
       email: 'existing@example.com',
@@ -121,8 +120,9 @@ describe('merchant.users.invite', () => {
 describe('merchant.users.remove', () => {
   it('resolves without a value on 204', async () => {
     server.use(
-      http.delete(`${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`, () =>
-        new HttpResponse(null, { status: 204 }),
+      http.delete(
+        `${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`,
+        () => new HttpResponse(null, { status: 204 }),
       ),
     )
 
@@ -138,9 +138,9 @@ describe('merchant.users.remove', () => {
       ),
     )
 
-    await expect(
-      makeClient().merchant.users.remove(STORE_ID, 'store-user-id-1'),
-    ).rejects.toThrow(ForbiddenError)
+    await expect(makeClient().merchant.users.remove(STORE_ID, 'store-user-id-1')).rejects.toThrow(
+      ForbiddenError,
+    )
   })
 
   it('throws AuthError on 401', async () => {
@@ -150,8 +150,8 @@ describe('merchant.users.remove', () => {
       ),
     )
 
-    await expect(
-      makeClient().merchant.users.remove(STORE_ID, 'store-user-id-1'),
-    ).rejects.toThrow(AuthError)
+    await expect(makeClient().merchant.users.remove(STORE_ID, 'store-user-id-1')).rejects.toThrow(
+      AuthError,
+    )
   })
 })

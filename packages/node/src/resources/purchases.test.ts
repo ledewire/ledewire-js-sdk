@@ -7,9 +7,15 @@ import { createClient } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -111,9 +117,7 @@ describe('purchases.list', () => {
 describe('purchases.get', () => {
   it('returns a single purchase by ID', async () => {
     const fixture = purchaseResponseFixture()
-    server.use(
-      http.get(`${BASE}/v1/purchases/purchase-id-1`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/purchases/purchase-id-1`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().purchases.get('purchase-id-1')
 

@@ -29,3 +29,7 @@ jobs:
       - uses: github/codeql-action/analyze@v3
         with:
           category: '/language:${{ matrix.language }}'
+          # Upload requires GitHub Advanced Security (free for public repos; paid for private).
+          # If GHAS is not enabled the step would otherwise fail and block CI.
+          upload: ${{ github.event.repository.visibility == 'public' }}
+        continue-on-error: true

@@ -52,7 +52,6 @@ async function main(): Promise<void> {
     // 4. List recent sales
     const sales = await client.merchant.sales.list({ storeId })
     console.log(`Recent sales (${sales.length}):`, sales)
-
   } catch (err) {
     if (err instanceof LedewireError) {
       console.error(`API error ${err.statusCode}: ${err.message}`)

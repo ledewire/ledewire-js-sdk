@@ -4,10 +4,10 @@ Official JavaScript/TypeScript SDK for the [LedeWire API](https://api.ledewire.c
 
 ## Packages
 
-| Package | Description | Version |
-|---|---|---|
-| [`@ledewire/browser`](packages/browser/) | Browser SDK for embedding a paywall on any website | [![npm](https://img.shields.io/npm/v/@ledewire/browser)](https://www.npmjs.com/package/@ledewire/browser) |
-| [`@ledewire/node`](packages/node/) | Node.js SDK — full API for building merchant stores | [![npm](https://img.shields.io/npm/v/@ledewire/node)](https://www.npmjs.com/package/@ledewire/node) |
+| Package                                  | Description                                         | Version                                                                                                   |
+| ---------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [`@ledewire/browser`](packages/browser/) | Browser SDK for embedding a paywall on any website  | [![npm](https://img.shields.io/npm/v/@ledewire/browser)](https://www.npmjs.com/package/@ledewire/browser) |
+| [`@ledewire/node`](packages/node/)       | Node.js SDK — full API for building merchant stores | [![npm](https://img.shields.io/npm/v/@ledewire/node)](https://www.npmjs.com/package/@ledewire/node)       |
 
 ## CDN — No Install Required
 

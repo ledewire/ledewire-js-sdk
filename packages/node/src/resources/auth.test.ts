@@ -7,9 +7,15 @@ import { createClient } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }); })
-afterEach(() => { server.resetHandlers(); })
-afterAll(() => { server.close(); })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -38,7 +44,11 @@ describe('auth.signup', () => {
     server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
 
     const client = makeClient()
-    await client.auth.signup({ email: 'user@example.com', password: 'correct-horse', name: 'Alice' })
+    await client.auth.signup({
+      email: 'user@example.com',
+      password: 'correct-horse',
+      name: 'Alice',
+    })
 
     await expect(client._tokenManager.getAccessToken()).resolves.toBe('signup-access-token')
   })
@@ -65,7 +75,10 @@ describe('auth.loginWithEmail', () => {
     const fixture = authTokenFixture()
     server.use(http.post(`${BASE}/v1/auth/login/email`, () => HttpResponse.json(fixture)))
 
-    const result = await makeClient().auth.loginWithEmail({ email: 'user@example.com', password: 'secret' })
+    const result = await makeClient().auth.loginWithEmail({
+      email: 'user@example.com',
+      password: 'secret',
+    })
 
     expect(result).toEqual(fixture)
   })
@@ -124,9 +137,9 @@ describe('auth.loginWithGoogle', () => {
       ),
     )
 
-    await expect(
-      makeClient().auth.loginWithGoogle({ id_token: 'expired-token' }),
-    ).rejects.toThrow(AuthError)
+    await expect(makeClient().auth.loginWithGoogle({ id_token: 'expired-token' })).rejects.toThrow(
+      AuthError,
+    )
   })
 })
 
@@ -161,8 +174,6 @@ describe('auth.loginWithApiKey', () => {
       ),
     )
 
-    await expect(
-      makeClient().auth.loginWithApiKey({ key: 'bad-key' }),
-    ).rejects.toThrow(AuthError)
+    await expect(makeClient().auth.loginWithApiKey({ key: 'bad-key' })).rejects.toThrow(AuthError)
   })
 })

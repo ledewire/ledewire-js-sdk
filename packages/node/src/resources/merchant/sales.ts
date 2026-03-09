@@ -1,5 +1,9 @@
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantSaleResponse, SalesSummaryResponse, SalesStatisticsItem } from '@ledewire/core'
+import type {
+  MerchantSaleResponse,
+  SalesSummaryResponse,
+  SalesStatisticsItem,
+} from '@ledewire/core'
 
 /**
  * Merchant sales namespace — revenue summary, per-sale records, and sale detail.

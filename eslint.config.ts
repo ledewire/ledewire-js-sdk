@@ -1,4 +1,5 @@
 import eslint from '@eslint/js'
+import jsdoc from 'eslint-plugin-jsdoc'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
@@ -13,13 +14,41 @@ export default tseslint.config(
       },
     },
     rules: {
-      // Require JSDoc on all exported functions, classes, and types
-      'require-jsdoc': 'off', // handled by ts-eslint custom rule below
       '@typescript-eslint/explicit-module-boundary-types': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+    },
+  },
+  {
+    // Require JSDoc on all exported symbols in production source files.
+    // Test files, config files and examples are intentionally excluded below.
+    files: ['packages/*/src/**/*.ts'],
+    ignores: ['packages/*/src/**/*.test.ts', 'packages/*/src/**/*.test-helpers.ts'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'error',
+        {
+          publicOnly: true,
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: false,
+            ClassDeclaration: true,
+            ArrowFunctionExpression: false,
+            FunctionExpression: false,
+          },
+          contexts: [
+            'TSInterfaceDeclaration',
+            'TSTypeAliasDeclaration',
+            'TSEnumDeclaration',
+            'ExportNamedDeclaration > VariableDeclaration',
+          ],
+          checkConstructors: false,
+          enableFixer: false,
+        },
+      ],
     },
   },
   {

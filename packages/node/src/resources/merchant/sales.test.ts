@@ -13,9 +13,15 @@ const BASE = 'https://api.ledewire.com'
 const STORE_ID = 'store-id-1'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -29,9 +35,7 @@ describe('merchant.sales.summary', () => {
   it('returns aggregated sales statistics', async () => {
     const fixture = salesSummaryFixture()
     server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/summary`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/summary`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().merchant.sales.summary(STORE_ID)
@@ -42,9 +46,7 @@ describe('merchant.sales.summary', () => {
   it('includes monthly breakdowns', async () => {
     const fixture = salesSummaryFixture()
     server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/summary`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/summary`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().merchant.sales.summary(STORE_ID)
@@ -81,12 +83,11 @@ describe('merchant.sales.summary', () => {
 
 describe('merchant.sales.list', () => {
   it('returns per-title sales rollup', async () => {
-    const fixture = [salesStatisticsItemFixture(), salesStatisticsItemFixture({ content_id: 'content-id-2', title: 'Second Article' })]
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () =>
-        HttpResponse.json(fixture),
-      ),
-    )
+    const fixture = [
+      salesStatisticsItemFixture(),
+      salesStatisticsItemFixture({ content_id: 'content-id-2', title: 'Second Article' }),
+    ]
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.sales.list(STORE_ID)
 
@@ -95,9 +96,7 @@ describe('merchant.sales.list', () => {
   })
 
   it('returns an empty list when no sales exist', async () => {
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json([])),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json([])))
 
     const result = await makeClient().merchant.sales.list(STORE_ID)
 
@@ -123,9 +122,7 @@ describe('merchant.sales.get', () => {
   it('returns sale detail with fee breakdown', async () => {
     const fixture = merchantSaleFixture()
     server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/sale-id-1`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/sale-id-1`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().merchant.sales.get(STORE_ID, 'sale-id-1')
@@ -136,9 +133,7 @@ describe('merchant.sales.get', () => {
   it('includes the fee split in the response', async () => {
     const fixture = merchantSaleFixture()
     server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/sale-id-1`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales/sale-id-1`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().merchant.sales.get(STORE_ID, 'sale-id-1')
@@ -154,9 +149,9 @@ describe('merchant.sales.get', () => {
       ),
     )
 
-    await expect(
-      makeClient().merchant.sales.get(STORE_ID, 'missing-id'),
-    ).rejects.toThrow(NotFoundError)
+    await expect(makeClient().merchant.sales.get(STORE_ID, 'missing-id')).rejects.toThrow(
+      NotFoundError,
+    )
   })
 
   it('throws ForbiddenError on 403', async () => {
@@ -166,8 +161,8 @@ describe('merchant.sales.get', () => {
       ),
     )
 
-    await expect(
-      makeClient().merchant.sales.get(STORE_ID, 'sale-id-1'),
-    ).rejects.toThrow(ForbiddenError)
+    await expect(makeClient().merchant.sales.get(STORE_ID, 'sale-id-1')).rejects.toThrow(
+      ForbiddenError,
+    )
   })
 })

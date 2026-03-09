@@ -7,9 +7,15 @@ import { init } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return init({ apiKey: 'test-api-key' })
@@ -38,7 +44,11 @@ describe('auth.signup', () => {
     server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
 
     const client = makeClient()
-    await client.auth.signup({ email: 'user@example.com', password: 'correct-horse', name: 'Alice' })
+    await client.auth.signup({
+      email: 'user@example.com',
+      password: 'correct-horse',
+      name: 'Alice',
+    })
 
     await expect(client._tokenManager.getAccessToken()).resolves.toBe('signup-stored-token')
   })
@@ -127,8 +137,8 @@ describe('auth.loginWithGoogle', () => {
       ),
     )
 
-    await expect(
-      makeClient().auth.loginWithGoogle({ id_token: 'bad-token' }),
-    ).rejects.toThrow(AuthError)
+    await expect(makeClient().auth.loginWithGoogle({ id_token: 'bad-token' })).rejects.toThrow(
+      AuthError,
+    )
   })
 })

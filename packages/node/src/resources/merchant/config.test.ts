@@ -8,9 +8,15 @@ const BASE = 'https://api.ledewire.com'
 const STORE_ID = 'store-id-1'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -23,9 +29,7 @@ function makeClient() {
 describe('merchant.config.get', () => {
   it('returns the store configuration', async () => {
     const fixture = { google_client_id: 'goog-client-id-123' }
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.config.get(STORE_ID)
 
@@ -34,9 +38,7 @@ describe('merchant.config.get', () => {
 
   it('returns config with optional google_client_id', async () => {
     const fixture = { google_client_id: 'goog-client-id-123' }
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.config.get(STORE_ID)
 
@@ -45,9 +47,7 @@ describe('merchant.config.get', () => {
 
   it('handles config with no google_client_id', async () => {
     const fixture = {}
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/config`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.config.get(STORE_ID)
 

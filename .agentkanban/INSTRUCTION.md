@@ -35,16 +35,17 @@ Note: The task lane is managed by the extension, you do not edit the lane.
 
 ## Conversation
 
-[user] 
+[user]
 
 <message>
 
-[agent] 
+[agent]
 
 <response>
 ```
 
 **Rules:**
+
 - Append new entries at the end — never modify or delete existing ones
 - Start each message with `[user]` or `[agent]` on its own line; blank line between messages
 - After your response, add `[user]` on a new line for the user's next entry
@@ -88,10 +89,13 @@ Iterative cycle: **plan** → **todo** → **implement**
 Verbs can be combined (e.g. `todo implement`). Without `implement`, **never write code or create files**.
 
 #### `plan`
+
 Discuss, analyse, and plan the task collaboratively. Read the conversation, reason about requirements, explore approaches, record decisions. Append responses using `[agent]` markers. **No code, no files, no TODOs** unless combined with `implement`.
 
 #### `todo`
+
 Create/update the TODO checklist based on the planning conversation. Read the task conversation for context. Write clear, actionable `- [ ]` items. **No implementation** unless combined with `implement`.
 
 #### `implement`
+
 Implement per the plan and TODOs. Read both task and todo files. Write clean, robust code. Check off TODO items as completed. Append a summary to the conversation. **Do not deviate** from the agreed plan without noting why.

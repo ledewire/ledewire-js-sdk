@@ -8,9 +8,15 @@ const BASE = 'https://api.ledewire.com'
 const STORE = 'store-id-1'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -23,9 +29,7 @@ function makeClient() {
 describe('seller.content.list', () => {
   it('returns an array of content items', async () => {
     const fixtures = [contentResponseFixture(), contentResponseFixture({ id: 'content-id-2' })]
-    server.use(
-      http.get(`${BASE}/v1/merchant/${STORE}/content`, () => HttpResponse.json(fixtures)),
-    )
+    server.use(http.get(`${BASE}/v1/merchant/${STORE}/content`, () => HttpResponse.json(fixtures)))
 
     const result = await makeClient().seller.content.list(STORE)
 
@@ -170,7 +174,9 @@ describe('seller.content.get', () => {
       ),
     )
 
-    await expect(makeClient().seller.content.get(STORE, 'missing-id')).rejects.toThrow(NotFoundError)
+    await expect(makeClient().seller.content.get(STORE, 'missing-id')).rejects.toThrow(
+      NotFoundError,
+    )
   })
 })
 
@@ -227,14 +233,13 @@ describe('seller.content.update', () => {
 describe('seller.content.delete', () => {
   it('resolves on 204 No Content', async () => {
     server.use(
-      http.delete(`${BASE}/v1/merchant/${STORE}/content/content-id-1`, () =>
-        new HttpResponse(null, { status: 204 }),
+      http.delete(
+        `${BASE}/v1/merchant/${STORE}/content/content-id-1`,
+        () => new HttpResponse(null, { status: 204 }),
       ),
     )
 
-    await expect(
-      makeClient().seller.content.delete(STORE, 'content-id-1'),
-    ).resolves.toBeUndefined()
+    await expect(makeClient().seller.content.delete(STORE, 'content-id-1')).resolves.toBeUndefined()
   })
 
   it('throws AuthError on 401', async () => {
@@ -244,9 +249,9 @@ describe('seller.content.delete', () => {
       ),
     )
 
-    await expect(
-      makeClient().seller.content.delete(STORE, 'content-id-1'),
-    ).rejects.toThrow(AuthError)
+    await expect(makeClient().seller.content.delete(STORE, 'content-id-1')).rejects.toThrow(
+      AuthError,
+    )
   })
 
   it('throws NotFoundError on 404', async () => {
@@ -256,8 +261,8 @@ describe('seller.content.delete', () => {
       ),
     )
 
-    await expect(
-      makeClient().seller.content.delete(STORE, 'missing-id'),
-    ).rejects.toThrow(NotFoundError)
+    await expect(makeClient().seller.content.delete(STORE, 'missing-id')).rejects.toThrow(
+      NotFoundError,
+    )
   })
 })

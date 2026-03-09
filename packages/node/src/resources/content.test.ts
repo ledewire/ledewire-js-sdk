@@ -7,9 +7,15 @@ import { createClient } from '../client.js'
 const BASE = 'https://api.ledewire.com'
 
 const server = createTestServer()
-beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }) })
-afterEach(() => { server.resetHandlers() })
-afterAll(() => { server.close() })
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' })
+})
+afterEach(() => {
+  server.resetHandlers()
+})
+afterAll(() => {
+  server.close()
+})
 
 function makeClient() {
   return createClient()
@@ -23,9 +29,7 @@ describe('content.getWithAccess', () => {
   it('returns content with access information', async () => {
     const fixture = contentWithAccessFixture()
     server.use(
-      http.get(`${BASE}/v1/content/content-id-1/with-access`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/content/content-id-1/with-access`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().content.getWithAccess('content-id-1')
@@ -36,9 +40,7 @@ describe('content.getWithAccess', () => {
   it('includes access_info in the response', async () => {
     const fixture = contentWithAccessFixture()
     server.use(
-      http.get(`${BASE}/v1/content/content-id-1/with-access`, () =>
-        HttpResponse.json(fixture),
-      ),
+      http.get(`${BASE}/v1/content/content-id-1/with-access`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().content.getWithAccess('content-id-1')

@@ -108,11 +108,11 @@ Each phase is designed to fit in a single focused session.
 
 > Make the pipeline production-grade.
 
-- [ ] Confirm `pnpm audit` passes with no high/critical vulnerabilities
-- [ ] Add ESLint JSDoc rule (`require-jsdoc` on exported symbols) — enforced in CI
-- [ ] `publint` passes for both packages (confirmed by CI step already in `ci.yml`)
-- [ ] Coverage thresholds enforced (CI fails below 90%)
-- [ ] `pnpm format:check` clean across all packages
+- [x] Confirm `pnpm audit` passes with no high/critical vulnerabilities
+- [x] Add ESLint JSDoc rule (`require-jsdoc` on exported symbols) — enforced in CI
+- [x] `publint` passes for both packages (confirmed by CI step already in `ci.yml`)
+- [x] Coverage thresholds enforced (CI fails below 90%)
+- [x] `pnpm format:check` clean across all packages
 
 ---
 
@@ -141,8 +141,9 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed                   |
-| ------- | ---------- | ---------------------------------- |
-| 1       | 2026-03-09 | Phase 1 ✅                         |
-| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ |
-| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅             |
+| Session | Date       | Phases completed                         |
+| ------- | ---------- | ---------------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                               |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅       |
+| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅                   |
+| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅                   |
