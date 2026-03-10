@@ -49,7 +49,7 @@ const client = createClient({
 // Merchant email/password auth
 const client = createClient()
 await client.merchant.auth.loginWithEmail({ email, password })
-const stores = await client.merchant.auth.stores()
+const stores = await client.merchant.auth.listStores()
 ```
 
 ## Documentation

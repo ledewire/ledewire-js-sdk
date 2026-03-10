@@ -50,10 +50,17 @@ const client = createClient({
 
 ### @ledewire/node — createClient()
 - `client.auth.*` — buyer auth (signup, email, google, logout, password reset)
-- `client.merchant.auth.*` — merchant email/google login; `.stores()` → store list
-- `client.merchant.users.*` — team management (list, invite, remove)
-- `client.merchant.sales.*` — summary, list, get; `buyers(storeId)`
-- `client.merchant.config.get(storeId)` → store config (google_client_id)
+- `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
+- `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
+- `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
+- `client.merchant.users.list(storeId)` → team members
+- `client.merchant.users.invite(storeId, body)` → invite team member
+- `client.merchant.users.remove(storeId, userId)` → remove team member
+- `client.merchant.sales.summary(storeId)` → `SalesSummaryResponse`
+- `client.merchant.sales.list(storeId)` → `SalesStatisticsItem[]`
+- `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse`
+- `client.merchant.buyers.list(storeId)` → `BuyerStatisticsItem[]`
+- `client.merchant.config.get(storeId)` → `StoreConfig` (includes `google_client_id`)
 - `client.seller.content.*` — content CRUD + search
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.*` — create, list, get
@@ -76,11 +83,38 @@ interface CheckoutStateResponse {
 }
 
 // All SDK errors extend LedewireError
-class LedewireError extends Error { statusCode: number; code: number }
-class UnauthorizedError extends LedewireError {}
-class NotFoundError extends LedewireError {}
-class ValidationError extends LedewireError {}
-class ServerError extends LedewireError {}
+class LedewireError extends Error { statusCode: number; code: number | undefined }
+class AuthError extends LedewireError {}       // statusCode 401
+class ForbiddenError extends LedewireError {}  // statusCode 403
+class NotFoundError extends LedewireError {}   // statusCode 404
+class PurchaseError extends LedewireError {}   // statusCode 409/422
+```
+
+## Token storage adapter interface
+
+```ts
+interface TokenStorage {
+  getTokens(): Promise<StoredTokens | null>
+  setTokens(tokens: StoredTokens): Promise<void>
+  clearTokens(): Promise<void>
+}
+
+interface StoredTokens {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number  // Unix timestamp (ms)
+}
+```
+
+Pass a custom `storage` to `createClient()` or `init()` to persist sessions
+(e.g. to Redis or a database). The default is `MemoryTokenStorage` (in-memory).
+
+For browsers, `localStorageAdapter()` from `@ledewire/browser` persists sessions
+across page reloads:
+
+```ts
+import { init, localStorageAdapter } from '@ledewire/browser'
+const lw = init({ apiKey: 'your_api_key', storage: localStorageAdapter() })
 ```
 
 ## Architecture notes

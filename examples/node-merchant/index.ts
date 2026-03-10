@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     // -------------------------------------------------------------------------
     // 2. List stores
     // -------------------------------------------------------------------------
-    const stores = await client.merchant.auth.stores()
+    const stores = await client.merchant.auth.listStores()
     if (stores.length === 0) {
       console.log('No stores found — create a store in the dashboard first.')
       return
