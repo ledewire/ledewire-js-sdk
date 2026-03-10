@@ -1,6 +1,7 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["packages/browser/src/index.ts", "packages/node/src/index.ts"],
+  "tsconfig": "tsconfig.typedoc.json",
   "out": "docs/api",
   "name": "LedeWire SDK API Reference",
   "readme": "none",
