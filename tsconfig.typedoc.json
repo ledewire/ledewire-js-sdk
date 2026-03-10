@@ -6,9 +6,5 @@
     "moduleResolution": "Bundler",
     "noEmit": true
   },
-  "include": [
-    "packages/browser/src",
-    "packages/node/src",
-    "packages/core/src"
-  ]
+  "include": ["packages/browser/src", "packages/node/src", "packages/core/src"]
 }
