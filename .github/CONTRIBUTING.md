@@ -50,10 +50,35 @@ Run `pnpm format` before committing to avoid CI format failures.
 
 ## Releases
 
-Releases are fully automated:
+Releases are fully automated via [Changesets](https://github.com/changesets/changesets).
 
-1. Merge changesets PR ("Version Packages") to `main`
-2. CI publishes to npm, creates GitHub Release with CDN bundle attached
-3. Docs are deployed to GitHub Pages automatically
+### How it works
 
-You do not need to run `npm publish` manually.
+```
+Your PR (with .changeset/ file)
+        │
+        ▼ merge to main
+Release workflow opens "Version Packages" PR
+        │
+        ▼ merge that PR
+Release workflow publishes to npm + GitHub Release + API docs
+```
+
+### Step-by-step
+
+1. **During your PR** — run `pnpm changeset` and commit the generated file in `.changeset/`
+   - Select which packages changed: `@ledewire/browser` and/or `@ledewire/node`
+   - Select bump type: `patch` (bug fix) · `minor` (new feature) · `major` (breaking change)
+   - Write a one-line summary — this becomes the CHANGELOG entry
+   - Changes to `packages/core` should surface as a bump on the consuming packages
+
+2. **After merging to `main`** — the Release workflow automatically opens a
+   **"Version Packages"** PR that bumps `package.json` versions and updates `CHANGELOG.md`
+
+3. **To release** — review and merge the "Version Packages" PR. The Release workflow
+   then publishes to npm, attaches the CDN bundle to the GitHub Release, and deploys the API docs
+
+> **No changeset needed** for PRs that only touch docs, CI config, or tests.
+> Add the `skip-changeset` label to the PR — the changeset check will be bypassed.
+
+You never need to run `npm publish` manually.
