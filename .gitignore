@@ -37,3 +37,5 @@ pnpm-debug.log*
 # Docs generated output
 docs/.docusaurus/
 docs/build/
+
+.agentkanban/
