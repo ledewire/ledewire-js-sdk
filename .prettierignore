@@ -1,0 +1,5 @@
+# Generated TypeDoc API reference
+docs/api/
+
+# Test coverage reports
+packages/*/coverage/
