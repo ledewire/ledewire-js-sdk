@@ -7,6 +7,13 @@ import type {
 
 /**
  * Merchant sales namespace — revenue summary, per-sale records, and sale detail.
+ *
+ * @example
+ * ```ts
+ * const summary = await client.merchant.sales.summary(storeId)
+ * console.log(`Revenue: ${summary.total_revenue_cents / 100} USD`)
+ * const sales = await client.merchant.sales.list(storeId)
+ * ```
  */
 export class MerchantSalesNamespace {
   constructor(protected readonly http: HttpClient) {}

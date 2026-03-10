@@ -3,6 +3,12 @@ import type { StoreConfig } from '@ledewire/core'
 
 /**
  * Merchant store configuration namespace.
+ *
+ * @example
+ * ```ts
+ * const config = await client.merchant.config.get(storeId)
+ * // config.google_client_id — used for Google Sign-In on the storefront
+ * ```
  */
 export class MerchantConfigNamespace {
   constructor(protected readonly http: HttpClient) {}

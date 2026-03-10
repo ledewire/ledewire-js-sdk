@@ -132,10 +132,10 @@ Each phase is designed to fit in a single focused session.
 
 > Working, runnable examples for both integration patterns.
 
-- [ ] `examples/node-merchant/index.ts` — full merchant store walkthrough (auth → create content → list sales)
-- [ ] `examples/browser-cdn/index.html` — complete CDN embed (init → checkout.state → purchase flow)
-- [ ] Update `README.md` with badges (CI, npm version, coverage) and quickstart for each package
-- [ ] Final pass: ensure every exported symbol has JSDoc with `@example`
+- [x] `examples/node-merchant/index.ts` — full merchant store walkthrough (auth → create content → list sales)
+- [x] `examples/browser-cdn/index.html` — complete CDN embed (init → checkout.state → purchase + Stripe guide)
+- [x] Update `README.md` with badges (CI, coverage, license) and quickstart for each package
+- [x] Final pass: `@example` added to every exported namespace class across all 12 resource files
 
 ---
 

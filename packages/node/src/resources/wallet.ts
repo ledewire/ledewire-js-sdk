@@ -9,6 +9,12 @@ import type {
 
 /**
  * Buyer wallet namespace — balance, transactions, and payment session management.
+ *
+ * @example
+ * ```ts
+ * const { balance_cents } = await client.wallet.balance()
+ * const session = await client.wallet.createPaymentSession({ amount_cents: 500 })
+ * ```
  */
 export class WalletNamespace {
   constructor(protected readonly http: HttpClient) {}

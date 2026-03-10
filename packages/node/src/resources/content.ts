@@ -3,6 +3,12 @@ import type { ContentWithAccessResponse } from '@ledewire/core'
 
 /**
  * Buyer content namespace — fetch content with real-time access information.
+ *
+ * @example
+ * ```ts
+ * const { content, access } = await client.content.getWithAccess('content-id')
+ * if (access.has_access) console.log(content.title)
+ * ```
  */
 export class ContentNamespace {
   constructor(protected readonly http: HttpClient) {}

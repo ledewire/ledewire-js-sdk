@@ -18,7 +18,13 @@ import type {
 /**
  * Buyer authentication: signup, email/password login, Google OAuth.
  *
- * Obtain via `client.auth` — do not construct directly.
+ * Obtain via `lw.auth` — do not construct directly.
+ *
+ * @example
+ * ```ts
+ * const lw = Ledewire.init({ apiKey: 'your_api_key' })
+ * await lw.auth.loginWithEmail({ email: 'u@example.com', password: 'pw' })
+ * ```
  */
 export class BrowserAuthNamespace {
   /** @internal */

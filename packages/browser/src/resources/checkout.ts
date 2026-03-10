@@ -4,7 +4,14 @@ import type { CheckoutStateResponse } from '@ledewire/core'
 /**
  * Checkout namespace — buyer checkout state for a specific content item.
  *
- * Obtain via `client.checkout` — do not construct directly.
+ * Obtain via `lw.checkout` — do not construct directly.
+ *
+ * @example
+ * ```ts
+ * const state = await lw.checkout.state('content-id')
+ * // state.checkout_state.next_required_action:
+ * // 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+ * ```
  */
 export class CheckoutNamespace {
   constructor(protected readonly http: HttpClient) {}

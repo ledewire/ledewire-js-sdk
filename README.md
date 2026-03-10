@@ -1,5 +1,9 @@
 # LedeWire JS SDK
 
+[![CI](https://github.com/ledewire/ledewire-js-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/ledewire/ledewire-js-sdk/actions/workflows/ci.yml)
+[![Coverage: ≥90%](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Official JavaScript/TypeScript SDK for the [LedeWire API](https://api.ledewire.com/api-docs/index.html) — the content marketplace platform for selling articles, guides, and media behind a paywall.
 
 ## Packages

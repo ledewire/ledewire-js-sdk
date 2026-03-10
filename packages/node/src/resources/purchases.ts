@@ -3,6 +3,12 @@ import type { PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
 
 /**
  * Buyer purchases namespace — create and retrieve content purchases.
+ *
+ * @example
+ * ```ts
+ * await client.purchases.create({ content_id: 'content-id' })
+ * const all = await client.purchases.list()
+ * ```
  */
 export class PurchasesNamespace {
   constructor(protected readonly http: HttpClient) {}

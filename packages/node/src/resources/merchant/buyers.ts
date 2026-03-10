@@ -3,6 +3,12 @@ import type { BuyerStatisticsItem } from '@ledewire/core'
 
 /**
  * Merchant buyers namespace — aggregated, anonymised buyer statistics.
+ *
+ * @example
+ * ```ts
+ * const buyers = await client.merchant.buyers.list(storeId)
+ * console.log(`Total buyers: ${buyers.length}`)
+ * ```
  */
 export class MerchantBuyersNamespace {
   constructor(protected readonly http: HttpClient) {}

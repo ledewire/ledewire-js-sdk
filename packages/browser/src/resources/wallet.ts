@@ -10,7 +10,13 @@ import type {
 /**
  * Buyer wallet namespace — balance, transactions, and payment session management.
  *
- * Obtain via `client.wallet` — do not construct directly.
+ * Obtain via `lw.wallet` — do not construct directly.
+ *
+ * @example
+ * ```ts
+ * const { balance_cents } = await lw.wallet.balance()
+ * const session = await lw.wallet.createPaymentSession({ amount_cents: 500 })
+ * ```
  */
 export class BrowserWalletNamespace {
   constructor(protected readonly http: HttpClient) {}

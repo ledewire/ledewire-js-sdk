@@ -83,10 +83,24 @@
       }
 
       async function fundWallet() {
-        // Create a payment session and present the Stripe widget
+        // 1. Create a LedeWire payment session (wraps Stripe PaymentIntent)
         const session = await lw.wallet.createPaymentSession({ amount_cents: 500 })
-        // TODO: Use session.public_key + session.client_secret with Stripe.js
-        console.log('Payment session:', session)
+
+        // 2. Use the session with Stripe.js to collect payment
+        //    Load Stripe.js: <script src="https://js.stripe.com/v3/"></script>
+        //    Then:
+        //      const stripe = Stripe(session.public_key)
+        //      const elements = stripe.elements({ clientSecret: session.client_secret })
+        //      const paymentElement = elements.create('payment')
+        //      paymentElement.mount('#payment-element')
+        //      // On form submit:
+        //      await stripe.confirmPayment({ elements, confirmParams: { return_url: '...' } })
+        //
+        // After Stripe confirms payment, poll getPaymentStatus until it's 'succeeded':
+        const status = await lw.wallet.getPaymentStatus(session.session_id)
+        console.log('Payment status:', status.payment_status)
+        // Once status.payment_status === 'succeeded', the wallet is funded.
+        await checkAccess()
       }
 
       async function purchase() {

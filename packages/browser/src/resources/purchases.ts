@@ -4,7 +4,13 @@ import type { PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
 /**
  * Buyer purchases namespace — create and retrieve content purchases.
  *
- * Obtain via `client.purchases` — do not construct directly.
+ * Obtain via `lw.purchases` — do not construct directly.
+ *
+ * @example
+ * ```ts
+ * await lw.purchases.create({ content_id: 'content-id' })
+ * const all = await lw.purchases.list()
+ * ```
  */
 export class BrowserPurchasesNamespace {
   constructor(protected readonly http: HttpClient) {}
