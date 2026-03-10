@@ -56,7 +56,10 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: |
           VERSION=$(node -p "require('./packages/browser/package.json').version")
-          gh release upload "@ledewire/browser@${VERSION}" \
+          TAG="@ledewire/browser@${VERSION}"
+          # Create the release if changesets didn't (e.g. first-publish with no changeset files)
+          gh release create "$TAG" --title "$TAG" --generate-notes 2>/dev/null || true
+          gh release upload "$TAG" \
             packages/browser/dist/ledewire.min.js \
             packages/browser/dist/ledewire.min.js.map \
             --clobber
