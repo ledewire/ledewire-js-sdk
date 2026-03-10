@@ -40,13 +40,13 @@ const lw = init({
 
 ## Client Namespaces
 
-| Namespace          | Description                                     |
-| ------------------ | ----------------------------------------------- |
-| `lw.auth`          | Buyer signup, email/password login, Google OAuth |
-| `lw.wallet`        | Wallet balance, fund wallet via payment session |
-| `lw.purchases`     | List and create content purchases               |
-| `lw.content`       | Fetch content with buyer access info            |
-| `lw.checkout`      | Checkout state — what action is required next   |
+| Namespace      | Description                                      |
+| -------------- | ------------------------------------------------ |
+| `lw.auth`      | Buyer signup, email/password login, Google OAuth |
+| `lw.wallet`    | Wallet balance, fund wallet via payment session  |
+| `lw.purchases` | List and create content purchases                |
+| `lw.content`   | Fetch content with buyer access info             |
+| `lw.checkout`  | Checkout state — what action is required next    |
 
 ## Example: Full Checkout Flow
 

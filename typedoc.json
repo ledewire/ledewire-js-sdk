@@ -10,9 +10,9 @@
   "searchInComments": true,
   "categorizeByGroup": true,
   "navigationLinks": {
-    "Home": "../",
-    "Browser CDN Guide": "../guides/browser-cdn.html",
-    "Node.js Guide": "../guides/node-npm.html",
+    "Home": "/ledewire-js-sdk/",
+    "Browser CDN Guide": "/ledewire-js-sdk/guides/browser-cdn.html",
+    "Node.js Guide": "/ledewire-js-sdk/guides/node-npm.html",
     "GitHub": "https://github.com/ledewire/ledewire-js-sdk"
   },
   "excludeExternals": true,
