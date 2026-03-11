@@ -9,7 +9,7 @@ Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) con
 
 ```html
 <!-- Pin to a major version in production -->
-<script src="https://cdn.jsdelivr.net/npm/@ledewire/browser@0/dist/ledewire.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ledewire/browser@0.1.0/dist/ledewire.min.js"></script>
 <script>
   const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
