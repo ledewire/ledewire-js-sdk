@@ -2,8 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": ["NODE_ENV"],
   "tasks": {
+    "generate:types": {
+      "inputs": ["../../ledewire.yml"],
+      "outputs": ["src/api.gen.ts"],
+      "cache": true
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "generate:types"],
       "outputs": ["dist/**"]
     },
     "dev": {
@@ -19,10 +24,10 @@
       "cache": false
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate:types"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "generate:types"],
       "env": ["LEDEWIRE_API_KEY", "LEDEWIRE_API_SECRET", "LEDEWIRE_BASE_URL"]
     },
     "test:coverage": {

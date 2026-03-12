@@ -84,7 +84,26 @@ await client.merchant.auth.loginWithEmail({
 const stores = await client.merchant.auth.listStores()
 const storeId = stores[0].id
 
-const content = await client.seller.content.list({ store_id: storeId })
+// Create a markdown article
+await client.seller.content.create(storeId, {
+  content_type: 'markdown',
+  title: 'Hello World',
+  content_body: btoa('# Hello World\nFull article body here.'),
+  price_cents: 500,
+  visibility: 'public',
+})
+
+// Create an external reference (e.g. a Vimeo video)
+await client.seller.content.create(storeId, {
+  content_type: 'external_ref',
+  title: 'Intro to Machine Learning',
+  content_uri: 'https://vimeo.com/987654321',
+  external_identifier: 'vimeo:987654321',
+  price_cents: 1500,
+  visibility: 'public',
+})
+
+const items = await client.seller.content.list(storeId)
 ```
 
 ## Documentation

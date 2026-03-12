@@ -67,8 +67,15 @@ switch (checkout_state.next_required_action) {
     await lw.purchases.create({ content_id: 'article-123' })
     break
   case 'view_content':
-    const content = await lw.content.get('article-123')
-    // render content
+    const { content_type, content_body, content_uri } =
+      await lw.content.getWithAccess('article-123')
+    if (content_type === 'markdown') {
+      // render decoded markdown
+      renderMarkdown(atob(content_body))
+    } else {
+      // redirect to the gated external URI (Vimeo, PDF, etc.)
+      window.location.href = content_uri
+    }
     break
 }
 ```

@@ -96,7 +96,7 @@ export function manageableStoreFixture(
 }
 
 /**
- * Returns a valid content response fixture.
+ * Returns a valid markdown content response fixture.
  */
 export function contentResponseFixture(
   overrides?: Partial<ContentResponseSchema>,
@@ -108,6 +108,26 @@ export function contentResponseFixture(
     content_body: btoa('# Test Article\nBody text.'),
     teaser: btoa('A short teaser.'),
     price_cents: 500,
+    visibility: 'public',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a valid external_ref content response fixture.
+ */
+export function externalRefContentResponseFixture(
+  overrides?: Partial<ContentResponseSchema>,
+): ContentResponseSchema {
+  return {
+    id: 'content-id-ext-1',
+    content_type: 'external_ref',
+    title: 'Intro to Machine Learning',
+    content_body: null,
+    content_uri: 'https://vimeo.com/987654321',
+    external_identifier: 'vimeo:987654321',
+    teaser: btoa('A beginner-friendly introduction to ML concepts.'),
+    price_cents: 1500,
     visibility: 'public',
     ...overrides,
   }

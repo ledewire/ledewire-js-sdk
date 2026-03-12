@@ -4,6 +4,7 @@
   "description": "LedeWire JavaScript SDK monorepo",
   "scripts": {
     "build": "turbo run build",
+    "generate:types": "turbo run generate:types",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",

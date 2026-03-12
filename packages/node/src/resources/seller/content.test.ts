@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, ForbiddenError, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { contentResponseFixture, errorResponseFixture } from '@ledewire/core/test-utils'
+import {
+  contentResponseFixture,
+  externalRefContentResponseFixture,
+  errorResponseFixture,
+} from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -105,6 +109,30 @@ describe('seller.content.create', () => {
         visibility: 'public',
       }),
     ).rejects.toThrow(ForbiddenError)
+  })
+
+  it('creates external_ref content with content_uri', async () => {
+    const fixture = externalRefContentResponseFixture()
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content`, () =>
+        HttpResponse.json(fixture, { status: 201 }),
+      ),
+    )
+
+    const result = await makeClient().seller.content.create(STORE, {
+      content_type: 'external_ref',
+      title: 'Intro to Machine Learning',
+      content_uri: 'https://vimeo.com/987654321',
+      external_identifier: 'vimeo:987654321',
+      price_cents: 1500,
+      visibility: 'public',
+    })
+
+    expect(result).toEqual(fixture)
+    expect(result.content_type).toBe('external_ref')
+    expect(result.content_body).toBeNull()
+    expect(result.content_uri).toBe('https://vimeo.com/987654321')
+    expect(result.external_identifier).toBe('vimeo:987654321')
   })
 })
 
@@ -223,6 +251,26 @@ describe('seller.content.update', () => {
     await expect(
       makeClient().seller.content.update(STORE, 'missing-id', { title: 'New' }),
     ).rejects.toThrow(NotFoundError)
+  })
+
+  it('updates external_ref content_uri and external_identifier', async () => {
+    const fixture = externalRefContentResponseFixture({
+      content_uri: 'https://vimeo.com/111222333',
+      external_identifier: 'vimeo:111222333',
+    })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE}/content/${fixture.id}`, () =>
+        HttpResponse.json(fixture),
+      ),
+    )
+
+    const result = await makeClient().seller.content.update(STORE, fixture.id, {
+      content_uri: 'https://vimeo.com/111222333',
+      external_identifier: 'vimeo:111222333',
+    })
+
+    expect(result.content_uri).toBe('https://vimeo.com/111222333')
+    expect(result.external_identifier).toBe('vimeo:111222333')
   })
 })
 
