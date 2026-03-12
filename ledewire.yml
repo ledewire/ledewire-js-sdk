@@ -39,8 +39,7 @@ components:
   schemas:
     ContentAccessInfo:
       type: object
-      required:
-        [user_id, has_purchased, has_sufficient_funds, wallet_balance_cents, next_required_action]
+      required: [user_id, has_purchased, has_sufficient_funds, wallet_balance_cents, next_required_action]
       properties:
         user_id:
           type: [string, null]
@@ -342,18 +341,7 @@ components:
 
     WalletTransactionItem:
       type: object
-      required:
-        [
-          id,
-          type,
-          reason,
-          amount_cents,
-          balance_after_cents,
-          status,
-          reference_id,
-          description,
-          occurred_at,
-        ]
+      required: [id, type, reason, amount_cents, balance_after_cents, status, reference_id, description, occurred_at]
       properties:
         id:
           type: string
@@ -419,6 +407,9 @@ components:
     ContentUpdateRequest:
       type: object
       additionalProperties: false
+      description: >
+        Update request for content. `content_body` applies to `markdown` content;
+        `content_uri` and `external_identifier` apply to `external_ref` content.
       properties:
         title:
           type: string
@@ -426,7 +417,15 @@ components:
         content_body:
           type: string
           format: byte
-          description: Full content body, base64 encoded
+          description: Full article body in markdown, base64 encoded. For `markdown` content only.
+        content_uri:
+          type: string
+          description: URI of the external resource. For `external_ref` content only.
+          example: https://vimeo.com/123456789
+        external_identifier:
+          type: [string, 'null']
+          description: Namespaced platform ID, e.g. `vimeo:123456789`. For `external_ref` content only.
+          example: vimeo:123456789
         teaser:
           type: string
           format: byte
@@ -469,15 +468,7 @@ components:
 
 
         Prefer `buyer_ref` over any global buyer identifier.
-      required:
-        [
-          buyer_ref,
-          purchases_count,
-          total_spent_cents,
-          first_purchase_at,
-          last_purchase_at,
-          buyer_status,
-        ]
+      required: [buyer_ref, purchases_count, total_spent_cents, first_purchase_at, last_purchase_at, buyer_status]
       properties:
         buyer_ref:
           type: string
@@ -716,26 +707,39 @@ components:
 
     Content:
       type: object
-      required: [content_type, title, price_cents, content_body]
+      description: >
+        Create request body for content. Required fields vary by `content_type`:
+        `markdown` requires `content_body`; `external_ref` requires `content_uri`.
+      required: [content_type, title, price_cents]
       properties:
         content_type:
           type: string
           enum:
             - markdown
-          description: The type of content being uploaded
+            - external_ref
+          description: The type of content being created.
         title:
           type: string
           description: Content title
         content_body:
           type: string
           format: byte
-          description: (Optional) Full article content, written in markdown and base64 encoded.
+          description: Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
+        content_uri:
+          type: string
+          description: URI of the external resource (Vimeo, YouTube, PDF, etc.). Required when `content_type` is `external_ref`.
+          example: https://vimeo.com/123456789
+        external_identifier:
+          type: string
+          description: Optional namespaced platform ID, e.g. `vimeo:123456789` or `youtube:dQw4w9WgXcQ`.
+          example: vimeo:123456789
         teaser:
           type: string
           format: byte
           description: (Optional) Article teaser, written in markdown and base64 encoded.
         price_cents:
           type: integer
+          minimum: 1
           description: Price for the content in cents.
         visibility:
           type: string
@@ -755,7 +759,12 @@ components:
               type: string
     ContentResponse:
       type: object
-      required: [id, content_type, title, price_cents, content_body, teaser, visibility]
+      description: >
+        Response shape for a single content item. The presence of `content_body` vs
+        `content_uri` depends on `content_type`: `markdown` includes `content_body`;
+        `external_ref` includes `content_uri` (the external URI) and optionally
+        `external_identifier`.
+      required: [id, content_type, title, price_cents, teaser, visibility]
       properties:
         id:
           type: string
@@ -763,18 +772,27 @@ components:
           type: string
           enum:
             - markdown
-          description: The type of content being uploaded
+            - external_ref
+          description: The type of content.
         title:
           type: string
           description: Content title
         content_body:
-          type: string
+          type: [string, 'null']
           format: byte
-          description: (Optional) Full article content, written in markdown and base64 encoded.
+          description: Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`.
+        content_uri:
+          type: [string, 'null']
+          description: URI of the external resource. Present when `content_type` is `external_ref`.
+          example: https://vimeo.com/123456789
+        external_identifier:
+          type: [string, 'null']
+          description: Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` content.
+          example: vimeo:123456789
         teaser:
           type: string
           format: byte
-          description: (Optional) Article teaser, written in markdown and base64 encoded.
+          description: Article teaser, base64 encoded.
         price_cents:
           type: integer
           description: Price for the content in cents.
@@ -820,15 +838,15 @@ components:
       type: object
       description: >
         Lightweight content representation returned by list and search endpoints.
-        Omits `content_body` to keep list payloads small. Use the detail endpoint
-        (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body.
+        Omits body fields to keep list payloads small. Use the detail endpoint
+        (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI.
       required: [id, content_type, title, price_cents, teaser, visibility, created_at]
       properties:
         id:
           type: string
         content_type:
           type: string
-          enum: [markdown]
+          enum: [markdown, external_ref]
         title:
           type: string
         price_cents:
@@ -843,11 +861,21 @@ components:
         created_at:
           type: string
           format: date-time
+        external_identifier:
+          type: [string, 'null']
+          description: Namespaced platform ID for `external_ref` content. Null for other types.
 
     ContentWithAccessResponse:
       description: >
         Full content detail plus real-time access and wallet context for a specific user.
-        Returned by the seller/API-key `with_access` endpoint.
+        Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
+
+
+        **URI gating for `external_ref` content:** `content_uri` (the external URI) is
+        only present in the response when `access_info.has_purchased` is `true`. For all
+        other states (unauthenticated, insufficient funds, not yet purchased) it is omitted,
+        ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource
+        without completing a purchase.
       allOf:
         - $ref: '#/components/schemas/ContentResponse'
         - type: object
@@ -875,19 +903,7 @@ components:
 
     PurchaseResponse:
       type: object
-      required:
-        [
-          id,
-          content_id,
-          content,
-          buyer_id,
-          buyer,
-          seller_id,
-          seller,
-          amount_cents,
-          timestamp,
-          status,
-        ]
+      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, timestamp, status]
       properties:
         id:
           type: string
@@ -933,20 +949,7 @@ components:
 
     MerchantSaleResponse:
       type: object
-      required:
-        [
-          id,
-          content_id,
-          content,
-          buyer_id,
-          buyer,
-          seller_id,
-          seller,
-          amount_cents,
-          fees,
-          status,
-          timestamp,
-        ]
+      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, fees, status, timestamp]
       properties:
         id:
           type: string
@@ -1659,6 +1662,30 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ContentResponse'
+              examples:
+                content_list:
+                  summary: Mixed content types
+                  value:
+                    - id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                      content_type: 'markdown'
+                      title: 'Sample Blog Post'
+                      content_body: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIGRldGFpbGVkIGJsb2cgcG9zdC4='
+                      teaser: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIHByZXZpZXcgb2YgdGhlIGJsb2cgcG9zdC4='
+                      price_cents: 500
+                      visibility: 'public'
+                      metadata:
+                        author: 'Jane Doe'
+                        reading_time: '5 min'
+                      external_identifier: null
+                    - id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                      content_type: 'external_ref'
+                      title: 'Intro to Machine Learning'
+                      content_uri: 'https://vimeo.com/987654321'
+                      external_identifier: 'vimeo:987654321'
+                      teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                      price_cents: 1500
+                      visibility: 'public'
+                      metadata: {}
         '401':
           description: Unauthorized
           content:
@@ -1701,11 +1728,22 @@ paths:
               $ref: '#/components/schemas/Content'
             examples:
               markdownContent:
+                summary: Markdown article
                 value:
                   content_type: markdown
                   title: 'Sample Blog Post'
                   content_body: 'IyBUZXN0IFBvc3Q='
                   price_cents: 500
+                  visibility: public
+              externalRefContent:
+                summary: External reference (Vimeo video)
+                value:
+                  content_type: external_ref
+                  title: 'Intro to Machine Learning'
+                  content_uri: 'https://vimeo.com/987654321'
+                  external_identifier: 'vimeo:987654321'
+                  teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                  price_cents: 1500
                   visibility: public
       responses:
         '201':
@@ -1714,6 +1752,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContentResponse'
+              examples:
+                markdown_created:
+                  summary: Markdown content created
+                  value:
+                    id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                    content_type: 'markdown'
+                    title: 'Sample Blog Post'
+                    content_body: 'IyBUZXN0IFBvc3Q='
+                    teaser: ''
+                    price_cents: 500
+                    visibility: 'public'
+                    metadata: {}
+                    external_identifier: null
+                external_ref_created:
+                  summary: External reference content created
+                  value:
+                    id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                    content_type: 'external_ref'
+                    title: 'Intro to Machine Learning'
+                    content_uri: 'https://vimeo.com/987654321'
+                    external_identifier: 'vimeo:987654321'
+                    teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                    price_cents: 1500
+                    visibility: 'public'
+                    metadata: {}
         '400':
           description: Invalid content parameters
           content:
@@ -1811,6 +1874,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContentResponse'
+              examples:
+                markdown_content:
+                  summary: Markdown content
+                  value:
+                    id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                    content_type: 'markdown'
+                    title: 'Sample Blog Post'
+                    content_body: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIGRldGFpbGVkIGJsb2cgcG9zdC4='
+                    teaser: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIHByZXZpZXcgb2YgdGhlIGJsb2cgcG9zdC4='
+                    price_cents: 500
+                    visibility: 'public'
+                    metadata:
+                      author: 'Jane Doe'
+                      reading_time: '5 min'
+                    external_identifier: null
+                external_ref_content:
+                  summary: External reference content
+                  value:
+                    id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                    content_type: 'external_ref'
+                    title: 'Intro to Machine Learning'
+                    content_uri: 'https://vimeo.com/987654321'
+                    external_identifier: 'vimeo:987654321'
+                    teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                    price_cents: 1500
+                    visibility: 'public'
+                    metadata: {}
         '401':
           description: Unauthorized
           content:
@@ -1845,6 +1935,18 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ContentUpdateRequest'
+            examples:
+              update_markdown:
+                summary: Update markdown body
+                value:
+                  content_body: 'IyBVcGRhdGVkIEJsb2cgUG9zdA=='
+                  price_cents: 750
+              update_external_ref:
+                summary: Update external reference URI
+                value:
+                  content_uri: 'https://vimeo.com/111222333'
+                  external_identifier: 'vimeo:111222333'
+                  price_cents: 2000
       responses:
         '200':
           description: Updated content
@@ -1852,6 +1954,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContentResponse'
+              examples:
+                updated_markdown:
+                  summary: Updated markdown content
+                  value:
+                    id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                    content_type: 'markdown'
+                    title: 'Sample Blog Post'
+                    content_body: 'IyBVcGRhdGVkIEJsb2cgUG9zdA=='
+                    teaser: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIHByZXZpZXcgb2YgdGhlIGJsb2cgcG9zdC4='
+                    price_cents: 750
+                    visibility: 'public'
+                    metadata: {}
+                    external_identifier: null
+                updated_external_ref:
+                  summary: Updated external reference content
+                  value:
+                    id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                    content_type: 'external_ref'
+                    title: 'Intro to Machine Learning'
+                    content_uri: 'https://vimeo.com/111222333'
+                    external_identifier: 'vimeo:111222333'
+                    teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                    price_cents: 2000
+                    visibility: 'public'
+                    metadata: {}
         '400':
           description: Invalid parameters
           content:
@@ -2503,43 +2630,43 @@ paths:
                 items:
                   $ref: '#/components/schemas/PurchaseResponse'
               examples:
-                purchase_list:
-                  summary: List of user purchases
-                  value:
-                    - id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
-                      content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                      content:
-                        id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                        content_type: 'markdown'
-                        title: 'Sample Blog Post'
-                      buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      buyer:
-                        id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                        name: 'Buyer Name'
-                      seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      seller:
-                        id: '87654321-dcba-4fed-ba98-76543210fedc'
-                        name: 'Seller Name'
-                      amount_cents: 1200
-                      timestamp: '2025-05-18T13:27:45Z'
-                      status: 'completed'
-                    - id: '4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d'
-                      content_id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
-                      content:
-                        id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
-                        content_type: 'markdown'
-                        title: 'Advanced Technology Guide'
-                      buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      buyer:
-                        id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                        name: 'Buyer Name'
-                      seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      seller:
-                        id: '87654321-dcba-4fed-ba98-76543210fedc'
-                        name: 'Seller Name'
-                      amount_cents: 1500
-                      timestamp: '2025-05-17T09:15:30Z'
-                      status: 'completed'
+                    purchase_list:
+                      summary: List of user purchases
+                      value:
+                        - id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
+                          content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                          content:
+                            id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                            content_type: 'markdown'
+                            title: 'Sample Blog Post'
+                          buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          buyer:
+                            id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                            name: 'Buyer Name'
+                          seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          seller:
+                            id: '87654321-dcba-4fed-ba98-76543210fedc'
+                            name: 'Seller Name'
+                          amount_cents: 1200
+                          timestamp: '2025-05-18T13:27:45Z'
+                          status: 'completed'
+                        - id: '4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d'
+                          content_id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
+                          content:
+                            id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
+                            content_type: 'markdown'
+                            title: 'Advanced Technology Guide'
+                          buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          buyer:
+                            id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                            name: 'Buyer Name'
+                          seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          seller:
+                            id: '87654321-dcba-4fed-ba98-76543210fedc'
+                            name: 'Seller Name'
+                          amount_cents: 1500
+                          timestamp: '2025-05-17T09:15:30Z'
+                          status: 'completed'
         '401':
           description: Unauthorized - Invalid or missing authentication token
           content:
@@ -2657,26 +2784,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchaseResponse'
               examples:
-                purchase:
-                  summary: Purchase details
-                  value:
-                    id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
-                    content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                    content:
-                      id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                      content_type: 'markdown'
-                      title: 'Sample Blog Post'
-                    buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                    buyer:
-                      id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      name: 'Buyer Name'
-                    seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                    seller:
-                      id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      name: 'Seller Name'
-                    amount_cents: 1200
-                    timestamp: '2025-05-18T13:27:45Z'
-                    status: 'completed'
+                    purchase:
+                      summary: Purchase details
+                      value:
+                        id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
+                        content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                        content:
+                          id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                          content_type: 'markdown'
+                          title: 'Sample Blog Post'
+                        buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                        buyer:
+                          id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          name: 'Buyer Name'
+                        seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                        seller:
+                          id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          name: 'Seller Name'
+                        amount_cents: 1200
+                        timestamp: '2025-05-18T13:27:45Z'
+                        status: 'completed'
         '401':
           description: Unauthorized - Invalid or missing authentication token
           content:
@@ -2765,8 +2892,13 @@ paths:
       tags:
         - Content
       description: >
-        Currently only offers support for the following content type:
-        - Markdown
+        Supports the following content types:
+
+        - **`markdown`** — written article, base64-encoded body stored in `content_body`
+
+        - **`external_ref`** — proxy content pointing to an external resource (Vimeo, YouTube,
+          PDF, etc.). The URI is stored in `content_uri` and is only revealed to buyers
+          after a completed purchase.
 
 
         **Authorization:**
@@ -2788,6 +2920,7 @@ paths:
               $ref: '#/components/schemas/Content'
             examples:
               markdownContent:
+                summary: Markdown article
                 value:
                   content_type: markdown
                   title: 'Sample Blog Post'
@@ -2797,15 +2930,16 @@ paths:
                   metadata:
                     author: 'Jane Doe'
                     reading_time: '5 min'
-              richMediaContent:
+              externalRefContent:
+                summary: External reference (Vimeo video)
                 value:
-                  type: rich_media
-                  title: 'Comprehensive Tech Guide'
-                  content: 'base64_encoded_content_or_file_reference'
-                  external_references:
-                    - type: video
-                      url: 'https://example.com/intro-video'
-                      description: 'Introduction to the guide'
+                  content_type: external_ref
+                  title: 'Intro to Machine Learning'
+                  content_uri: 'https://vimeo.com/987654321'
+                  external_identifier: 'vimeo:987654321'
+                  teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                  price_cents: 1500
+                  visibility: public
       responses:
         '201':
           description: Content created successfully
@@ -2814,8 +2948,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ContentResponse'
               examples:
-                created_content:
-                  summary: Successfully created content
+                markdown_created:
+                  summary: Markdown content created
                   value:
                     id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
                     content_type: 'markdown'
@@ -2828,17 +2962,18 @@ paths:
                       author: 'Jane Doe'
                       publication_date: '2025-05-18T10:00:00Z'
                       reading_time: '5 min'
-
-                # type: object
-                # properties:
-                #   id:
-                #     type: string
-                #   type:
-                #     type: string
-                #   content_url:
-                #     type: string
-                #   preview_url:
-                #     type: string
+                external_ref_created:
+                  summary: External reference content created
+                  value:
+                    id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                    content_type: 'external_ref'
+                    title: 'Intro to Machine Learning'
+                    content_uri: 'https://vimeo.com/987654321'
+                    external_identifier: 'vimeo:987654321'
+                    teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                    price_cents: 1500
+                    visibility: 'public'
+                    metadata: {}
         '400':
           description: Invalid content parameters
           content:
@@ -2908,6 +3043,15 @@ paths:
                         author: 'Jane Doe'
                         publication_date: '2025-05-10T14:30:00Z'
                         reading_time: '12 min'
+                    - id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                      content_type: 'external_ref'
+                      title: 'Intro to Machine Learning'
+                      content_uri: 'https://vimeo.com/987654321'
+                      external_identifier: 'vimeo:987654321'
+                      teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                      price_cents: 1500
+                      visibility: 'public'
+                      metadata: {}
         '401':
           description: Unauthorized
           content:
@@ -3257,17 +3401,17 @@ paths:
                     total_revenue_cents: 4389
                     total_sales: 48
                     monthly_revenue_cents:
-                      '2025':
-                        '5': 204
-                        '6': 2210
-                        '7': 785
-                        '8': 1190
+                      "2025":
+                        "5": 204
+                        "6": 2210
+                        "7": 785
+                        "8": 1190
                     monthly_sales:
-                      '2025':
-                        '5': 2
-                        '6': 26
-                        '7': 6
-                        '8': 14
+                      "2025":
+                        "5": 2
+                        "6": 26
+                        "7": 6
+                        "8": 14
         '401':
           description: Unauthorized
           content:
@@ -3483,20 +3627,20 @@ paths:
               page_view:
                 summary: Track a page view
                 value:
-                  name: 'Page View'
+                  name: "Page View"
                   properties:
-                    page: '/content/123'
-                    title: 'Sample Blog Post'
-                  time: '2025-01-20T10:30:00Z'
+                    page: "/content/123"
+                    title: "Sample Blog Post"
+                  time: "2025-01-20T10:30:00Z"
               button_click:
                 summary: Track a button click
                 value:
-                  name: 'Button Click'
+                  name: "Button Click"
                   properties:
-                    button_id: 'purchase_button'
-                    content_id: '123'
-                    location: 'content_page'
-                  time: '2025-01-20T10:35:00Z'
+                    button_id: "purchase_button"
+                    content_id: "123"
+                    location: "content_page"
+                  time: "2025-01-20T10:35:00Z"
       responses:
         '200':
           description: Event tracked successfully
@@ -3523,7 +3667,7 @@ paths:
                 invalid_event:
                   summary: Invalid event data
                   value:
-                    error: 'Event name is required'
+                    error: "Event name is required"
 
   /ahoy/visits:
     post:
@@ -3544,45 +3688,45 @@ paths:
               web_visit:
                 summary: Track a web visit
                 value:
-                  visit_token: 'visit_123456'
-                  visitor_token: 'visitor_789012'
-                  ip: '192.168.1.1'
-                  user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-                  referrer: 'https://google.com'
-                  referring_domain: 'google.com'
-                  landing_page: 'https://ledewire.com/content/123'
-                  browser: 'Chrome'
-                  os: 'macOS'
-                  device_type: 'desktop'
-                  country: 'US'
-                  region: 'CA'
-                  city: 'San Francisco'
+                  visit_token: "visit_123456"
+                  visitor_token: "visitor_789012"
+                  ip: "192.168.1.1"
+                  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                  referrer: "https://google.com"
+                  referring_domain: "google.com"
+                  landing_page: "https://ledewire.com/content/123"
+                  browser: "Chrome"
+                  os: "macOS"
+                  device_type: "desktop"
+                  country: "US"
+                  region: "CA"
+                  city: "San Francisco"
                   latitude: 37.7749
                   longitude: -122.4194
-                  utm_source: 'google'
-                  utm_medium: 'cpc'
-                  utm_campaign: 'content_marketing'
-                  started_at: '2025-01-20T10:30:00Z'
+                  utm_source: "google"
+                  utm_medium: "cpc"
+                  utm_campaign: "content_marketing"
+                  started_at: "2025-01-20T10:30:00Z"
               mobile_visit:
                 summary: Track a mobile visit
                 value:
-                  visit_token: 'visit_789012'
-                  visitor_token: 'visitor_345678'
-                  ip: '192.168.1.2'
-                  user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15'
-                  landing_page: 'https://ledewire.com/content/456'
-                  browser: 'Safari'
-                  os: 'iOS'
-                  device_type: 'mobile'
-                  country: 'US'
-                  region: 'NY'
-                  city: 'New York'
+                  visit_token: "visit_789012"
+                  visitor_token: "visitor_345678"
+                  ip: "192.168.1.2"
+                  user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15"
+                  landing_page: "https://ledewire.com/content/456"
+                  browser: "Safari"
+                  os: "iOS"
+                  device_type: "mobile"
+                  country: "US"
+                  region: "NY"
+                  city: "New York"
                   latitude: 40.7128
                   longitude: -74.0060
-                  app_version: '1.2.3'
-                  os_version: '14.7.1'
-                  platform: 'ios'
-                  started_at: '2025-01-20T11:00:00Z'
+                  app_version: "1.2.3"
+                  os_version: "14.7.1"
+                  platform: "ios"
+                  started_at: "2025-01-20T11:00:00Z"
       responses:
         '200':
           description: Visit tracked successfully
@@ -3609,4 +3753,4 @@ paths:
                 invalid_visit:
                   summary: Invalid visit data
                   value:
-                    error: 'Visit token is required'
+                    error: "Visit token is required"
