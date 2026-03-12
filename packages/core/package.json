@@ -11,7 +11,7 @@
     "./test-utils": "./src/test-utils/index.ts"
   },
   "scripts": {
-    "generate:types": "openapi-typescript ../../ledewire.yml --output src/api.gen.ts",
+    "generate:types": "openapi-typescript ../../ledewire.yml --output src/api.gen.ts && prettier --write src/api.gen.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
