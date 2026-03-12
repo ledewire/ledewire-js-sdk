@@ -52,17 +52,27 @@ Run `pnpm format` before committing to avoid CI format failures.
 
 Releases are fully automated via [Changesets](https://github.com/changesets/changesets).
 
+### Repository secret required
+
+The Release workflow needs a `CHANGESETS_TOKEN` secret — a GitHub PAT with `repo`
+scope — to create and update the "Version Packages" PR. Add it under
+**Settings → Secrets and variables → Actions** before the first release.
+
 ### How it works
 
 ```
 Your PR (with .changeset/ file)
         │
         ▼ merge to main
-Release workflow opens "Version Packages" PR
+Release workflow opens (or updates) "Version Packages" PR
         │
         ▼ merge that PR
 Release workflow publishes to npm + GitHub Release + API docs
 ```
+
+> The **"Version Packages" PR is cumulative** — it stays open and gets updated
+> each time a new changeset lands on `main`. Merge it whenever you're ready to
+> cut a release; there's no need to release after every single PR.
 
 ### Step-by-step
 
@@ -72,11 +82,13 @@ Release workflow publishes to npm + GitHub Release + API docs
    - Write a one-line summary — this becomes the CHANGELOG entry
    - Changes to `packages/core` should surface as a bump on the consuming packages
 
-2. **After merging to `main`** — the Release workflow automatically opens a
-   **"Version Packages"** PR that bumps `package.json` versions and updates `CHANGELOG.md`
+2. **After merging to `main`** — the Release workflow automatically opens (or updates)
+   the **"Version Packages"** PR that bumps `package.json` versions and updates `CHANGELOG.md`.
+   This PR accumulates all pending changesets — it is updated in-place as more PRs land.
 
 3. **To release** — review and merge the "Version Packages" PR. The Release workflow
-   then publishes to npm, attaches the CDN bundle to the GitHub Release, and deploys the API docs
+   then publishes to npm, attaches the CDN bundle to the GitHub Release, and deploys the API docs.
+   The npm publish only happens at this step — merging your feature PR alone does not publish.
 
 > **No changeset needed** for PRs that only touch docs, CI config, or tests.
 > Add the `skip-changeset` label to the PR — the changeset check will be bypassed.

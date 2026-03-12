@@ -70,12 +70,13 @@ the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseE
 
 ### Adding a new API endpoint
 
-1. Add/update types in `packages/core/src/types.ts`
-2. Re-run type generation when the spec changes: `pnpm generate-types`
-3. Add the method to the correct namespace in `packages/node/src/resources/` or
+1. Update `ledewire.yml` if the endpoint or schema isn't there yet
+2. Run `pnpm generate:types` — regenerates `packages/core/src/api.gen.ts` (never edit that file manually)
+3. Add/update type aliases in `packages/core/src/types.ts` if the new types need re-exporting
+4. Add the method to the correct namespace in `packages/node/src/resources/` or
    `packages/browser/src/resources/`
-4. Write a Vitest test using MSW — see existing tests for patterns
-5. Run `pnpm typecheck && pnpm test` — both must pass
+5. Write a Vitest test using MSW — see existing tests for patterns
+6. Run `pnpm typecheck && pnpm test` — both must pass
 
 ### JSDoc is required on all exports
 
@@ -93,6 +94,7 @@ pnpm typecheck         # Type-check all packages
 pnpm lint              # Lint all packages
 pnpm lint:fix          # Auto-fix lint issues
 pnpm format            # Format all files with Prettier
+pnpm generate:types    # Regenerate api.gen.ts from ledewire.yml (run after spec changes)
 pnpm changeset         # Create a changeset (required before merging feature PRs)
 ```
 
