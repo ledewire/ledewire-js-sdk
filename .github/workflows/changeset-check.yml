@@ -12,13 +12,13 @@ jobs:
     # Skip if the PR has the 'skip-changeset' label (for docs-only / CI-only PRs)
     if: "!contains(github.event.pull_request.labels.*.name, 'skip-changeset')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
