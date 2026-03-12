@@ -48,7 +48,7 @@ jobs:
           title: 'chore: version packages'
           commit: 'chore: version packages'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Attach browser CDN bundle to GitHub Release
         if: steps.changesets.outputs.published == 'true'
