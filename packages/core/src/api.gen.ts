@@ -4,3562 +4,3566 @@
  */
 
 export interface paths {
-    "/v1/auth/signup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register a new user with email and password */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AuthSignupRequest"];
-                };
-            };
-            responses: {
-                /** @description Token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthenticationResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/login/email": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Log in using email and password */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AuthLoginEmailRequest"];
-                };
-            };
-            responses: {
-                /** @description Token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthenticationResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/login/google": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Log in using Google OAuth */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AuthLoginOAuthRequest"];
-                };
-            };
-            responses: {
-                /** @description Token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthenticationResponse"];
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Invalid or expired token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Google service unavailable */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/login/api-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Log in using API key and secret
-         * @description Authenticate as a seller using API credentials.
-         *
-         *     **Permission Levels:**
-         *     - Provide only `api_key` (without `api_secret`) to receive a token with **`view` permission** (read-only access)
-         *     - Provide both `api_key` and `api_secret` to receive a token with **`full` permission** (read/write access)
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AuthLoginApiKeyRequest"];
-                };
-            };
-            responses: {
-                /** @description Token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthenticationResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/token/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Refresh an access token */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AuthTokenRefreshRequest"];
-                };
-            };
-            responses: {
-                /** @description New token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthenticationResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/merchant/stores": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List stores the authenticated user can manage
-         * @description Returns all stores the authenticated user has a StoreUser record for. Requires a buyer or merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of manageable stores */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ManageableStore"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/merchant/login/email": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Log in as a merchant with email and password
-         * @description Authenticates a user and returns a store-agnostic merchant JWT. The token carries `role: merchant` with no embedded store context. Use `GET /v1/auth/merchant/stores` to discover which stores the user can manage, then pass the desired `store_id` as a URL parameter on merchant resource endpoints.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MerchantEmailLoginRequest"];
-                };
-            };
-            responses: {
-                /** @description Merchant token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantAuthenticationResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/merchant/login/google": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Log in as a merchant with Google OAuth
-         * @description Authenticates a user via Google OAuth and returns a store-agnostic merchant JWT.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MerchantGoogleLoginRequest"];
-                };
-            };
-            responses: {
-                /** @description Merchant token pair */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantAuthenticationResponse"];
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Invalid or expired Google token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Google service unavailable */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * List store members
-         * @description Returns all StoreUser records for the given store.
-         *
-         *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission. Non-owner users (including `is_author: true`) receive `403 Forbidden`.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Store members */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantUser"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden — insufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /**
-         * Invite a user to the store
-         * @description Adds a user as a member of the store. If the user already has an account, they are added immediately. If not, an invitation email is sent and a pending StoreUser is created.
-         *
-         *     `is_author` defaults to `true`; set it explicitly to `false` to add a store member without authoring permissions.
-         *
-         *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MerchantInviteRequest"];
-                };
-            };
-            responses: {
-                /** @description User added or invitation sent */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantUser"] | components["schemas"]["MerchantInviteResponse"];
-                    };
-                };
-                /** @description User added or invitation sent */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantUser"] | components["schemas"]["MerchantInviteResponse"];
-                    };
-                };
-                /** @description User is already a member of this store */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Store ID */
-                store_id: string;
-                /** @description StoreUser ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Remove a store member
-         * @description Removes a user from the store. Owners cannot remove themselves.
-         *
-         *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID */
-                    store_id: string;
-                    /** @description StoreUser ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Removed successfully */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Forbidden — cannot remove self or insufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Update a store member's permissions
-         * @description Toggles the `is_author` flag for a store member. Role (`owner`) can only be assigned via the platform admin UI. Owners cannot update their own record.
-         *
-         *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID */
-                    store_id: string;
-                    /** @description StoreUser ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        is_author: boolean;
-                    };
-                };
-            };
-            responses: {
-                /** @description Updated store member */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantUser"];
-                    };
-                };
-                /** @description Forbidden — cannot modify own record or insufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Store ID */
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * List store content
-         * @description Returns content for the given store. Owners and API keys see all content; `is_author` users see only their own content.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID */
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /**
-         * Create a new content item
-         * @description Creates a new content item in the given store.
-         *
-         *     **Authorship:**
-         *     - Created by an `is_author` user → attributed to that user.
-         *     - Created via API key → attributed to the store's `owner` (if one exists).
-         *     - Created by an owner → attributed to the owner.
-         *
-         *     **Authorization:** `owner` role, `is_author: true`, or API key with `full` permission. Users with neither receive `403 Forbidden`.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Store ID */
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Content"];
-                };
-            };
-            responses: {
-                /** @description Content created successfully */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Invalid content parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden — insufficient role or authorship */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/content/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Search content by metadata
-         * @description Search content using metadata key/value pairs. All criteria must match (AND logic). Results are scoped by role: owners see all content, `is_author` users see only their own.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        metadata: {
-                            [key: string]: unknown;
-                        };
-                    };
-                };
-            };
-            responses: {
-                /** @description Matching content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"][];
-                    };
-                };
-                /** @description Invalid search parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/content/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-                /** @description Content ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * Get content by ID
-         * @description Owners and API keys can fetch any content. `is_author` users can only fetch their own.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Content item */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found or not accessible */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /**
-         * Delete a content item
-         * @description Permanently delete a content item. Owners and API keys can delete any content. `is_author` users can only delete their own.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Content deleted */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found or not accessible */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Update a content item
-         * @description Update an existing content item.
-         *
-         *     - `owner` and API key: can update any content, including reassigning
-         *       the author via `store_user_id`.
-         *
-         *     - `is_author: true` (non-owner): can only update their own content;
-         *       `store_user_id` is ignored even if provided.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ContentUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Invalid parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found or not accessible */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/sales/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /** Get sales summary */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Sales summary data */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SalesSummaryResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/sales": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /** Get content purchase records */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of content purchases */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SalesStatisticsItem"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/sales/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-                id: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * Get sale detail with fee breakdown
-         * @description Returns the full detail of a single sale including the platform fee split (platform_fee_cents, store_net_cents, author_net_cents). Owner access only. The buyer-facing GET /v1/purchases/:id intentionally omits the fees object.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Sale detail with fee breakdown */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MerchantSaleResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden — not the store owner, or store mismatch */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Sale not found or belongs to a different store */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/buyers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * Get buyer statistics
-         * @description Returns aggregated, anonymised buyer statistics for the store.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Buyer statistics */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BuyerStatisticsItem"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/merchant/{store_id}/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                store_id: string;
-            };
-            cookie?: never;
-        };
-        /** Get store configuration */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    store_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Store configuration */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            google_client_id?: string;
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/wallet/payment-session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Initialize a wallet funding payment session
-         * @description Creates a payment session for wallet funding and returns the necessary details for client-side payment processing. Currently implemented using Stripe payment intents. The client should use the returned client_secret with the payment provider's client library to collect payment details and process the payment. After payment is processed, the provider will send a webhook notification to confirm the payment status.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["WalletPaymentSessionRequest"];
-                };
-            };
-            responses: {
-                /** @description Payment session created successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["WalletPaymentSessionResponse"];
-                    };
-                };
-                /** @description Invalid request data */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error?: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/wallet/payment-status/{session_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check the status of a wallet payment
-         * @description Allows clients to check the current status of a payment session. This endpoint can be polled after payment submission to determine when a webhook has been processed.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    session_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Payment status information */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {string} */
-                            status?: "pending" | "succeeded" | "completed" | "failed" | "canceled";
-                            /** Format: date-time */
-                            updated_at?: string;
-                            /** @description Current wallet balance if payment succeeded */
-                            balance_cents?: number;
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/wallet/payment-webhook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Webhook handler for wallet funding completion
-         * @description Receives webhook notifications from payment providers for payment events. When a payment success event is received for a wallet funding transaction, the system will automatically update the transaction status and fund the user's wallet. Currently implemented for Stripe webhook events.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description Webhook processed successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @example true */
-                            received?: boolean;
-                        };
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Error response */
-                default: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error?: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/webhooks/payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generic payment provider webhook endpoint
-         * @description Receives webhook notifications from payment providers for all types of events. This endpoint handles all payment provider events and routes them to the appropriate handlers. Currently implemented for Stripe webhook events.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description Webhook processed successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @example true */
-                            received?: boolean;
-                        };
-                    };
-                };
-                /** @description Invalid webhook payload */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Invalid webhook signature */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/wallet/balance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get wallet balance */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Current balance */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["WalletBalanceResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/wallet/transactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Wallet transaction history
-         * @description Returns a unified ledger of all events that have changed the authenticated user's wallet balance, newest first. Only completed events appear — pending and failed funding transfers are excluded.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of wallet transactions, newest first */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["WalletTransactionItem"][];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/content/{id}/with-access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get content with access control information */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Optional user ID to check specific user's access status. If not provided, returns generic access info. */
-                    user_id?: string;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Content with access information */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            content?: components["schemas"]["ContentResponse"];
-                            access?: {
-                                has_full_access?: boolean;
-                                /** @enum {string} */
-                                next_required_action?: "authenticate" | "fund_wallet" | "purchase" | "none";
-                                paywall_position?: number;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/checkout/state/{content_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get user's current checkout state for specific content */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    content_id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: never;
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/purchases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List user purchases */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of purchases */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PurchaseResponse"][];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** Complete a content purchase */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["PurchaseCreateRequest"];
-                };
-            };
-            responses: {
-                /** @description Purchase completed */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PurchaseResponse"];
-                    };
-                };
-                /** @description Invalid purchase request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unprocessable Content - Price mismatch or other validation error */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/purchases/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get purchase by ID */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Purchase ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Purchase object */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PurchaseResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Purchase not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/purchase/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Verify purchase */
-        get: {
-            parameters: {
-                query: {
-                    content_id: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Verification result */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PurchaseVerifyResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - User lacks sufficient permissions */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List user content
-         * @description Returns all content items for the authenticated seller's store.
-         *
-         *     **Required Permission:** `view` or `full`
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /**
-         * Create a new piece of content
-         * @description Supports the following content types:
-         *     - **`markdown`** — written article, base64-encoded body stored in `content_body`
-         *     - **`external_ref`** — proxy content pointing to an external resource (Vimeo, YouTube,
-         *       PDF, etc.). The URI is stored in `content_uri` and is only revealed to buyers
-         *       after a completed purchase.
-         *
-         *
-         *     **Authorization:**
-         *     Store manager tokens: only `owner` role and users with `is_author: true` may create content. Users with neither (no role, `is_author: false`) will receive a `403 Forbidden`.
-         *
-         *     API key/secret authentication: permitted with `full` permission. The store's `owner` will be automatically set as the author if one exists; otherwise content is created without an author.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Content"];
-                };
-            };
-            responses: {
-                /** @description Content created successfully */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Invalid content parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - insufficient role to create content */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/content/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Search content by metadata
-         * @description Search for content using metadata key/value pairs. Supports searching by internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields. All criteria must match (AND logic).
-         *
-         *     **Required Permission:** `view` or `full`
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @description Key/value pairs to search for in content metadata */
-                        metadata: {
-                            [key: string]: unknown;
-                        };
-                    };
-                };
-            };
-            responses: {
-                /** @description List of matching content */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"][];
-                    };
-                };
-                /** @description Bad request - invalid parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/content/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get content by ID
-         * @description Retrieve a specific content item by its ID.
-         *
-         *     **Required Permission:** `view` or `full`
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Content retrieved successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /**
-         * Delete content item
-         * @description Permanently delete a content item.
-         *
-         *     **Required Permission:** `full`
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Content deleted */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": unknown;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Update content item
-         * @description Update an existing content item.
-         *
-         *     **Authorization:**
-         *     - `owner`: can update any content in the store, including reassigning
-         *       the author via `store_user_id`.
-         *
-         *     - `is_author: true` (non-owner): can only update their own content; `store_user_id` is ignored even if provided.
-         *     - API key (`full` permission): can update any content and reassign authorship.
-         *
-         *     **Assigning an author:** pass a `store_user_id` from `GET /v1/merchant/{store_id}/users`. Pass `null` to clear attribution.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Content ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ContentUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Content updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ContentResponse"];
-                    };
-                };
-                /** @description Invalid content parameters */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized - Invalid or missing authentication token */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Content not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/v1/seller/sales": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get sales data */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Sales list */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SalesStatisticsItem"][];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/sales/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get sales summary with revenue and sales data */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Sales summary data */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SalesSummaryResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden - Seller access required */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/buyers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get buyer statistics
-         * @description Returns seller-scoped, aggregated buyer statistics for reporting.
-         *
-         *     This endpoint is designed to minimize exposure of buyer identity data.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Buyer data */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BuyerStatisticsItem"][];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/seller/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Store Configuration */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Client configuration */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            google_client_id?: string;
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/password/reset-request": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Request a password reset code */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Password reset code sent (if account exists) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data?: {
-                                /** @example If an account with this email exists, a reset code has been sent. */
-                                message?: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Too many requests (rate limit exceeded) */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/password/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset password using code */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                        /**
-                         * @description 6-digit numeric code
-                         * @example 123456
-                         */
-                        reset_code: string;
-                        /** @description New password (min 6 chars) */
-                        password: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Password reset successful */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data?: {
-                                /** @example Password has been successfully reset. */
-                                message?: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Invalid request or code */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description User not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ahoy/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Track an analytics event
-         * @description Track custom events for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send event data for tracking user behavior and interactions.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AhoyEventRequest"];
-                };
-            };
-            responses: {
-                /** @description Event tracked successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @example true */
-                            success?: boolean;
-                        };
-                    };
-                };
-                /** @description Invalid event data */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ahoy/visits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Track a visit
-         * @description Track visit data for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send visit data for tracking user sessions and behavior.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AhoyVisitRequest"];
-                };
-            };
-            responses: {
-                /** @description Visit tracked successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @example true */
-                            success?: boolean;
-                        };
-                    };
-                };
-                /** @description Invalid visit data */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-}
-export type webhooks = Record<string, never>;
-export interface components {
-    schemas: {
-        ContentAccessInfo: {
-            user_id: string | null;
-            has_purchased: boolean;
-            has_sufficient_funds: boolean;
-            wallet_balance_cents: number;
-            /** @enum {string} */
-            next_required_action: "authenticate" | "fund_wallet" | "purchase" | "none";
-        };
-        AuthenticationResponse: {
-            /** @enum {string} */
-            token_type: "Bearer";
-            /** @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwOTM1N2MyMi0zODlhLTRmYWItYjE2Ni04MjJlNTJhNWJmNWUiLCJyb2xlIjoiYnV5ZXIiLCJidXllcl9jbGFpbXMiOnsidXNlcl9pZCI6IjA5MzU3YzIyLTM4OWEtNGZhYi1iMTY2LTgyMmU1MmE1YmY1ZSIsImVtYWlsIjoidGVzdC0xM0BleGFtcGxlLmNvbSJ9LCJpc3MiOiJMZWRlV2lyZSBBUEkiLCJhdWQiOiJ3ZWIiLCJleHAiOjE3NDc0OTk5NzMsImlhdCI6MTc0NzQ5ODE3MywibmJmIjoxNzQ3NDk4MTczLCJqdGkiOiIwZTMyYzNkNi02OWQwLTRmNTItYTczNS1hZTJiOGNlMmY1MmQiLCJ0b2tlbl9tZXRhZGF0YSI6eyJjcmVhdGVkX2F0IjoiMjAyNS0wNS0xN1QxNjowOTozM1oiLCJleHBpcmVzX2F0IjoiMjAyNS0wNS0xN1QxNjozOTozM1oiLCJ0b2tlbl9pZCI6IjBlMzJjM2Q2LTY5ZDAtNGY1Mi1hNzM1LWFlMmI4Y2UyZjUyZCJ9fQ.VSFsm5ysjtZLheVfhv6DWwH1A9zn_WA6rnGOlPR1R3U */
-            access_token: string;
-            refresh_token: string;
-            /**
-             * Format: date-time
-             * @description When the Access Token expires
-             */
-            expires_at: string;
-        };
-        /** @description Token response for merchant authentication. Tokens are store-agnostic — no store_context is embedded. */
-        MerchantAuthenticationResponse: {
-            /** @enum {string} */
-            token_type: "Bearer";
-            access_token: string;
-            refresh_token: string;
-            /** Format: date-time */
-            expires_at: string;
-        };
-        JWTClaims: {
-            /** @description User or Store identifier */
-            sub?: string;
-            /** @enum {string} */
-            role?: "buyer" | "seller-view" | "seller-full" | "merchant";
-            seller_claims?: {
-                seller_id?: string;
-            };
-            buyer_claims?: {
-                user_id?: string;
-                email?: string;
-            };
-            /** @description Present on merchant tokens */
-            user_claims?: {
-                id?: string;
-                email?: string;
-                full_name?: string;
-            };
-            iat?: number;
-            exp?: number;
-            nbf?: number;
-            iss?: string;
-            aud?: string;
-            token_metadata?: {
-                /** Format: date-time */
-                created_at?: string;
-                /** Format: date-time */
-                expires_at?: string;
-                token_id?: string;
-            };
-        };
-        MessageResponse: {
-            message: string;
-        };
-        ErrorResponse: {
-            error: {
-                code: number;
-                message: string;
-            };
-        };
-        AuthSignupRequest: {
-            email: string;
-            password: string;
-            name: string;
-        };
-        AuthLoginEmailRequest: {
-            email?: string;
-            password?: string;
-        };
-        AuthLoginOAuthRequest: {
-            id_token?: string;
-        };
-        MerchantEmailLoginRequest: {
-            email: string;
-            password: string;
-        };
-        MerchantGoogleLoginRequest: {
-            id_token: string;
-        };
-        AuthLoginApiKeyRequest: {
-            key: string;
-            secret?: string;
-        };
-        AuthTokenRefreshRequest: {
-            refresh_token?: string;
-        };
-        ManageableStore: {
-            store_id: string;
-            store_name: string;
-            store_key: string;
-            /** @enum {string|null} */
-            role: "owner" | null;
-            /** @description Whether the authenticated user has author permissions for this store. */
-            is_author: boolean;
-            logo: string | null;
-        };
-        MerchantUser: {
-            id: string;
-            user_id: string | null;
-            store_id: string;
-            /**
-             * @description Named role. `owner` is the only valid named role; non-owner authors have a null role.
-             * @enum {string|null}
-             */
-            role: "owner" | null;
-            /** @description Whether this user can create and manage their own content. */
-            is_author: boolean;
-            /** Format: date-time */
-            invited_at: string | null;
-            /** Format: date-time */
-            accepted_at: string | null;
-            email: string | null;
-        };
-        MerchantInviteRequest: {
-            /** @description Email address of the user to invite to the store. */
-            email: string;
-            /**
-             * @description Whether to grant author permissions. Defaults to `true`.
-             * @default true
-             */
-            is_author: boolean;
-        };
-        MerchantInviteResponse: {
-            invitation_token: string;
-            email: string;
-            /** @enum {string|null} */
-            role: "owner" | null;
-            is_author: boolean;
-            /** Format: date-time */
-            expires_at: string;
-        };
-        WalletPaymentSessionRequest: {
-            /** @description Amount to fund the wallet in cents */
-            amount_cents: number;
-            /**
-             * @description Currency code (defaults to USD)
-             * @default usd
-             */
-            currency: string;
-            /** @description Additional metadata to include with the payment session */
-            metadata?: Record<string, never>;
-        };
-        WalletPaymentSessionResponse: {
-            /** @description The client secret used by the payment widget to confirm the payment */
-            client_secret: string;
-            /** @description The ID of the created payment session */
-            session_id: string;
-            /** @description The payment public key to be used during the payment processing */
-            public_key: string;
-        };
-        /** @description A payment provider webhook event object */
-        PaymentWebhookEvent: {
-            /** @description Unique identifier for the event */
-            id?: string;
-            /** @description Type of event (e.g., payment_intent.succeeded, payment_intent.payment_failed) */
-            type?: string;
-            /** @description Event data containing the object that triggered the event */
-            data?: Record<string, never>;
-        };
-        WalletBalanceResponse: {
-            balance_cents: number;
-        };
-        WalletTransactionItem: {
-            /** @description ID of the transaction entry (matches the source record) */
-            id: string;
-            /**
-             * @description Direction relative to the user's wallet
-             * @enum {string}
-             */
-            type: "credit" | "debit";
-            /**
-             * @description What caused this wallet movement
-             * @enum {string}
-             */
-            reason: "wallet_funding" | "purchase" | "refund";
-            /** @description Always positive; direction expressed by `type` */
-            amount_cents: number;
-            /** @description Running wallet balance immediately after this event */
-            balance_after_cents: number;
-            /** @enum {string} */
-            status: "completed" | "pending" | "failed" | "cancelled";
-            /** @description ID of the source record (Purchase or FundingTransfer) */
-            reference_id: string;
-            /** @description Human-readable label suitable for display */
-            description: string;
-            /**
-             * Format: date-time
-             * @description created_at of the source record
-             */
-            occurred_at: string;
-        };
-        PurchaseCreateRequest: {
-            content_id?: string;
-            price_cents?: number;
-        };
-        PurchaseVerifyResponse: {
-            has_purchased: boolean;
-            purchase_details?: {
-                purchase_id?: string;
-                /** Format: date-time */
-                purchase_date?: string;
-            };
-            checkout_readiness?: {
-                is_authenticated?: boolean;
-                has_sufficient_funds?: boolean;
-            };
-        };
-        /** @description Update request for content. `content_body` applies to `markdown` content; `content_uri` and `external_identifier` apply to `external_ref` content. */
-        ContentUpdateRequest: {
-            /** @description Content title */
-            title?: string;
-            /**
-             * Format: byte
-             * @description Full article body in markdown, base64 encoded. For `markdown` content only.
-             */
-            content_body?: string;
-            /**
-             * @description URI of the external resource. For `external_ref` content only.
-             * @example https://vimeo.com/123456789
-             */
-            content_uri?: string;
-            /**
-             * @description Namespaced platform ID, e.g. `vimeo:123456789`. For `external_ref` content only.
-             * @example vimeo:123456789
-             */
-            external_identifier?: string | null;
-            /**
-             * Format: byte
-             * @description Content teaser, base64 encoded
-             */
-            teaser?: string;
-            /** @description Price in cents (must be greater than 0) */
-            price_cents?: number;
-            /** @enum {string} */
-            visibility?: "public" | "unlisted";
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** @description Assign or clear content authorship. Provide the `id` of a `StoreUser` from `GET /v1/merchant/{store_id}/users` to assign an author, or `null` to clear attribution. Only available to `owner` role and API key auth. Users with `is_author: true` (non-owner) cannot reassign their own content. */
-            store_user_id?: string | null;
-        };
-        SalesStatisticsItem: {
-            content_id: string;
-            title: string;
-            total_sales: number;
-            total_revenue_cents: number;
-        };
-        /**
-         * @description Seller-scoped buyer aggregate statistics for reporting.
-         *
-         *     Prefer `buyer_ref` over any global buyer identifier.
-         */
-        BuyerStatisticsItem: {
-            /** @description Opaque, seller-scoped identifier for a buyer (not the global user id). */
-            buyer_ref: string;
-            /** @description Number of completed purchases by this buyer for this seller. */
-            purchases_count: number;
-            /** @description Total amount spent by this buyer for this seller, in cents. */
-            total_spent_cents: number;
-            /**
-             * Format: date-time
-             * @description Timestamp of the buyer's first completed purchase for this seller.
-             */
-            first_purchase_at: string;
-            /**
-             * Format: date-time
-             * @description Timestamp of the buyer's most recent completed purchase for this seller.
-             */
-            last_purchase_at: string;
-            /**
-             * @description Coarse segmentation label derived by the platform.
-             * @enum {string}
-             */
-            buyer_status: "new" | "repeat" | "inactive";
-        };
-        AhoyEvent: {
-            /** @description Name of the event being tracked */
-            name?: string;
-            /** @description Additional properties for the event */
-            properties?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Format: date-time
-             * @description When the event occurred
-             */
-            time?: string;
-            /**
-             * Format: uuid
-             * @description ID of the user associated with the event
-             */
-            user_id?: string;
-            /**
-             * Format: uuid
-             * @description ID of the visit associated with the event
-             */
-            visit_id?: string;
-        };
-        AhoyVisit: {
-            /** @description Unique token for this visit */
-            visit_token?: string;
-            /** @description Token identifying the visitor */
-            visitor_token?: string;
-            /**
-             * Format: uuid
-             * @description ID of the user associated with the visit
-             */
-            user_id?: string;
-            /** @description IP address of the visitor */
-            ip?: string;
-            /** @description User agent string */
-            user_agent?: string;
-            /** @description Referrer URL */
-            referrer?: string;
-            /** @description Domain of the referrer */
-            referring_domain?: string;
-            /** @description Landing page URL */
-            landing_page?: string;
-            /** @description Browser name */
-            browser?: string;
-            /** @description Operating system */
-            os?: string;
-            /** @description Type of device */
-            device_type?: string;
-            /** @description Country of the visitor */
-            country?: string;
-            /** @description Region of the visitor */
-            region?: string;
-            /** @description City of the visitor */
-            city?: string;
-            /**
-             * Format: float
-             * @description Latitude coordinate
-             */
-            latitude?: number;
-            /**
-             * Format: float
-             * @description Longitude coordinate
-             */
-            longitude?: number;
-            /** @description UTM source parameter */
-            utm_source?: string;
-            /** @description UTM medium parameter */
-            utm_medium?: string;
-            /** @description UTM term parameter */
-            utm_term?: string;
-            /** @description UTM content parameter */
-            utm_content?: string;
-            /** @description UTM campaign parameter */
-            utm_campaign?: string;
-            /** @description App version (for native apps) */
-            app_version?: string;
-            /** @description OS version (for native apps) */
-            os_version?: string;
-            /** @description Platform (for native apps) */
-            platform?: string;
-            /**
-             * Format: date-time
-             * @description When the visit started
-             */
-            started_at?: string;
-        };
-        AhoyEventRequest: {
-            /** @description Name of the event being tracked */
-            name: string;
-            /** @description Additional properties for the event */
-            properties?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Format: date-time
-             * @description When the event occurred (defaults to current time)
-             */
-            time?: string;
-            /**
-             * Format: uuid
-             * @description ID of the user associated with the event
-             */
-            user_id?: string;
-            /**
-             * Format: uuid
-             * @description ID of the visit associated with the event
-             */
-            visit_id?: string;
-        };
-        AhoyVisitRequest: {
-            /** @description Unique token for this visit */
-            visit_token?: string;
-            /** @description Token identifying the visitor */
-            visitor_token?: string;
-            /**
-             * Format: uuid
-             * @description ID of the user associated with the visit
-             */
-            user_id?: string;
-            /** @description IP address of the visitor */
-            ip?: string;
-            /** @description User agent string */
-            user_agent?: string;
-            /** @description Referrer URL */
-            referrer?: string;
-            /** @description Domain of the referrer */
-            referring_domain?: string;
-            /** @description Landing page URL */
-            landing_page?: string;
-            /** @description Browser name */
-            browser?: string;
-            /** @description Operating system */
-            os?: string;
-            /** @description Type of device */
-            device_type?: string;
-            /** @description Country of the visitor */
-            country?: string;
-            /** @description Region of the visitor */
-            region?: string;
-            /** @description City of the visitor */
-            city?: string;
-            /**
-             * Format: float
-             * @description Latitude coordinate
-             */
-            latitude?: number;
-            /**
-             * Format: float
-             * @description Longitude coordinate
-             */
-            longitude?: number;
-            /** @description UTM source parameter */
-            utm_source?: string;
-            /** @description UTM medium parameter */
-            utm_medium?: string;
-            /** @description UTM term parameter */
-            utm_term?: string;
-            /** @description UTM content parameter */
-            utm_content?: string;
-            /** @description UTM campaign parameter */
-            utm_campaign?: string;
-            /** @description App version (for native apps) */
-            app_version?: string;
-            /** @description OS version (for native apps) */
-            os_version?: string;
-            /** @description Platform (for native apps) */
-            platform?: string;
-            /**
-             * Format: date-time
-             * @description When the visit started (defaults to current time)
-             */
-            started_at?: string;
-        };
-        /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `external_ref` requires `content_uri`. */
-        Content: {
-            /**
-             * @description The type of content being created.
-             * @enum {string}
-             */
-            content_type: "markdown" | "external_ref";
-            /** @description Content title */
-            title: string;
-            /**
-             * Format: byte
-             * @description Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
-             */
-            content_body?: string;
-            /**
-             * @description URI of the external resource (Vimeo, YouTube, PDF, etc.). Required when `content_type` is `external_ref`.
-             * @example https://vimeo.com/123456789
-             */
-            content_uri?: string;
-            /**
-             * @description Optional namespaced platform ID, e.g. `vimeo:123456789` or `youtube:dQw4w9WgXcQ`.
-             * @example vimeo:123456789
-             */
-            external_identifier?: string;
-            /**
-             * Format: byte
-             * @description (Optional) Article teaser, written in markdown and base64 encoded.
-             */
-            teaser?: string;
-            /** @description Price for the content in cents. */
-            price_cents: number;
-            /**
-             * @default public
-             * @enum {string}
-             */
-            visibility: "public" | "unlisted";
-            /** @description Flexible metadata for additional context */
-            metadata?: {
-                author?: string;
-                /** Format: date-time */
-                publication_date?: string;
-                reading_time?: string;
-            } & {
-                [key: string]: unknown;
-            };
-        };
-        /** @description Response shape for a single content item. The presence of `content_body` vs `content_uri` depends on `content_type`: `markdown` includes `content_body`; `external_ref` includes `content_uri` (the external URI) and optionally `external_identifier`. */
-        ContentResponse: {
-            id: string;
-            /**
-             * @description The type of content.
-             * @enum {string}
-             */
-            content_type: "markdown" | "external_ref";
-            /** @description Content title */
-            title: string;
-            /**
-             * Format: byte
-             * @description Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`.
-             */
-            content_body?: string | null;
-            /**
-             * @description URI of the external resource. Present when `content_type` is `external_ref`.
-             * @example https://vimeo.com/123456789
-             */
-            content_uri?: string | null;
-            /**
-             * @description Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` content.
-             * @example vimeo:123456789
-             */
-            external_identifier?: string | null;
-            /**
-             * Format: byte
-             * @description Article teaser, base64 encoded.
-             */
-            teaser: string;
-            /** @description Price for the content in cents. */
-            price_cents: number;
-            /**
-             * @default public
-             * @enum {string}
-             */
-            visibility: "public" | "unlisted" | "private";
-            /** @description Flexible metadata for additional context */
-            metadata?: {
-                author?: string;
-                /** Format: date-time */
-                publication_date?: string;
-                reading_time?: string;
-                /** Format: string */
-                tags?: unknown[];
-                /** @description flexible data for managing paywall location */
-                paywall?: {
-                    /** @description Character position of the paywall */
-                    position?: number;
-                    /**
-                     * @description The mechanism for determining how positioning is calculated
-                     * @enum {string}
-                     */
-                    positioning_type?: "character" | "paragraph";
-                    /** @description Hash anchor of nearby text */
-                    anchor?: string;
-                };
-            } & {
-                [key: string]: unknown;
-            };
-        };
-        /** @description Lightweight content representation returned by list and search endpoints. Omits body fields to keep list payloads small. Use the detail endpoint (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI. */
-        ContentListItem: {
-            id: string;
-            /** @enum {string} */
-            content_type: "markdown" | "external_ref";
-            title: string;
-            price_cents: number;
-            /**
-             * Format: byte
-             * @description Article teaser, base64 encoded. Null when not set.
-             */
-            teaser: string | null;
-            /** @enum {string} */
-            visibility: "public" | "unlisted" | "private";
-            /** Format: date-time */
-            created_at: string;
-            /** @description Namespaced platform ID for `external_ref` content. Null for other types. */
-            external_identifier?: string | null;
-        };
-        /**
-         * @description Full content detail plus real-time access and wallet context for a specific user. Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
-         *
-         *     **URI gating for `external_ref` content:** `content_uri` (the external URI) is only present in the response when `access_info.has_purchased` is `true`. For all other states (unauthenticated, insufficient funds, not yet purchased) it is omitted, ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource without completing a purchase.
-         */
-        ContentWithAccessResponse: components["schemas"]["ContentResponse"] & {
-            access_info: components["schemas"]["ContentAccessInfo"];
-        };
-        User: {
-            id?: string;
-            name?: string;
-            email?: string;
-            /** @enum {string} */
-            role?: "buyer" | "seller";
-        };
-        /** @enum {string} */
-        PurchaseStatus: "completed" | "refunded" | "pending" | "reverted" | "failed";
-        PurchaseResponse: {
-            id: string;
-            content_id: string;
-            content: {
-                id: string;
-                content_type: string;
-                title: string;
-            };
-            buyer_id: string;
-            buyer: {
-                id: string;
-                name: string;
-            };
-            seller_id: string;
-            seller: {
-                id: string;
-                name: string;
-            };
-            amount_cents: number;
-            /** Format: date-time */
-            timestamp: string;
-            status: components["schemas"]["PurchaseStatus"];
-        };
-        MerchantSaleResponse: {
-            id: string;
-            content_id: string;
-            content: {
-                id: string;
-                content_type: string;
-                title: string;
-            };
-            buyer_id: string;
-            buyer: {
-                id: string;
-                name: string;
-            };
-            seller_id: string;
-            seller: {
-                id: string;
-                name: string;
-            };
-            amount_cents: number;
-            /** @description Platform fee split. Values are 0 (not null) on non-completed purchases. */
-            fees: {
-                platform_fee_cents: number;
-                store_net_cents: number;
-                /** @description 0 for content without an author */
-                author_net_cents: number;
-            };
-            status: components["schemas"]["PurchaseStatus"];
-            /** Format: date-time */
-            timestamp: string;
-        };
-        MonthlyData: {
-            [key: string]: {
-                [key: string]: {
-                    cents?: number;
-                    currency_iso?: string;
-                };
-            };
-        };
-        InviteInfoResponse: {
-            invited_email: string;
-            store_name: string;
-            /** @enum {string|null} */
-            role: "owner" | null;
-            /** Format: date-time */
-            expires_at: string;
-        };
-        CheckoutStateResponse: {
-            content_id: string;
-            content_title: string;
-            price_cents: number;
-            checkout_state: {
-                is_authenticated: boolean;
-                has_sufficient_funds?: boolean | null;
-                has_purchased: boolean;
+  '/v1/auth/signup': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Register a new user with email and password */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthSignupRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/login/email': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Log in using email and password */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthLoginEmailRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/login/google': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Log in using Google OAuth */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthLoginOAuthRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Invalid or expired token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Google service unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/login/api-key': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Log in using API key and secret
+     * @description Authenticate as a seller using API credentials.
+     *
+     *     **Permission Levels:**
+     *     - Provide only `api_key` (without `api_secret`) to receive a token with **`view` permission** (read-only access)
+     *     - Provide both `api_key` and `api_secret` to receive a token with **`full` permission** (read/write access)
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthLoginApiKeyRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/token/refresh': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Refresh an access token */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthTokenRefreshRequest']
+        }
+      }
+      responses: {
+        /** @description New token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/merchant/stores': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List stores the authenticated user can manage
+     * @description Returns all stores the authenticated user has a StoreUser record for. Requires a buyer or merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of manageable stores */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ManageableStore'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/merchant/login/email': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Log in as a merchant with email and password
+     * @description Authenticates a user and returns a store-agnostic merchant JWT. The token carries `role: merchant` with no embedded store context. Use `GET /v1/auth/merchant/stores` to discover which stores the user can manage, then pass the desired `store_id` as a URL parameter on merchant resource endpoints.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['MerchantEmailLoginRequest']
+        }
+      }
+      responses: {
+        /** @description Merchant token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantAuthenticationResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/merchant/login/google': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Log in as a merchant with Google OAuth
+     * @description Authenticates a user via Google OAuth and returns a store-agnostic merchant JWT.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['MerchantGoogleLoginRequest']
+        }
+      }
+      responses: {
+        /** @description Merchant token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantAuthenticationResponse']
+          }
+        }
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Invalid or expired Google token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Google service unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/users': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
+        store_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * List store members
+     * @description Returns all StoreUser records for the given store.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission. Non-owner users (including `is_author: true`) receive `403 Forbidden`.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Store members */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantUser'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden — insufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Invite a user to the store
+     * @description Adds a user as a member of the store. If the user already has an account, they are added immediately. If not, an invitation email is sent and a pending StoreUser is created.
+     *
+     *     `is_author` defaults to `true`; set it explicitly to `false` to add a store member without authoring permissions.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['MerchantInviteRequest']
+        }
+      }
+      responses: {
+        /** @description User added or invitation sent */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json':
+              | components['schemas']['MerchantUser']
+              | components['schemas']['MerchantInviteResponse']
+          }
+        }
+        /** @description User added or invitation sent */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json':
+              | components['schemas']['MerchantUser']
+              | components['schemas']['MerchantInviteResponse']
+          }
+        }
+        /** @description User is already a member of this store */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/users/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Store ID */
+        store_id: string
+        /** @description StoreUser ID */
+        id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Remove a store member
+     * @description Removes a user from the store. Owners cannot remove themselves.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID */
+          store_id: string
+          /** @description StoreUser ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Removed successfully */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Forbidden — cannot remove self or insufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    /**
+     * Update a store member's permissions
+     * @description Toggles the `is_author` flag for a store member. Role (`owner`) can only be assigned via the platform admin UI. Owners cannot update their own record.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID */
+          store_id: string
+          /** @description StoreUser ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            is_author: boolean
+          }
+        }
+      }
+      responses: {
+        /** @description Updated store member */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantUser']
+          }
+        }
+        /** @description Forbidden — cannot modify own record or insufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/content': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Store ID */
+        store_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * List store content
+     * @description Returns content for the given store. Owners and API keys see all content; `is_author` users see only their own content.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of content */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a new content item
+     * @description Creates a new content item in the given store.
+     *
+     *     **Authorship:**
+     *     - Created by an `is_author` user → attributed to that user.
+     *     - Created via API key → attributed to the store's `owner` (if one exists).
+     *     - Created by an owner → attributed to the owner.
+     *
+     *     **Authorization:** `owner` role, `is_author: true`, or API key with `full` permission. Users with neither receive `403 Forbidden`.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store ID */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['Content']
+        }
+      }
+      responses: {
+        /** @description Content created successfully */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Invalid content parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden — insufficient role or authorship */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/content/search': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Search content by metadata
+     * @description Search content using metadata key/value pairs. All criteria must match (AND logic). Results are scoped by role: owners see all content, `is_author` users see only their own.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            metadata: {
+              [key: string]: unknown
+            }
+          }
+        }
+      }
+      responses: {
+        /** @description Matching content */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse'][]
+          }
+        }
+        /** @description Invalid search parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/content/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+        /** @description Content ID */
+        id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Get content by ID
+     * @description Owners and API keys can fetch any content. `is_author` users can only fetch their own.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Content item */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found or not accessible */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    /**
+     * Delete a content item
+     * @description Permanently delete a content item. Owners and API keys can delete any content. `is_author` users can only delete their own.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Content deleted */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found or not accessible */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    /**
+     * Update a content item
+     * @description Update an existing content item.
+     *
+     *     - `owner` and API key: can update any content, including reassigning
+     *       the author via `store_user_id`.
+     *
+     *     - `is_author: true` (non-owner): can only update their own content;
+     *       `store_user_id` is ignored even if provided.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ContentUpdateRequest']
+        }
+      }
+      responses: {
+        /** @description Updated content */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Invalid parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found or not accessible */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/sales/summary': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    /** Get sales summary */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Sales summary data */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['SalesSummaryResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/sales': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    /** Get content purchase records */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of content purchases */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['SalesStatisticsItem'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/sales/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+        id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Get sale detail with fee breakdown
+     * @description Returns the full detail of a single sale including the platform fee split (platform_fee_cents, store_net_cents, author_net_cents). Owner access only. The buyer-facing GET /v1/purchases/:id intentionally omits the fees object.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Sale detail with fee breakdown */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantSaleResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden — not the store owner, or store mismatch */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Sale not found or belongs to a different store */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/buyers': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Get buyer statistics
+     * @description Returns aggregated, anonymised buyer statistics for the store.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Buyer statistics */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['BuyerStatisticsItem'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/config': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    /** Get store configuration */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Store configuration */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              google_client_id?: string
+            }
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/wallet/payment-session': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Initialize a wallet funding payment session
+     * @description Creates a payment session for wallet funding and returns the necessary details for client-side payment processing. Currently implemented using Stripe payment intents. The client should use the returned client_secret with the payment provider's client library to collect payment details and process the payment. After payment is processed, the provider will send a webhook notification to confirm the payment status.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['WalletPaymentSessionRequest']
+        }
+      }
+      responses: {
+        /** @description Payment session created successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['WalletPaymentSessionResponse']
+          }
+        }
+        /** @description Invalid request data */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              error?: string
+            }
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/wallet/payment-status/{session_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Check the status of a wallet payment
+     * @description Allows clients to check the current status of a payment session. This endpoint can be polled after payment submission to determine when a webhook has been processed.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          session_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Payment status information */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @enum {string} */
+              status?: 'pending' | 'succeeded' | 'completed' | 'failed' | 'canceled'
+              /** Format: date-time */
+              updated_at?: string
+              /** @description Current wallet balance if payment succeeded */
+              balance_cents?: number
+            }
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/wallet/payment-webhook': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Webhook handler for wallet funding completion
+     * @description Receives webhook notifications from payment providers for payment events. When a payment success event is received for a wallet funding transaction, the system will automatically update the transaction status and fund the user's wallet. Currently implemented for Stripe webhook events.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': Record<string, never>
+        }
+      }
+      responses: {
+        /** @description Webhook processed successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @example true */
+              received?: boolean
+            }
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              error?: string
+            }
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/webhooks/payment': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Generic payment provider webhook endpoint
+     * @description Receives webhook notifications from payment providers for all types of events. This endpoint handles all payment provider events and routes them to the appropriate handlers. Currently implemented for Stripe webhook events.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': Record<string, never>
+        }
+      }
+      responses: {
+        /** @description Webhook processed successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @example true */
+              received?: boolean
+            }
+          }
+        }
+        /** @description Invalid webhook payload */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Invalid webhook signature */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/wallet/balance': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get wallet balance */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Current balance */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['WalletBalanceResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/wallet/transactions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Wallet transaction history
+     * @description Returns a unified ledger of all events that have changed the authenticated user's wallet balance, newest first. Only completed events appear — pending and failed funding transfers are excluded.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of wallet transactions, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['WalletTransactionItem'][]
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/content/{id}/with-access': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get content with access control information */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Optional user ID to check specific user's access status. If not provided, returns generic access info. */
+          user_id?: string
+        }
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Content with access information */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              content?: components['schemas']['ContentResponse']
+              access?: {
+                has_full_access?: boolean
                 /** @enum {string} */
-                next_required_action: "authenticate" | "fund_wallet" | "purchase" | "view_content";
-            };
-        };
-        WalletPaymentStatusResponse: {
-            /** @enum {string} */
-            status: "pending" | "completed" | "failed";
-            /** Format: date-time */
-            updated_at: string;
-            balance_cents: number;
-        };
-        SalesSummaryResponse: {
-            /** @description Amount in cents */
-            total_revenue_cents: number;
-            /** @description Total number of sales */
-            total_sales: number;
-            /** @description Monthly revenue data grouped by year and month. First level key is year (string), second level key is month number (string, 1-12) */
-            monthly_revenue_cents: {
-                [key: string]: {
-                    [key: string]: number;
-                };
-            };
-            /** @description Monthly sales count data grouped by year and month. First level key is year (string), second level key is month number (string, 1-12) */
-            monthly_sales: {
-                [key: string]: {
-                    [key: string]: number;
-                };
-            };
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase' | 'none'
+                paywall_position?: number
+              }
+            }
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/checkout/state/{content_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get user's current checkout state for specific content */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          content_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: never
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/purchases': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List user purchases */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of purchases */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PurchaseResponse'][]
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /** Complete a content purchase */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PurchaseCreateRequest']
+        }
+      }
+      responses: {
+        /** @description Purchase completed */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PurchaseResponse']
+          }
+        }
+        /** @description Invalid purchase request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unprocessable Content - Price mismatch or other validation error */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/purchases/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get purchase by ID */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Purchase ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Purchase object */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PurchaseResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Purchase not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/purchase/verify': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Verify purchase */
+    get: {
+      parameters: {
+        query: {
+          content_id: string
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Verification result */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PurchaseVerifyResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - User lacks sufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/content': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List user content
+     * @description Returns all content items for the authenticated seller's store.
+     *
+     *     **Required Permission:** `view` or `full`
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of content */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a new piece of content
+     * @description Supports the following content types:
+     *     - **`markdown`** — written article, base64-encoded body stored in `content_body`
+     *     - **`external_ref`** — proxy content pointing to an external resource (Vimeo, YouTube,
+     *       PDF, etc.). The URI is stored in `content_uri` and is only revealed to buyers
+     *       after a completed purchase.
+     *
+     *
+     *     **Authorization:**
+     *     Store manager tokens: only `owner` role and users with `is_author: true` may create content. Users with neither (no role, `is_author: false`) will receive a `403 Forbidden`.
+     *
+     *     API key/secret authentication: permitted with `full` permission. The store's `owner` will be automatically set as the author if one exists; otherwise content is created without an author.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['Content']
+        }
+      }
+      responses: {
+        /** @description Content created successfully */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Invalid content parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - insufficient role to create content */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/content/search': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Search content by metadata
+     * @description Search for content using metadata key/value pairs. Supports searching by internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields. All criteria must match (AND logic).
+     *
+     *     **Required Permission:** `view` or `full`
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description Key/value pairs to search for in content metadata */
+            metadata: {
+              [key: string]: unknown
+            }
+          }
+        }
+      }
+      responses: {
+        /** @description List of matching content */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse'][]
+          }
+        }
+        /** @description Bad request - invalid parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/content/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get content by ID
+     * @description Retrieve a specific content item by its ID.
+     *
+     *     **Required Permission:** `view` or `full`
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Content retrieved successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    /**
+     * Delete content item
+     * @description Permanently delete a content item.
+     *
+     *     **Required Permission:** `full`
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Content deleted */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': unknown
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    /**
+     * Update content item
+     * @description Update an existing content item.
+     *
+     *     **Authorization:**
+     *     - `owner`: can update any content in the store, including reassigning
+     *       the author via `store_user_id`.
+     *
+     *     - `is_author: true` (non-owner): can only update their own content; `store_user_id` is ignored even if provided.
+     *     - API key (`full` permission): can update any content and reassign authorship.
+     *
+     *     **Assigning an author:** pass a `store_user_id` from `GET /v1/merchant/{store_id}/users`. Pass `null` to clear attribution.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Content ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ContentUpdateRequest']
+        }
+      }
+      responses: {
+        /** @description Content updated */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentResponse']
+          }
+        }
+        /** @description Invalid content parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unauthorized - Invalid or missing authentication token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
+  '/v1/seller/sales': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get sales data */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Sales list */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['SalesStatisticsItem'][]
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/sales/summary': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get sales summary with revenue and sales data */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Sales summary data */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['SalesSummaryResponse']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden - Seller access required */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/buyers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get buyer statistics
+     * @description Returns seller-scoped, aggregated buyer statistics for reporting.
+     *
+     *     This endpoint is designed to minimize exposure of buyer identity data.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Buyer data */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['BuyerStatisticsItem'][]
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/seller/config': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Store Configuration */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Client configuration */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              google_client_id?: string
+            }
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/password/reset-request': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Request a password reset code */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** Format: email */
+            email: string
+          }
+        }
+      }
+      responses: {
+        /** @description Password reset code sent (if account exists) */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              data?: {
+                /** @example If an account with this email exists, a reset code has been sent. */
+                message?: string
+              }
+            }
+          }
+        }
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests (rate limit exceeded) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/password/reset': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Reset password using code */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** Format: email */
+            email: string
+            /**
+             * @description 6-digit numeric code
+             * @example 123456
+             */
+            reset_code: string
+            /** @description New password (min 6 chars) */
+            password: string
+          }
+        }
+      }
+      responses: {
+        /** @description Password reset successful */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              data?: {
+                /** @example Password has been successfully reset. */
+                message?: string
+              }
+            }
+          }
+        }
+        /** @description Invalid request or code */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description User not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/ahoy/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Track an analytics event
+     * @description Track custom events for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send event data for tracking user behavior and interactions.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AhoyEventRequest']
+        }
+      }
+      responses: {
+        /** @description Event tracked successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @example true */
+              success?: boolean
+            }
+          }
+        }
+        /** @description Invalid event data */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/ahoy/visits': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Track a visit
+     * @description Track visit data for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send visit data for tracking user sessions and behavior.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AhoyVisitRequest']
+        }
+      }
+      responses: {
+        /** @description Visit tracked successfully */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @example true */
+              success?: boolean
+            }
+          }
+        }
+        /** @description Invalid visit data */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export type webhooks = Record<string, never>
+export interface components {
+  schemas: {
+    ContentAccessInfo: {
+      user_id: string | null
+      has_purchased: boolean
+      has_sufficient_funds: boolean
+      wallet_balance_cents: number
+      /** @enum {string} */
+      next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'none'
+    }
+    AuthenticationResponse: {
+      /** @enum {string} */
+      token_type: 'Bearer'
+      /** @example eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwOTM1N2MyMi0zODlhLTRmYWItYjE2Ni04MjJlNTJhNWJmNWUiLCJyb2xlIjoiYnV5ZXIiLCJidXllcl9jbGFpbXMiOnsidXNlcl9pZCI6IjA5MzU3YzIyLTM4OWEtNGZhYi1iMTY2LTgyMmU1MmE1YmY1ZSIsImVtYWlsIjoidGVzdC0xM0BleGFtcGxlLmNvbSJ9LCJpc3MiOiJMZWRlV2lyZSBBUEkiLCJhdWQiOiJ3ZWIiLCJleHAiOjE3NDc0OTk5NzMsImlhdCI6MTc0NzQ5ODE3MywibmJmIjoxNzQ3NDk4MTczLCJqdGkiOiIwZTMyYzNkNi02OWQwLTRmNTItYTczNS1hZTJiOGNlMmY1MmQiLCJ0b2tlbl9tZXRhZGF0YSI6eyJjcmVhdGVkX2F0IjoiMjAyNS0wNS0xN1QxNjowOTozM1oiLCJleHBpcmVzX2F0IjoiMjAyNS0wNS0xN1QxNjozOTozM1oiLCJ0b2tlbl9pZCI6IjBlMzJjM2Q2LTY5ZDAtNGY1Mi1hNzM1LWFlMmI4Y2UyZjUyZCJ9fQ.VSFsm5ysjtZLheVfhv6DWwH1A9zn_WA6rnGOlPR1R3U */
+      access_token: string
+      refresh_token: string
+      /**
+       * Format: date-time
+       * @description When the Access Token expires
+       */
+      expires_at: string
+    }
+    /** @description Token response for merchant authentication. Tokens are store-agnostic — no store_context is embedded. */
+    MerchantAuthenticationResponse: {
+      /** @enum {string} */
+      token_type: 'Bearer'
+      access_token: string
+      refresh_token: string
+      /** Format: date-time */
+      expires_at: string
+    }
+    JWTClaims: {
+      /** @description User or Store identifier */
+      sub?: string
+      /** @enum {string} */
+      role?: 'buyer' | 'seller-view' | 'seller-full' | 'merchant'
+      seller_claims?: {
+        seller_id?: string
+      }
+      buyer_claims?: {
+        user_id?: string
+        email?: string
+      }
+      /** @description Present on merchant tokens */
+      user_claims?: {
+        id?: string
+        email?: string
+        full_name?: string
+      }
+      iat?: number
+      exp?: number
+      nbf?: number
+      iss?: string
+      aud?: string
+      token_metadata?: {
+        /** Format: date-time */
+        created_at?: string
+        /** Format: date-time */
+        expires_at?: string
+        token_id?: string
+      }
+    }
+    MessageResponse: {
+      message: string
+    }
+    ErrorResponse: {
+      error: {
+        code: number
+        message: string
+      }
+    }
+    AuthSignupRequest: {
+      email: string
+      password: string
+      name: string
+    }
+    AuthLoginEmailRequest: {
+      email?: string
+      password?: string
+    }
+    AuthLoginOAuthRequest: {
+      id_token?: string
+    }
+    MerchantEmailLoginRequest: {
+      email: string
+      password: string
+    }
+    MerchantGoogleLoginRequest: {
+      id_token: string
+    }
+    AuthLoginApiKeyRequest: {
+      key: string
+      secret?: string
+    }
+    AuthTokenRefreshRequest: {
+      refresh_token?: string
+    }
+    ManageableStore: {
+      store_id: string
+      store_name: string
+      store_key: string
+      /** @enum {string|null} */
+      role: 'owner' | null
+      /** @description Whether the authenticated user has author permissions for this store. */
+      is_author: boolean
+      logo: string | null
+    }
+    MerchantUser: {
+      id: string
+      user_id: string | null
+      store_id: string
+      /**
+       * @description Named role. `owner` is the only valid named role; non-owner authors have a null role.
+       * @enum {string|null}
+       */
+      role: 'owner' | null
+      /** @description Whether this user can create and manage their own content. */
+      is_author: boolean
+      /** Format: date-time */
+      invited_at: string | null
+      /** Format: date-time */
+      accepted_at: string | null
+      email: string | null
+    }
+    MerchantInviteRequest: {
+      /** @description Email address of the user to invite to the store. */
+      email: string
+      /**
+       * @description Whether to grant author permissions. Defaults to `true`.
+       * @default true
+       */
+      is_author: boolean
+    }
+    MerchantInviteResponse: {
+      invitation_token: string
+      email: string
+      /** @enum {string|null} */
+      role: 'owner' | null
+      is_author: boolean
+      /** Format: date-time */
+      expires_at: string
+    }
+    WalletPaymentSessionRequest: {
+      /** @description Amount to fund the wallet in cents */
+      amount_cents: number
+      /**
+       * @description Currency code (defaults to USD)
+       * @default usd
+       */
+      currency: string
+      /** @description Additional metadata to include with the payment session */
+      metadata?: Record<string, never>
+    }
+    WalletPaymentSessionResponse: {
+      /** @description The client secret used by the payment widget to confirm the payment */
+      client_secret: string
+      /** @description The ID of the created payment session */
+      session_id: string
+      /** @description The payment public key to be used during the payment processing */
+      public_key: string
+    }
+    /** @description A payment provider webhook event object */
+    PaymentWebhookEvent: {
+      /** @description Unique identifier for the event */
+      id?: string
+      /** @description Type of event (e.g., payment_intent.succeeded, payment_intent.payment_failed) */
+      type?: string
+      /** @description Event data containing the object that triggered the event */
+      data?: Record<string, never>
+    }
+    WalletBalanceResponse: {
+      balance_cents: number
+    }
+    WalletTransactionItem: {
+      /** @description ID of the transaction entry (matches the source record) */
+      id: string
+      /**
+       * @description Direction relative to the user's wallet
+       * @enum {string}
+       */
+      type: 'credit' | 'debit'
+      /**
+       * @description What caused this wallet movement
+       * @enum {string}
+       */
+      reason: 'wallet_funding' | 'purchase' | 'refund'
+      /** @description Always positive; direction expressed by `type` */
+      amount_cents: number
+      /** @description Running wallet balance immediately after this event */
+      balance_after_cents: number
+      /** @enum {string} */
+      status: 'completed' | 'pending' | 'failed' | 'cancelled'
+      /** @description ID of the source record (Purchase or FundingTransfer) */
+      reference_id: string
+      /** @description Human-readable label suitable for display */
+      description: string
+      /**
+       * Format: date-time
+       * @description created_at of the source record
+       */
+      occurred_at: string
+    }
+    PurchaseCreateRequest: {
+      content_id?: string
+      price_cents?: number
+    }
+    PurchaseVerifyResponse: {
+      has_purchased: boolean
+      purchase_details?: {
+        purchase_id?: string
+        /** Format: date-time */
+        purchase_date?: string
+      }
+      checkout_readiness?: {
+        is_authenticated?: boolean
+        has_sufficient_funds?: boolean
+      }
+    }
+    /** @description Update request for content. `content_body` applies to `markdown` content; `content_uri` and `external_identifier` apply to `external_ref` content. */
+    ContentUpdateRequest: {
+      /** @description Content title */
+      title?: string
+      /**
+       * Format: byte
+       * @description Full article body in markdown, base64 encoded. For `markdown` content only.
+       */
+      content_body?: string
+      /**
+       * @description URI of the external resource. For `external_ref` content only.
+       * @example https://vimeo.com/123456789
+       */
+      content_uri?: string
+      /**
+       * @description Namespaced platform ID, e.g. `vimeo:123456789`. For `external_ref` content only.
+       * @example vimeo:123456789
+       */
+      external_identifier?: string | null
+      /**
+       * Format: byte
+       * @description Content teaser, base64 encoded
+       */
+      teaser?: string
+      /** @description Price in cents (must be greater than 0) */
+      price_cents?: number
+      /** @enum {string} */
+      visibility?: 'public' | 'unlisted'
+      metadata?: {
+        [key: string]: unknown
+      }
+      /** @description Assign or clear content authorship. Provide the `id` of a `StoreUser` from `GET /v1/merchant/{store_id}/users` to assign an author, or `null` to clear attribution. Only available to `owner` role and API key auth. Users with `is_author: true` (non-owner) cannot reassign their own content. */
+      store_user_id?: string | null
+    }
+    SalesStatisticsItem: {
+      content_id: string
+      title: string
+      total_sales: number
+      total_revenue_cents: number
+    }
+    /**
+     * @description Seller-scoped buyer aggregate statistics for reporting.
+     *
+     *     Prefer `buyer_ref` over any global buyer identifier.
+     */
+    BuyerStatisticsItem: {
+      /** @description Opaque, seller-scoped identifier for a buyer (not the global user id). */
+      buyer_ref: string
+      /** @description Number of completed purchases by this buyer for this seller. */
+      purchases_count: number
+      /** @description Total amount spent by this buyer for this seller, in cents. */
+      total_spent_cents: number
+      /**
+       * Format: date-time
+       * @description Timestamp of the buyer's first completed purchase for this seller.
+       */
+      first_purchase_at: string
+      /**
+       * Format: date-time
+       * @description Timestamp of the buyer's most recent completed purchase for this seller.
+       */
+      last_purchase_at: string
+      /**
+       * @description Coarse segmentation label derived by the platform.
+       * @enum {string}
+       */
+      buyer_status: 'new' | 'repeat' | 'inactive'
+    }
+    AhoyEvent: {
+      /** @description Name of the event being tracked */
+      name?: string
+      /** @description Additional properties for the event */
+      properties?: {
+        [key: string]: unknown
+      }
+      /**
+       * Format: date-time
+       * @description When the event occurred
+       */
+      time?: string
+      /**
+       * Format: uuid
+       * @description ID of the user associated with the event
+       */
+      user_id?: string
+      /**
+       * Format: uuid
+       * @description ID of the visit associated with the event
+       */
+      visit_id?: string
+    }
+    AhoyVisit: {
+      /** @description Unique token for this visit */
+      visit_token?: string
+      /** @description Token identifying the visitor */
+      visitor_token?: string
+      /**
+       * Format: uuid
+       * @description ID of the user associated with the visit
+       */
+      user_id?: string
+      /** @description IP address of the visitor */
+      ip?: string
+      /** @description User agent string */
+      user_agent?: string
+      /** @description Referrer URL */
+      referrer?: string
+      /** @description Domain of the referrer */
+      referring_domain?: string
+      /** @description Landing page URL */
+      landing_page?: string
+      /** @description Browser name */
+      browser?: string
+      /** @description Operating system */
+      os?: string
+      /** @description Type of device */
+      device_type?: string
+      /** @description Country of the visitor */
+      country?: string
+      /** @description Region of the visitor */
+      region?: string
+      /** @description City of the visitor */
+      city?: string
+      /**
+       * Format: float
+       * @description Latitude coordinate
+       */
+      latitude?: number
+      /**
+       * Format: float
+       * @description Longitude coordinate
+       */
+      longitude?: number
+      /** @description UTM source parameter */
+      utm_source?: string
+      /** @description UTM medium parameter */
+      utm_medium?: string
+      /** @description UTM term parameter */
+      utm_term?: string
+      /** @description UTM content parameter */
+      utm_content?: string
+      /** @description UTM campaign parameter */
+      utm_campaign?: string
+      /** @description App version (for native apps) */
+      app_version?: string
+      /** @description OS version (for native apps) */
+      os_version?: string
+      /** @description Platform (for native apps) */
+      platform?: string
+      /**
+       * Format: date-time
+       * @description When the visit started
+       */
+      started_at?: string
+    }
+    AhoyEventRequest: {
+      /** @description Name of the event being tracked */
+      name: string
+      /** @description Additional properties for the event */
+      properties?: {
+        [key: string]: unknown
+      }
+      /**
+       * Format: date-time
+       * @description When the event occurred (defaults to current time)
+       */
+      time?: string
+      /**
+       * Format: uuid
+       * @description ID of the user associated with the event
+       */
+      user_id?: string
+      /**
+       * Format: uuid
+       * @description ID of the visit associated with the event
+       */
+      visit_id?: string
+    }
+    AhoyVisitRequest: {
+      /** @description Unique token for this visit */
+      visit_token?: string
+      /** @description Token identifying the visitor */
+      visitor_token?: string
+      /**
+       * Format: uuid
+       * @description ID of the user associated with the visit
+       */
+      user_id?: string
+      /** @description IP address of the visitor */
+      ip?: string
+      /** @description User agent string */
+      user_agent?: string
+      /** @description Referrer URL */
+      referrer?: string
+      /** @description Domain of the referrer */
+      referring_domain?: string
+      /** @description Landing page URL */
+      landing_page?: string
+      /** @description Browser name */
+      browser?: string
+      /** @description Operating system */
+      os?: string
+      /** @description Type of device */
+      device_type?: string
+      /** @description Country of the visitor */
+      country?: string
+      /** @description Region of the visitor */
+      region?: string
+      /** @description City of the visitor */
+      city?: string
+      /**
+       * Format: float
+       * @description Latitude coordinate
+       */
+      latitude?: number
+      /**
+       * Format: float
+       * @description Longitude coordinate
+       */
+      longitude?: number
+      /** @description UTM source parameter */
+      utm_source?: string
+      /** @description UTM medium parameter */
+      utm_medium?: string
+      /** @description UTM term parameter */
+      utm_term?: string
+      /** @description UTM content parameter */
+      utm_content?: string
+      /** @description UTM campaign parameter */
+      utm_campaign?: string
+      /** @description App version (for native apps) */
+      app_version?: string
+      /** @description OS version (for native apps) */
+      os_version?: string
+      /** @description Platform (for native apps) */
+      platform?: string
+      /**
+       * Format: date-time
+       * @description When the visit started (defaults to current time)
+       */
+      started_at?: string
+    }
+    /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `external_ref` requires `content_uri`. */
+    Content: {
+      /**
+       * @description The type of content being created.
+       * @enum {string}
+       */
+      content_type: 'markdown' | 'external_ref'
+      /** @description Content title */
+      title: string
+      /**
+       * Format: byte
+       * @description Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
+       */
+      content_body?: string
+      /**
+       * @description URI of the external resource (Vimeo, YouTube, PDF, etc.). Required when `content_type` is `external_ref`.
+       * @example https://vimeo.com/123456789
+       */
+      content_uri?: string
+      /**
+       * @description Optional namespaced platform ID, e.g. `vimeo:123456789` or `youtube:dQw4w9WgXcQ`.
+       * @example vimeo:123456789
+       */
+      external_identifier?: string
+      /**
+       * Format: byte
+       * @description (Optional) Article teaser, written in markdown and base64 encoded.
+       */
+      teaser?: string
+      /** @description Price for the content in cents. */
+      price_cents: number
+      /**
+       * @default public
+       * @enum {string}
+       */
+      visibility: 'public' | 'unlisted'
+      /** @description Flexible metadata for additional context */
+      metadata?: {
+        author?: string
+        /** Format: date-time */
+        publication_date?: string
+        reading_time?: string
+      } & {
+        [key: string]: unknown
+      }
+    }
+    /** @description Response shape for a single content item. The presence of `content_body` vs `content_uri` depends on `content_type`: `markdown` includes `content_body`; `external_ref` includes `content_uri` (the external URI) and optionally `external_identifier`. */
+    ContentResponse: {
+      id: string
+      /**
+       * @description The type of content.
+       * @enum {string}
+       */
+      content_type: 'markdown' | 'external_ref'
+      /** @description Content title */
+      title: string
+      /**
+       * Format: byte
+       * @description Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`.
+       */
+      content_body?: string | null
+      /**
+       * @description URI of the external resource. Present when `content_type` is `external_ref`.
+       * @example https://vimeo.com/123456789
+       */
+      content_uri?: string | null
+      /**
+       * @description Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` content.
+       * @example vimeo:123456789
+       */
+      external_identifier?: string | null
+      /**
+       * Format: byte
+       * @description Article teaser, base64 encoded.
+       */
+      teaser: string
+      /** @description Price for the content in cents. */
+      price_cents: number
+      /**
+       * @default public
+       * @enum {string}
+       */
+      visibility: 'public' | 'unlisted' | 'private'
+      /** @description Flexible metadata for additional context */
+      metadata?: {
+        author?: string
+        /** Format: date-time */
+        publication_date?: string
+        reading_time?: string
+        /** Format: string */
+        tags?: unknown[]
+        /** @description flexible data for managing paywall location */
+        paywall?: {
+          /** @description Character position of the paywall */
+          position?: number
+          /**
+           * @description The mechanism for determining how positioning is calculated
+           * @enum {string}
+           */
+          positioning_type?: 'character' | 'paragraph'
+          /** @description Hash anchor of nearby text */
+          anchor?: string
+        }
+      } & {
+        [key: string]: unknown
+      }
+    }
+    /** @description Lightweight content representation returned by list and search endpoints. Omits body fields to keep list payloads small. Use the detail endpoint (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI. */
+    ContentListItem: {
+      id: string
+      /** @enum {string} */
+      content_type: 'markdown' | 'external_ref'
+      title: string
+      price_cents: number
+      /**
+       * Format: byte
+       * @description Article teaser, base64 encoded. Null when not set.
+       */
+      teaser: string | null
+      /** @enum {string} */
+      visibility: 'public' | 'unlisted' | 'private'
+      /** Format: date-time */
+      created_at: string
+      /** @description Namespaced platform ID for `external_ref` content. Null for other types. */
+      external_identifier?: string | null
+    }
+    /**
+     * @description Full content detail plus real-time access and wallet context for a specific user. Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
+     *
+     *     **URI gating for `external_ref` content:** `content_uri` (the external URI) is only present in the response when `access_info.has_purchased` is `true`. For all other states (unauthenticated, insufficient funds, not yet purchased) it is omitted, ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource without completing a purchase.
+     */
+    ContentWithAccessResponse: components['schemas']['ContentResponse'] & {
+      access_info: components['schemas']['ContentAccessInfo']
+    }
+    User: {
+      id?: string
+      name?: string
+      email?: string
+      /** @enum {string} */
+      role?: 'buyer' | 'seller'
+    }
+    /** @enum {string} */
+    PurchaseStatus: 'completed' | 'refunded' | 'pending' | 'reverted' | 'failed'
+    PurchaseResponse: {
+      id: string
+      content_id: string
+      content: {
+        id: string
+        content_type: string
+        title: string
+      }
+      buyer_id: string
+      buyer: {
+        id: string
+        name: string
+      }
+      seller_id: string
+      seller: {
+        id: string
+        name: string
+      }
+      amount_cents: number
+      /** Format: date-time */
+      timestamp: string
+      status: components['schemas']['PurchaseStatus']
+    }
+    MerchantSaleResponse: {
+      id: string
+      content_id: string
+      content: {
+        id: string
+        content_type: string
+        title: string
+      }
+      buyer_id: string
+      buyer: {
+        id: string
+        name: string
+      }
+      seller_id: string
+      seller: {
+        id: string
+        name: string
+      }
+      amount_cents: number
+      /** @description Platform fee split. Values are 0 (not null) on non-completed purchases. */
+      fees: {
+        platform_fee_cents: number
+        store_net_cents: number
+        /** @description 0 for content without an author */
+        author_net_cents: number
+      }
+      status: components['schemas']['PurchaseStatus']
+      /** Format: date-time */
+      timestamp: string
+    }
+    MonthlyData: {
+      [key: string]: {
+        [key: string]: {
+          cents?: number
+          currency_iso?: string
+        }
+      }
+    }
+    InviteInfoResponse: {
+      invited_email: string
+      store_name: string
+      /** @enum {string|null} */
+      role: 'owner' | null
+      /** Format: date-time */
+      expires_at: string
+    }
+    CheckoutStateResponse: {
+      content_id: string
+      content_title: string
+      price_cents: number
+      checkout_state: {
+        is_authenticated: boolean
+        has_sufficient_funds?: boolean | null
+        has_purchased: boolean
+        /** @enum {string} */
+        next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+      }
+    }
+    WalletPaymentStatusResponse: {
+      /** @enum {string} */
+      status: 'pending' | 'completed' | 'failed'
+      /** Format: date-time */
+      updated_at: string
+      balance_cents: number
+    }
+    SalesSummaryResponse: {
+      /** @description Amount in cents */
+      total_revenue_cents: number
+      /** @description Total number of sales */
+      total_sales: number
+      /** @description Monthly revenue data grouped by year and month. First level key is year (string), second level key is month number (string, 1-12) */
+      monthly_revenue_cents: {
+        [key: string]: {
+          [key: string]: number
+        }
+      }
+      /** @description Monthly sales count data grouped by year and month. First level key is year (string), second level key is month number (string, 1-12) */
+      monthly_sales: {
+        [key: string]: {
+          [key: string]: number
+        }
+      }
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
+}
+export type $defs = Record<string, never>
+export type operations = Record<string, never>
