@@ -1,6 +1,6 @@
 {
   "name": "@ledewire/browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "LedeWire SDK for browsers — embed a paywall with a single script tag",
   "type": "module",
   "exports": {
