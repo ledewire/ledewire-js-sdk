@@ -101,6 +101,9 @@ importers:
       openapi-typescript-helpers:
         specifier: ^0.1.0
         version: 0.1.0
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(@microsoft/api-extractor@7.57.7(@types/node@20.19.37))(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
       typescript:
         specifier: '*'
         version: 5.9.3

@@ -18,7 +18,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "vite build && tsc --emitDeclarationOnly",
+    "build": "vite build",
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
