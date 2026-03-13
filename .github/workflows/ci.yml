@@ -50,5 +50,5 @@ jobs:
 
       - name: Validate published package structure
         run: |
-          pnpm dlx publint packages/node
-          pnpm dlx publint packages/browser
+          pnpm publint packages/node
+          pnpm publint packages/browser
