@@ -71,6 +71,48 @@ const client = createClient({
 
 Token refresh is handled automatically — you never need to call a refresh method manually.
 
+> **Serverless / edge note:** The default `MemoryTokenStorage` resets on every cold start,
+> which means tokens are lost between function invocations. Always provide a custom `storage`
+> adapter (database, Redis, encrypted cookie) when deploying to serverless or edge runtimes.
+
+## Example: Merchant JWT Auth (no API key)
+
+Use this flow when running a merchant backend that authenticates via email/password or Google.
+The one-step helper logs in and returns both the token response and the accessible stores list
+in a single call:
+
+```ts
+import { createClient } from '@ledewire/node'
+
+const client = createClient({
+  // Persist tokens across requests (required for serverless)
+  storage: {
+    getTokens: async () => JSON.parse((await redis.get('lw:tokens')) ?? 'null'),
+    setTokens: async (t) => redis.set('lw:tokens', JSON.stringify(t)),
+    clearTokens: async () => redis.del('lw:tokens'),
+  },
+  onAuthExpired: () => {
+    // Session fully expired — redirect user to re-authenticate
+    redirect('/login')
+  },
+})
+
+// Single call: logs in and returns stores together
+const { stores } = await client.merchant.auth.loginWithEmailAndListStores({
+  email: 'owner@example.com',
+  password: process.env.MERCHANT_PASSWORD,
+})
+const storeId = stores[0].id
+```
+
+Or use separate calls if you need the token response independently:
+
+```ts
+await client.merchant.auth.loginWithEmail({ email, password })
+const stores = await client.merchant.auth.listStores()
+const storeId = stores[0].store_id // ManageableStore uses .store_id
+```
+
 ## Example: Merchant Store Setup
 
 ```ts
@@ -82,7 +124,7 @@ await client.merchant.auth.loginWithEmail({
 })
 
 const stores = await client.merchant.auth.listStores()
-const storeId = stores[0].id
+const storeId = stores[0].store_id // ManageableStore uses .store_id
 
 // Create a markdown article
 await client.seller.content.create(storeId, {
@@ -104,6 +146,8 @@ await client.seller.content.create(storeId, {
 })
 
 const items = await client.seller.content.list(storeId)
+// items.data — ContentListItem[]
+// items.pagination — PaginationMeta
 ```
 
 ## Documentation

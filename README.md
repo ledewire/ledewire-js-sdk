@@ -46,10 +46,10 @@ const client = createClient({
   apiSecret: process.env.LEDEWIRE_API_SECRET,
 })
 
-// Merchant email/password auth
+// Merchant email/password auth — logs in and returns stores in one call
 const client = createClient()
-await client.merchant.auth.loginWithEmail({ email, password })
-const stores = await client.merchant.auth.listStores()
+const { stores } = await client.merchant.auth.loginWithEmailAndListStores({ email, password })
+const storeId = stores[0].id
 ```
 
 ## Documentation

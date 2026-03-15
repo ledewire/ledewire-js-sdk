@@ -1,7 +1,7 @@
 # LedeWire JavaScript SDK — Big Picture Overview
 
-> **Status:** Reference architecture — all phases shipped (v0.1.0)
-> **Last updated:** 2026-03-10
+> **Status:** Reference architecture — all phases shipped (v0.2.3)
+> **Last updated:** 2026-03-13
 > **Authors:** LedeWire Engineering
 
 ---

@@ -141,9 +141,11 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed                   |
-| ------- | ---------- | ---------------------------------- |
-| 1       | 2026-03-09 | Phase 1 ✅                         |
-| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ |
-| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅             |
-| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅, Phase 8 ✅ |
+| Session | Date       | Phases completed                                                                                                                                                                                                                            |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                                                                                                                                                                                                                                  |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅                                                                                                                                                                                                          |
+| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅                                                                                                                                                                                                                      |
+| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅, Phase 8 ✅                                                                                                                                                                                                          |
+| 5       | 2026-03-13 | SDK feedback triage: bundled types fix (v0.2.2), discriminated `Content` union, `loginWithEmailAndListStores`, `@ledewire/node/testing` subpath, JSDoc/README improvements (v0.2.3)                                                         |
+| 6       | 2026-03-15 | API spec update: regenerated `api.gen.ts`, pagination on all list endpoints → `v0.3.0`, `merchant.users.update()` for `author_fee_bps`, `MerchantLoginStore` embedded in login response (single HTTP call), fixture + test + README updates |
