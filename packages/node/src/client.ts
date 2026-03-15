@@ -38,8 +38,14 @@ export interface NodeClientConfig {
    * Custom token storage implementation.
    * Defaults to {@link MemoryTokenStorage} (in-memory).
    *
-   * Provide a custom adapter to persist tokens to a database or cache
-   * across server restarts:
+   * **Serverless / edge warning:** `MemoryTokenStorage` resets on every cold start.
+   * Tokens are lost between function invocations, causing a login loop. Always
+   * provide a persistent adapter (Redis, database, encrypted httpOnly cookie) when
+   * deploying to serverless or edge runtimes.
+   *
+   * `setTokens` is called both on initial login and after every background token
+   * refresh — it is the canonical hook for persisting updated credentials.
+   *
    * ```ts
    * storage: {
    *   getTokens: async () => JSON.parse(await redis.get('tokens')),
@@ -50,13 +56,17 @@ export interface NodeClientConfig {
    */
   storage?: TokenStorage
   /**
-   * Called after a successful token refresh.
-   * Use this to persist updated tokens to your storage backend.
+   * Called after a successful token refresh, in addition to `storage.setTokens`.
    *
-   * @example
+   * Use this **only** for side-effects where a separate storage write is not
+   * needed (e.g. audit logging, metrics). If you are using a `storage` adapter,
+   * `storage.setTokens` is already the correct persistence hook — providing both
+   * will result in double-writes.
+   *
+   * @example Audit log only (storage handles persistence separately):
    * ```ts
    * onTokenRefreshed: async (tokens) => {
-   *   await db.sessions.upsert({ tokens })
+   *   await auditLog.record('token_refreshed', { expires_at: tokens.expiresAt })
    * }
    * ```
    */
