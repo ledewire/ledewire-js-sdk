@@ -12,8 +12,24 @@ import type {
   MerchantEmailLoginRequest,
   MerchantGoogleLoginRequest,
   MerchantAuthenticationResponse,
+  MerchantLoginStore,
   ManageableStore,
 } from '@ledewire/core'
+
+/**
+ * Result returned by the one-step login-and-discover helpers.
+ * Contains both the raw token response and the list of stores the
+ * authenticated user can manage, sourced directly from the login response.
+ */
+export interface MerchantLoginResult {
+  /** Raw token response from the authentication endpoint. */
+  tokens: MerchantAuthenticationResponse
+  /**
+   * Stores the authenticated user can manage.
+   * Sourced from the login response — no additional network request needed.
+   */
+  stores: MerchantLoginStore[]
+}
 
 /**
  * Merchant authentication: email/password login, Google OAuth, store discovery.
@@ -68,8 +84,11 @@ export class MerchantAuthNamespace {
   }
 
   /**
-   * List all stores the authenticated merchant user can manage.
+   * List all stores the authenticated merchant user can manage (`ManageableStore`).
    * Requires a valid merchant JWT (call `loginWithEmail` or `loginWithGoogle` first).
+   *
+   * **Tip:** prefer `loginWithEmailAndListStores()` which returns the embedded
+   * `MerchantLoginStore` list from the login response in a single HTTP call.
    *
    * @example
    * ```ts
@@ -79,6 +98,47 @@ export class MerchantAuthNamespace {
    */
   async listStores(): Promise<ManageableStore[]> {
     return this.http.get<ManageableStore[]>('/v1/auth/merchant/stores')
+  }
+
+  /**
+   * Log in with email/password and immediately return the accessible stores list
+   * in a single call. The stores are embedded in the login response — no extra
+   * network request is made.
+   *
+   * This is the recommended entry point for merchant backends.
+   *
+   * @example
+   * ```ts
+   * const { stores } = await client.merchant.auth.loginWithEmailAndListStores({
+   *   email: 'owner@example.com',
+   *   password: process.env.MERCHANT_PASSWORD,
+   * })
+   * const storeId = stores[0].id
+   * ```
+   */
+  async loginWithEmailAndListStores(body: MerchantEmailLoginRequest): Promise<MerchantLoginResult> {
+    const tokens = await this.loginWithEmail(body)
+    return { tokens, stores: tokens.stores }
+  }
+
+  /**
+   * Log in with a Google ID token and immediately return the accessible stores list
+   * in a single call. The stores are embedded in the login response — no extra
+   * network request is made.
+   *
+   * @example
+   * ```ts
+   * const { stores } = await client.merchant.auth.loginWithGoogleAndListStores({
+   *   id_token: googleIdToken,
+   * })
+   * const storeId = stores[0].id
+   * ```
+   */
+  async loginWithGoogleAndListStores(
+    body: MerchantGoogleLoginRequest,
+  ): Promise<MerchantLoginResult> {
+    const tokens = await this.loginWithGoogle(body)
+    return { tokens, stores: tokens.stores }
   }
 
   private async storeTokens(res: MerchantAuthenticationResponse): Promise<void> {

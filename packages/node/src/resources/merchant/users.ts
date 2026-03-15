@@ -4,7 +4,31 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantUser, MerchantInviteRequest, MerchantInviteResponse } from '@ledewire/core'
+import type {
+  MerchantUser,
+  MerchantInviteRequest,
+  MerchantInviteResponse,
+  PaginatedUsersList,
+} from '@ledewire/core'
+
+/** Pagination parameters accepted by paginated list endpoints. */
+export interface PaginationParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+}
+
+/** Request body for updating a store member's permissions. */
+export interface MerchantUserUpdateRequest {
+  /** Grant or revoke author permissions. */
+  is_author?: boolean
+  /**
+   * Per-author fee override in basis points (0–10000).
+   * Set to `null` to revert to the store default.
+   */
+  author_fee_bps?: number | null
+}
 
 /**
  * Manage team members for a merchant store.
@@ -16,18 +40,23 @@ export class MerchantUsersNamespace {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * List all members of a store.
+   * List all members of a store (paginated).
    * Requires `owner` role (merchant JWT) or API key with `full` permission.
    *
    * @param storeId - The store ID whose members to retrieve.
+   * @param params - Optional pagination parameters.
    *
    * @example
    * ```ts
-   * const members = await client.merchant.users.list('store-id')
+   * const { data, pagination } = await client.merchant.users.list('store-id')
    * ```
    */
-  async list(storeId: string): Promise<MerchantUser[]> {
-    return this.http.get<MerchantUser[]>(`/v1/merchant/${storeId}/users`)
+  async list(storeId: string, params?: PaginationParams): Promise<PaginatedUsersList> {
+    const query = new URLSearchParams()
+    if (params?.page !== undefined) query.set('page', String(params.page))
+    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
+    const qs = query.toString()
+    return this.http.get<PaginatedUsersList>(`/v1/merchant/${storeId}/users${qs ? `?${qs}` : ''}`)
   }
 
   /**
@@ -36,13 +65,14 @@ export class MerchantUsersNamespace {
    * otherwise an invitation email is sent (`MerchantInviteResponse`).
    *
    * @param storeId - The store ID to invite the user to.
-   * @param body - Invite request body including email and optional `is_author` flag.
+   * @param body - Invite request body including email, optional `is_author` flag, and optional `author_fee_bps`.
    *
    * @example
    * ```ts
    * const result = await client.merchant.users.invite('store-id', {
    *   email: 'author@example.com',
    *   is_author: true,
+   *   author_fee_bps: 1800,
    * })
    * ```
    */
@@ -54,6 +84,31 @@ export class MerchantUsersNamespace {
       `/v1/merchant/${storeId}/users`,
       body,
     )
+  }
+
+  /**
+   * Update a store member's permissions.
+   * Supports toggling `is_author` and setting a per-author fee override.
+   * At least one field must be provided. Owners cannot update their own record.
+   *
+   * @param storeId - The store ID.
+   * @param userId - The StoreUser `id` to update.
+   * @param body - Fields to update.
+   *
+   * @example
+   * ```ts
+   * // Set a custom 18% author fee
+   * await client.merchant.users.update('store-id', 'user-id', { author_fee_bps: 1800 })
+   * // Clear the override (revert to store default)
+   * await client.merchant.users.update('store-id', 'user-id', { author_fee_bps: null })
+   * ```
+   */
+  async update(
+    storeId: string,
+    userId: string,
+    body: MerchantUserUpdateRequest,
+  ): Promise<MerchantUser> {
+    return this.http.patch<MerchantUser>(`/v1/merchant/${storeId}/users/${userId}`, body)
   }
 
   /**

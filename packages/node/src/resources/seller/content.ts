@@ -8,7 +8,13 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { Content, ContentResponse, ContentUpdateRequest } from '@ledewire/core'
+import type {
+  Content,
+  ContentResponse,
+  ContentUpdateRequest,
+  PaginatedContentList,
+} from '@ledewire/core'
+import type { PaginationParams } from '../merchant/users.js'
 
 /**
  * Search criteria for content metadata search.
@@ -29,18 +35,25 @@ export class SellerContentNamespace {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * List all content for the store.
+   * List content for the store (paginated).
    * Owners and API keys see all content; `is_author` users see only their own.
    *
    * @param storeId - The store whose content to list.
+   * @param params - Optional pagination parameters.
    *
    * @example
    * ```ts
-   * const items = await client.seller.content.list('store-id')
+   * const { data, pagination } = await client.seller.content.list('store-id')
    * ```
    */
-  async list(storeId: string): Promise<ContentResponse[]> {
-    return this.http.get<ContentResponse[]>(`/v1/merchant/${storeId}/content`)
+  async list(storeId: string, params?: PaginationParams): Promise<PaginatedContentList> {
+    const query = new URLSearchParams()
+    if (params?.page !== undefined) query.set('page', String(params.page))
+    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
+    const qs = query.toString()
+    return this.http.get<PaginatedContentList>(
+      `/v1/merchant/${storeId}/content${qs ? `?${qs}` : ''}`,
+    )
   }
 
   /**
@@ -71,21 +84,33 @@ export class SellerContentNamespace {
   }
 
   /**
-   * Search content by metadata key/value pairs (AND logic).
+   * Search content by metadata key/value pairs (AND logic), with pagination.
    * Results are scoped by role: owners see all, `is_author` users see their own.
    *
    * @param storeId - The store to search within.
    * @param body - Metadata criteria.
+   * @param params - Optional pagination parameters.
    *
    * @example
    * ```ts
-   * const results = await client.seller.content.search('store-id', {
+   * const { data, pagination } = await client.seller.content.search('store-id', {
    *   metadata: { author: 'Alice' },
    * })
    * ```
    */
-  async search(storeId: string, body: ContentSearchRequest): Promise<ContentResponse[]> {
-    return this.http.post<ContentResponse[]>(`/v1/merchant/${storeId}/content/search`, body)
+  async search(
+    storeId: string,
+    body: ContentSearchRequest,
+    params?: PaginationParams,
+  ): Promise<PaginatedContentList> {
+    const query = new URLSearchParams()
+    if (params?.page !== undefined) query.set('page', String(params.page))
+    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
+    const qs = query.toString()
+    return this.http.post<PaginatedContentList>(
+      `/v1/merchant/${storeId}/content/search${qs ? `?${qs}` : ''}`,
+      body,
+    )
   }
 
   /**

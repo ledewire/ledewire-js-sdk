@@ -18,9 +18,10 @@
  * // View-only with API key only (read operations)
  * const viewClient = createClient({ apiKey: process.env.LEDEWIRE_API_KEY })
  *
- * // Merchant email/password auth
+ * // Merchant email/password auth — logs in and returns stores in one call
  * const client = createClient()
- * await client.merchant.auth.loginWithEmail({ email, password })
+ * const { stores } = await client.merchant.auth.loginWithEmailAndListStores({ email, password })
+ * const storeId = stores[0].id
  * ```
  *
  * @see {@link https://docs.ledewire.org} for guides and examples
@@ -36,11 +37,20 @@ export type {
   CheckoutStateResponse,
   Content,
   ContentAccessInfo,
+  ContentListItem,
   ContentResponse,
   ContentWithAccessResponse,
+  ManageableStore,
   MerchantAuthenticationResponse,
+  MerchantLoginStore,
   MerchantSaleResponse,
+  MerchantUser,
   NextRequiredAction,
+  PaginatedBuyersList,
+  PaginatedContentList,
+  PaginatedSalesList,
+  PaginatedUsersList,
+  PaginationMeta,
   PurchaseCreateRequest,
   PurchaseResponse,
   SalesSummaryResponse,
@@ -64,6 +74,9 @@ export {
   parseExpiresAt,
 } from '@ledewire/core'
 
+// Merchant users namespace types
+export type { MerchantUserUpdateRequest, PaginationParams } from './resources/merchant/users.js'
 // Package exports (implementations added in build step 4)
 export { createClient } from './client.js'
 export type { NodeClientConfig } from './client.js'
+export type { MerchantLoginResult } from './resources/merchant/auth.js'

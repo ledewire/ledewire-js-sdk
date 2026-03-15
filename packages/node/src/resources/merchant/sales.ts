@@ -1,9 +1,6 @@
 import type { HttpClient } from '@ledewire/core'
-import type {
-  MerchantSaleResponse,
-  SalesSummaryResponse,
-  SalesStatisticsItem,
-} from '@ledewire/core'
+import type { MerchantSaleResponse, SalesSummaryResponse, PaginatedSalesList } from '@ledewire/core'
+import type { PaginationParams } from './users.js'
 
 /**
  * Merchant sales namespace — revenue summary, per-sale records, and sale detail.
@@ -12,7 +9,7 @@ import type {
  * ```ts
  * const summary = await client.merchant.sales.summary(storeId)
  * console.log(`Revenue: ${summary.total_revenue_cents / 100} USD`)
- * const sales = await client.merchant.sales.list(storeId)
+ * const { data, pagination } = await client.merchant.sales.list(storeId)
  * ```
  */
 export class MerchantSalesNamespace {
@@ -30,13 +27,23 @@ export class MerchantSalesNamespace {
   }
 
   /**
-   * Returns all content purchase records for the store with per-title rollups.
+   * Returns paginated per-title sales statistics for the store.
    *
    * @param storeId - The merchant store ID.
-   * @returns A list of sales statistics items, one per content title.
+   * @param params - Optional pagination parameters.
+   * @returns Paginated sales statistics with `data` and `pagination`.
+   *
+   * @example
+   * ```ts
+   * const { data, pagination } = await client.merchant.sales.list(storeId, { page: 2 })
+   * ```
    */
-  async list(storeId: string): Promise<SalesStatisticsItem[]> {
-    return this.http.get<SalesStatisticsItem[]>(`/v1/merchant/${storeId}/sales`)
+  async list(storeId: string, params?: PaginationParams): Promise<PaginatedSalesList> {
+    const query = new URLSearchParams()
+    if (params?.page !== undefined) query.set('page', String(params.page))
+    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
+    const qs = query.toString()
+    return this.http.get<PaginatedSalesList>(`/v1/merchant/${storeId}/sales${qs ? `?${qs}` : ''}`)
   }
 
   /**
