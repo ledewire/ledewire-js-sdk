@@ -36,7 +36,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 ```
 client.auth.*              buyer auth (email, google, api-key, refresh, password reset)
 client.merchant.auth.*     merchant auth (email, google) + store listing
-client.merchant.users.*    team management (invite, list, remove)
+client.merchant.users.*    team management (invite, list, remove, update)
 client.merchant.content.*  content CRUD + search
 client.merchant.sales.*    sales list, summary, buyer list, store config
 client.seller.content.*    seller content (CRUD, search)
@@ -44,6 +44,15 @@ client.seller.sales.*      seller sales + summary
 client.wallet.*            balance, payment sessions, transactions
 client.purchases.*         create, list, verify purchases
 client.content.*           public content with access info
+```
+
+### Testing utilities (`@ledewire/node/testing`)
+
+`createMockClient()` and `MockNodeClient` are published under a dedicated subpath
+so they are never bundled into production code. Import only in test files:
+
+```ts
+import { createMockClient } from '@ledewire/node/testing'
 ```
 
 ### Browser client (`init()`)
@@ -67,6 +76,37 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`).
+
+### Paginated list endpoints
+
+All list endpoints return a `{ data, pagination }` envelope — never a plain array:
+
+```ts
+const { data, pagination } = await client.merchant.sales.list(storeId)
+const { data, pagination } = await client.seller.content.list(storeId, { page: 2, per_page: 10 })
+```
+
+The shared parameter type is `PaginationParams { page?: number; per_page?: number }`,
+exported from `@ledewire/node`. Affected methods: `merchant.users.list`,
+`merchant.sales.list`, `merchant.buyers.list`, `seller.content.list`,
+`seller.content.search`.
+
+### `MerchantLoginStore` vs `ManageableStore` — do not confuse these
+
+| Type                 | Source                                                               | Fields                                                                   |
+| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `MerchantLoginStore` | Embedded in the login response (`loginWithEmailAndListStores`, etc.) | `.id`, `.name`, `.role`                                                  |
+| `ManageableStore`    | Returned by `merchant.auth.listStores()` — a separate HTTP call      | `.store_id`, `.store_name`, `.store_key`, `.role`, `.is_author`, `.logo` |
+
+Use the combo-login helpers when you just need a store ID after login:
+
+```ts
+const { stores } = await client.merchant.auth.loginWithEmailAndListStores(email, password)
+client.merchant.sales.list(stores[0].id) // ✅  MerchantLoginStore.id
+```
+
+Call `listStores()` only when you need the full `ManageableStore` detail
+(`store_key`, `logo`, etc.) — it makes a second HTTP request.
 
 ### Adding a new API endpoint
 
