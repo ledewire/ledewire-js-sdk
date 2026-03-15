@@ -44,7 +44,7 @@ describe('seller.content.list', () => {
   })
 
   it('forwards page and per_page as query params', async () => {
-    let capturedUrl: string | undefined
+    let capturedUrl = ''
     const fixture = { data: [], pagination: paginationMetaFixture() }
     server.use(
       http.get(`${BASE}/v1/merchant/${STORE}/content`, ({ request }) => {
@@ -55,7 +55,7 @@ describe('seller.content.list', () => {
 
     await makeClient().seller.content.list(STORE, { page: 2, per_page: 10 })
 
-    const url = new URL(capturedUrl!)
+    const url = new URL(capturedUrl)
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('per_page')).toBe('10')
   })
@@ -176,7 +176,7 @@ describe('seller.content.search', () => {
   })
 
   it('forwards page and per_page as query params', async () => {
-    let capturedUrl: string | undefined
+    let capturedUrl = ''
     const fixture = { data: [], pagination: paginationMetaFixture() }
     server.use(
       http.post(`${BASE}/v1/merchant/${STORE}/content/search`, ({ request }) => {
@@ -191,7 +191,7 @@ describe('seller.content.search', () => {
       { page: 2, per_page: 10 },
     )
 
-    const url = new URL(capturedUrl!)
+    const url = new URL(capturedUrl)
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('per_page')).toBe('10')
   })

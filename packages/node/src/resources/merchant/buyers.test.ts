@@ -91,7 +91,7 @@ describe('merchant.buyers.list', () => {
   })
 
   it('forwards page and per_page as query params', async () => {
-    let capturedUrl: string | undefined
+    let capturedUrl = ''
     const fixture = { data: [], pagination: paginationMetaFixture() }
     server.use(
       http.get(`${BASE}/v1/merchant/${STORE_ID}/buyers`, ({ request }) => {
@@ -102,7 +102,7 @@ describe('merchant.buyers.list', () => {
 
     await makeClient().merchant.buyers.list(STORE_ID, { page: 2, per_page: 10 })
 
-    const url = new URL(capturedUrl!)
+    const url = new URL(capturedUrl)
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('per_page')).toBe('10')
   })
