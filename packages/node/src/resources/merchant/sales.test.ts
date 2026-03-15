@@ -115,6 +115,23 @@ describe('merchant.sales.list', () => {
 
     await expect(makeClient().merchant.sales.list(STORE_ID)).rejects.toThrow(AuthError)
   })
+
+  it('forwards page and per_page as query params', async () => {
+    let capturedUrl: string | undefined
+    const fixture = { data: [], pagination: paginationMetaFixture() }
+    server.use(
+      http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, ({ request }) => {
+        capturedUrl = request.url
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().merchant.sales.list(STORE_ID, { page: 2, per_page: 10 })
+
+    const url = new URL(capturedUrl!)
+    expect(url.searchParams.get('page')).toBe('2')
+    expect(url.searchParams.get('per_page')).toBe('10')
+  })
 })
 
 // ---------------------------------------------------------------------------
