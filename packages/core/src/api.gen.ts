@@ -274,7 +274,7 @@ export interface paths {
     }
     /**
      * List stores the authenticated user can manage
-     * @description Returns all stores the authenticated user has a StoreUser record for. Requires a buyer or merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
+     * @description Returns all stores the authenticated user has a StoreUser record for. Requires a merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
      */
     get: {
       parameters: {
@@ -296,6 +296,15 @@ export interface paths {
         }
         /** @description Unauthorized */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden (invalid token role) */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -456,13 +465,18 @@ export interface paths {
     }
     /**
      * List store members
-     * @description Returns all StoreUser records for the given store.
+     * @description Returns a paginated list of all StoreUser records for the given store.
      *
      *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission. Non-owner users (including `is_author: true`) receive `403 Forbidden`.
      */
     get: {
       parameters: {
-        query?: never
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+        }
         header?: never
         path: {
           /** @description Store ID. The authenticated user must have a StoreUser record for this store. */
@@ -472,13 +486,13 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Store members */
+        /** @description Paginated list of store members */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['MerchantUser'][]
+            'application/json': components['schemas']['PaginatedUsersList']
           }
         }
         /** @description Unauthorized */
@@ -649,7 +663,7 @@ export interface paths {
     head?: never
     /**
      * Update a store member's permissions
-     * @description Toggles the `is_author` flag for a store member. Role (`owner`) can only be assigned via the platform admin UI. Owners cannot update their own record.
+     * @description Updates attributes for a store member. Supports toggling `is_author` and setting a per-author fee override (`author_fee_bps`). At least one field must be provided. `author_fee_bps: null` clears the per-author override, reverting to the store default. Role (`owner`) can only be assigned via the platform admin UI. Owners cannot update their own record.
      *
      *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
      */
@@ -668,7 +682,10 @@ export interface paths {
       requestBody: {
         content: {
           'application/json': {
-            is_author: boolean
+            /** @description Grant or revoke author permissions. */
+            is_author?: boolean
+            /** @description Per-author fee override in basis points (0–10000). Set to `null` to revert to the store default. */
+            author_fee_bps?: number | null
           }
         }
       }
@@ -716,11 +733,18 @@ export interface paths {
     }
     /**
      * List store content
-     * @description Returns content for the given store. Owners and API keys see all content; `is_author` users see only their own content.
+     * @description Returns a paginated list of content for the given store. Owners and API keys see all content; `is_author` users see only their own content.
+     *
+     *     Use `page` and `per_page` to paginate through results. The response envelope always includes a `pagination` object with total counts and prev/next page numbers.
      */
     get: {
       parameters: {
-        query?: never
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+        }
         header?: never
         path: {
           /** @description Store ID */
@@ -730,13 +754,13 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description List of content */
+        /** @description Paginated list of content */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ContentResponse'][]
+            'application/json': components['schemas']['PaginatedContentList']
           }
         }
         /** @description Unauthorized */
@@ -844,11 +868,16 @@ export interface paths {
     put?: never
     /**
      * Search content by metadata
-     * @description Search content using metadata key/value pairs. All criteria must match (AND logic). Results are scoped by role: owners see all content, `is_author` users see only their own.
+     * @description Search content using metadata key/value pairs. All criteria must match (AND logic). Results are scoped by role: owners see all content, `is_author` users see only their own. Returns a paginated envelope identical to `GET /v1/merchant/{store_id}/content`.
      */
     post: {
       parameters: {
-        query?: never
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+        }
         header?: never
         path: {
           store_id: string
@@ -865,13 +894,13 @@ export interface paths {
         }
       }
       responses: {
-        /** @description Matching content */
+        /** @description Paginated matching content */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ContentResponse'][]
+            'application/json': components['schemas']['PaginatedContentList']
           }
         }
         /** @description Invalid search parameters */
@@ -1157,10 +1186,18 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Get content purchase records */
+    /**
+     * Get content sales statistics
+     * @description Returns a paginated list of sales statistics, one row per content item. Results are ordered by content title.
+     */
     get: {
       parameters: {
-        query?: never
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+        }
         header?: never
         path: {
           store_id: string
@@ -1169,13 +1206,13 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description List of content purchases */
+        /** @description Paginated list of content sales statistics */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['SalesStatisticsItem'][]
+            'application/json': components['schemas']['PaginatedSalesList']
           }
         }
         /** @description Unauthorized */
@@ -1289,11 +1326,18 @@ export interface paths {
     }
     /**
      * Get buyer statistics
-     * @description Returns aggregated, anonymised buyer statistics for the store.
+     * @description Returns paginated, aggregated, anonymised buyer statistics for the store. Results are ordered by total spend descending.
+     *
+     *     **Note:** Pagination slices the pre-aggregated result set in memory. For stores with a very large number of unique buyers, consider filtering by date range in a future API revision.
      */
     get: {
       parameters: {
-        query?: never
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+        }
         header?: never
         path: {
           store_id: string
@@ -1302,13 +1346,13 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Buyer statistics */
+        /** @description Paginated buyer statistics */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['BuyerStatisticsItem'][]
+            'application/json': components['schemas']['PaginatedBuyersList']
           }
         }
         /** @description Unauthorized */
@@ -2871,7 +2915,7 @@ export interface components {
        */
       expires_at: string
     }
-    /** @description Token response for merchant authentication. Tokens are store-agnostic — no store_context is embedded. */
+    /** @description Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection. */
     MerchantAuthenticationResponse: {
       /** @enum {string} */
       token_type: 'Bearer'
@@ -2879,6 +2923,18 @@ export interface components {
       refresh_token: string
       /** Format: date-time */
       expires_at: string
+      /** @description Stores the authenticated user can manage, for store-selection on the client. */
+      stores: components['schemas']['MerchantLoginStore'][]
+    }
+    /** @description A store the authenticated merchant user has access to. */
+    MerchantLoginStore: {
+      id: string
+      name: string
+      /**
+       * @description Derived role. `owner` if the user owns this store; `author` if they have author permissions only.
+       * @enum {string}
+       */
+      role: 'owner' | 'author'
     }
     JWTClaims: {
       /** @description User or Store identifier */
@@ -2950,8 +3006,11 @@ export interface components {
       store_id: string
       store_name: string
       store_key: string
-      /** @enum {string|null} */
-      role: 'owner' | null
+      /**
+       * @description Derived role. `owner` if the user owns this store; `author` if they have author permissions only.
+       * @enum {string}
+       */
+      role: 'owner' | 'author'
       /** @description Whether the authenticated user has author permissions for this store. */
       is_author: boolean
       logo: string | null
@@ -2961,12 +3020,14 @@ export interface components {
       user_id: string | null
       store_id: string
       /**
-       * @description Named role. `owner` is the only valid named role; non-owner authors have a null role.
+       * @description Ownership flag expressed as a string. `owner` when `is_owner` is true; `null` for non-owner members (authors or uninvited users).
        * @enum {string|null}
        */
       role: 'owner' | null
       /** @description Whether this user can create and manage their own content. */
       is_author: boolean
+      /** @description Per-author fee override in basis points (1/100th of a percent). Overrides the store's `default_author_fee_bps` when set. `null` means the store default applies. */
+      author_fee_bps: number | null
       /** Format: date-time */
       invited_at: string | null
       /** Format: date-time */
@@ -2981,6 +3042,8 @@ export interface components {
        * @default true
        */
       is_author: boolean
+      /** @description Per-author fee override in basis points (0–10000). Overrides the store's `default_author_fee_bps`. `null` or omitted means the store default applies. */
+      author_fee_bps?: number | null
     }
     MerchantInviteResponse: {
       invitation_token: string
@@ -2988,6 +3051,8 @@ export interface components {
       /** @enum {string|null} */
       role: 'owner' | null
       is_author: boolean
+      /** @description Per-author fee override set at invitation time. */
+      author_fee_bps?: number | null
       /** Format: date-time */
       expires_at: string
     }
@@ -3415,6 +3480,59 @@ export interface components {
       } & {
         [key: string]: unknown
       }
+    }
+    /** @description Pagination metadata returned on all paginated list endpoints. */
+    PaginationMeta: {
+      /**
+       * @description Total number of records matching the query.
+       * @example 84
+       */
+      total: number
+      /**
+       * @description Maximum number of records returned per page.
+       * @example 25
+       */
+      per_page: number
+      /**
+       * @description The current page number (1-based).
+       * @example 2
+       */
+      current_page: number
+      /**
+       * @description Total number of pages.
+       * @example 4
+       */
+      total_pages: number
+      /**
+       * @description Next page number, or null if on the last page.
+       * @example 3
+       */
+      next_page?: number | null
+      /**
+       * @description Previous page number, or null if on the first page.
+       * @example 1
+       */
+      prev_page?: number | null
+    }
+    /** @description Paginated list of content items. */
+    PaginatedContentList: {
+      data: components['schemas']['ContentListItem'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    /** @description Paginated list of content sales statistics. */
+    PaginatedSalesList: {
+      data: components['schemas']['SalesStatisticsItem'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    /** @description Paginated list of anonymised buyer statistics. */
+    PaginatedBuyersList: {
+      data: components['schemas']['BuyerStatisticsItem'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    /** @description Paginated list of store members. */
+    PaginatedUsersList: {
+      data: components['schemas']['MerchantUser'][]
+      pagination: components['schemas']['PaginationMeta']
     }
     /** @description Lightweight content representation returned by list and search endpoints. Omits body fields to keep list payloads small. Use the detail endpoint (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI. */
     ContentListItem: {

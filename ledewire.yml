@@ -73,8 +73,8 @@ components:
 
     MerchantAuthenticationResponse:
       type: object
-      description: Token response for merchant authentication. Tokens are store-agnostic — no store_context is embedded.
-      required: [token_type, access_token, refresh_token, expires_at]
+      description: Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection.
+      required: [token_type, access_token, refresh_token, expires_at, stores]
       properties:
         token_type:
           type: string
@@ -86,6 +86,25 @@ components:
         expires_at:
           type: string
           format: date-time
+        stores:
+          type: array
+          description: Stores the authenticated user can manage, for store-selection on the client.
+          items:
+            $ref: '#/components/schemas/MerchantLoginStore'
+
+    MerchantLoginStore:
+      type: object
+      description: A store the authenticated merchant user has access to.
+      required: [id, name, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [owner, author]
+          description: Derived role. `owner` if the user owns this store; `author` if they have author permissions only.
 
     JWTClaims:
       type: object
@@ -227,8 +246,9 @@ components:
         store_key:
           type: string
         role:
-          type: [string, 'null']
-          enum: [owner, null]
+          type: string
+          enum: [owner, author]
+          description: Derived role. `owner` if the user owns this store; `author` if they have author permissions only.
         is_author:
           type: boolean
           description: Whether the authenticated user has author permissions for this store.
@@ -237,7 +257,8 @@ components:
 
     MerchantUser:
       type: object
-      required: [id, user_id, store_id, role, is_author, invited_at, accepted_at, email]
+      required:
+        [id, user_id, store_id, role, is_author, author_fee_bps, invited_at, accepted_at, email]
       properties:
         id:
           type: string
@@ -248,10 +269,13 @@ components:
         role:
           type: [string, 'null']
           enum: [owner, null]
-          description: Named role. `owner` is the only valid named role; non-owner authors have a null role.
+          description: Ownership flag expressed as a string. `owner` when `is_owner` is true; `null` for non-owner members (authors or uninvited users).
         is_author:
           type: boolean
           description: Whether this user can create and manage their own content.
+        author_fee_bps:
+          type: [integer, 'null']
+          description: Per-author fee override in basis points (1/100th of a percent). Overrides the store's `default_author_fee_bps` when set. `null` means the store default applies.
         invited_at:
           type: [string, 'null']
           format: date-time
@@ -272,6 +296,9 @@ components:
           type: boolean
           default: true
           description: Whether to grant author permissions. Defaults to `true`.
+        author_fee_bps:
+          type: [integer, 'null']
+          description: Per-author fee override in basis points (0–10000). Overrides the store's `default_author_fee_bps`. `null` or omitted means the store default applies.
 
     MerchantInviteResponse:
       type: object
@@ -286,6 +313,9 @@ components:
           enum: [owner, null]
         is_author:
           type: boolean
+        author_fee_bps:
+          type: [integer, 'null']
+          description: Per-author fee override set at invitation time.
         expires_at:
           type: string
           format: date-time
@@ -854,6 +884,84 @@ components:
                   type: string
                   description: Hash anchor of nearby text
 
+    PaginationMeta:
+      type: object
+      description: Pagination metadata returned on all paginated list endpoints.
+      required: [total, per_page, current_page, total_pages]
+      properties:
+        total:
+          type: integer
+          description: Total number of records matching the query.
+          example: 84
+        per_page:
+          type: integer
+          description: Maximum number of records returned per page.
+          example: 25
+        current_page:
+          type: integer
+          description: The current page number (1-based).
+          example: 2
+        total_pages:
+          type: integer
+          description: Total number of pages.
+          example: 4
+        next_page:
+          type: [integer, 'null']
+          description: Next page number, or null if on the last page.
+          example: 3
+        prev_page:
+          type: [integer, 'null']
+          description: Previous page number, or null if on the first page.
+          example: 1
+
+    PaginatedContentList:
+      type: object
+      description: Paginated list of content items.
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentListItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedSalesList:
+      type: object
+      description: Paginated list of content sales statistics.
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesStatisticsItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedBuyersList:
+      type: object
+      description: Paginated list of anonymised buyer statistics.
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BuyerStatisticsItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginatedUsersList:
+      type: object
+      description: Paginated list of store members.
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MerchantUser'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
     ContentListItem:
       type: object
       description: >
@@ -1363,7 +1471,7 @@ paths:
       summary: List stores the authenticated user can manage
       description: >
         Returns all stores the authenticated user has a StoreUser record for.
-        Requires a buyer or merchant JWT. The response includes `is_author` so
+        Requires a merchant JWT. The response includes `is_author` so
         clients can determine what actions the user may perform in each store.
       tags:
         - Merchant Authentication
@@ -1390,6 +1498,12 @@ paths:
                       logo: null
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (invalid token role)
           content:
             application/json:
               schema:
@@ -1488,7 +1602,7 @@ paths:
     get:
       summary: List store members
       description: >
-        Returns all StoreUser records for the given store.
+        Returns a paginated list of all StoreUser records for the given store.
 
 
         **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
@@ -1497,15 +1611,31 @@ paths:
         - Merchant
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
       responses:
         '200':
-          description: Store members
+          description: Paginated list of store members
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MerchantUser'
+                $ref: '#/components/schemas/PaginatedUsersList'
         '401':
           description: Unauthorized
           content:
@@ -1605,7 +1735,9 @@ paths:
     patch:
       summary: Update a store member's permissions
       description: >
-        Toggles the `is_author` flag for a store member.
+        Updates attributes for a store member. Supports toggling `is_author` and setting
+        a per-author fee override (`author_fee_bps`). At least one field must be provided.
+        `author_fee_bps: null` clears the per-author override, reverting to the store default.
         Role (`owner`) can only be assigned via the platform admin UI.
         Owners cannot update their own record.
 
@@ -1621,10 +1753,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [is_author]
               properties:
                 is_author:
                   type: boolean
+                  description: Grant or revoke author permissions.
+                author_fee_bps:
+                  type: [integer, 'null']
+                  description: Per-author fee override in basis points (0–10000). Set to `null` to revert to the store default.
             examples:
               grant_authorship:
                 summary: Grant author permissions
@@ -1634,6 +1769,14 @@ paths:
                 summary: Revoke author permissions
                 value:
                   is_author: false
+              set_author_fee:
+                summary: Set a custom author fee of 18%
+                value:
+                  author_fee_bps: 1800
+              clear_author_fee:
+                summary: Clear the per-author fee override
+                value:
+                  author_fee_bps: null
       responses:
         '200':
           description: Updated store member
@@ -1692,45 +1835,69 @@ paths:
     get:
       summary: List store content
       description: >
-        Returns content for the given store.
+        Returns a paginated list of content for the given store.
         Owners and API keys see all content; `is_author` users see only their own content.
+
+
+        Use `page` and `per_page` to paginate through results. The response envelope always
+        includes a `pagination` object with total counts and prev/next page numbers.
       tags:
         - Merchant
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
       responses:
         '200':
-          description: List of content
+          description: Paginated list of content
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ContentResponse'
+                $ref: '#/components/schemas/PaginatedContentList'
               examples:
                 content_list:
-                  summary: Mixed content types
+                  summary: First page of mixed content types
                   value:
-                    - id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                      content_type: 'markdown'
-                      title: 'Sample Blog Post'
-                      content_body: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIGRldGFpbGVkIGJsb2cgcG9zdC4='
-                      teaser: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIHByZXZpZXcgb2YgdGhlIGJsb2cgcG9zdC4='
-                      price_cents: 500
-                      visibility: 'public'
-                      metadata:
-                        author: 'Jane Doe'
-                        reading_time: '5 min'
-                      external_identifier: null
-                    - id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
-                      content_type: 'external_ref'
-                      title: 'Intro to Machine Learning'
-                      content_uri: 'https://vimeo.com/987654321'
-                      external_identifier: 'vimeo:987654321'
-                      teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
-                      price_cents: 1500
-                      visibility: 'public'
-                      metadata: {}
+                    data:
+                      - id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                        content_type: 'markdown'
+                        title: 'Sample Blog Post'
+                        teaser: 'IyBUZXN0IFBvc3RcblxuVGhpcyBpcyBhIHByZXZpZXcgb2YgdGhlIGJsb2cgcG9zdC4='
+                        price_cents: 500
+                        visibility: 'public'
+                        created_at: '2026-01-15T10:30:00Z'
+                        external_identifier: null
+                      - id: 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'
+                        content_type: 'external_ref'
+                        title: 'Intro to Machine Learning'
+                        teaser: 'QSBiZWdpbm5lci1mcmllbmRseSBpbnRyb2R1Y3Rpb24gdG8gTUwgY29uY2VwdHMu'
+                        price_cents: 1500
+                        visibility: 'public'
+                        created_at: '2026-01-10T08:00:00Z'
+                        external_identifier: 'vimeo:987654321'
+                    pagination:
+                      total: 84
+                      per_page: 25
+                      current_page: 1
+                      total_pages: 4
+                      next_page: 2
+                      prev_page: null
         '401':
           description: Unauthorized
           content:
@@ -1853,10 +2020,29 @@ paths:
       description: >
         Search content using metadata key/value pairs. All criteria must match (AND logic).
         Results are scoped by role: owners see all content, `is_author` users see only their own.
+        Returns a paginated envelope identical to `GET /v1/merchant/{store_id}/content`.
       tags:
         - Merchant
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
       requestBody:
         required: true
         content:
@@ -1871,13 +2057,11 @@ paths:
                   minProperties: 1
       responses:
         '200':
-          description: Matching content
+          description: Paginated matching content
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ContentResponse'
+                $ref: '#/components/schemas/PaginatedContentList'
         '400':
           description: Invalid search parameters
           content:
@@ -2121,20 +2305,39 @@ paths:
         schema:
           type: string
     get:
-      summary: Get content purchase records
+      summary: Get content sales statistics
+      description: >
+        Returns a paginated list of sales statistics, one row per content item.
+        Results are ordered by content title.
       tags:
         - Merchant
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
       responses:
         '200':
-          description: List of content purchases
+          description: Paginated list of content sales statistics
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SalesStatisticsItem'
+                $ref: '#/components/schemas/PaginatedSalesList'
         '401':
           description: Unauthorized
           content:
@@ -2206,20 +2409,42 @@ paths:
     get:
       summary: Get buyer statistics
       description: >
-        Returns aggregated, anonymised buyer statistics for the store.
+        Returns paginated, aggregated, anonymised buyer statistics for the store.
+        Results are ordered by total spend descending.
+
+
+        **Note:** Pagination slices the pre-aggregated result set in memory.
+        For stores with a very large number of unique buyers, consider filtering
+        by date range in a future API revision.
       tags:
         - Merchant
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
       responses:
         '200':
-          description: Buyer statistics
+          description: Paginated buyer statistics
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/BuyerStatisticsItem'
+                $ref: '#/components/schemas/PaginatedBuyersList'
         '401':
           description: Unauthorized
           content:
