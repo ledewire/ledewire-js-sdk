@@ -7,7 +7,9 @@ import type { components } from '../api.gen.js'
 
 type AuthResponse = components['schemas']['AuthenticationResponse']
 type MerchantAuthResponse = components['schemas']['MerchantAuthenticationResponse']
+type MerchantLoginStoreSchema = components['schemas']['MerchantLoginStore']
 type MerchantUserSchema = components['schemas']['MerchantUser']
+type PaginationMetaSchema = components['schemas']['PaginationMeta']
 type ManageableStoreSchema = components['schemas']['ManageableStore']
 type ContentResponseSchema = components['schemas']['ContentResponse']
 type ContentWithAccessSchema = components['schemas']['ContentWithAccessResponse']
@@ -46,8 +48,23 @@ export function errorResponseFixture(code: number, message: string): ErrorRespon
 }
 
 /**
+ * Returns a valid merchant login store fixture.
+ */
+export function merchantLoginStoreFixture(
+  overrides?: Partial<MerchantLoginStoreSchema>,
+): MerchantLoginStoreSchema {
+  return {
+    id: 'store-id-1',
+    name: 'Test Store',
+    role: 'owner',
+    ...overrides,
+  }
+}
+
+/**
  * Returns a valid merchant authentication response fixture.
  * Tokens expire 30 minutes from a fixed date far in the future.
+ * Includes a single store entry matching {@link merchantLoginStoreFixture}.
  */
 export function merchantTokenFixture(
   overrides?: Partial<MerchantAuthResponse>,
@@ -57,6 +74,7 @@ export function merchantTokenFixture(
     access_token: 'test-merchant-access-token',
     refresh_token: 'test-merchant-refresh-token',
     expires_at: '2099-01-01T00:30:00Z',
+    stores: [merchantLoginStoreFixture()],
     ...overrides,
   }
 }
@@ -71,9 +89,27 @@ export function merchantUserFixture(overrides?: Partial<MerchantUserSchema>): Me
     store_id: 'store-id-1',
     role: 'owner',
     is_author: true,
+    author_fee_bps: null,
     invited_at: '2099-01-01T00:00:00Z',
     accepted_at: '2099-01-01T00:01:00Z',
     email: 'owner@example.com',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a valid pagination metadata fixture.
+ */
+export function paginationMetaFixture(
+  overrides?: Partial<PaginationMetaSchema>,
+): PaginationMetaSchema {
+  return {
+    total: 1,
+    per_page: 25,
+    current_page: 1,
+    total_pages: 1,
+    next_page: null,
+    prev_page: null,
     ...overrides,
   }
 }

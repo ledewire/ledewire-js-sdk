@@ -40,6 +40,9 @@ export type MerchantGoogleLoginRequest = components['schemas']['MerchantGoogleLo
 /** A store visible to the authenticated merchant user. */
 export type ManageableStore = components['schemas']['ManageableStore']
 
+/** A lightweight store entry embedded in the merchant auth response. */
+export type MerchantLoginStore = components['schemas']['MerchantLoginStore']
+
 /** A user associated with a merchant store. */
 export type MerchantUser = components['schemas']['MerchantUser']
 
@@ -61,8 +64,60 @@ export type ContentWithAccessResponse = components['schemas']['ContentWithAccess
 /** A content item in a list response. */
 export type ContentListItem = components['schemas']['ContentListItem']
 
-/** Full content response returned by get/create/update operations. */
-export type Content = components['schemas']['Content']
+/**
+ * Content creation request body — a discriminated union on `content_type`.
+ *
+ * - `'markdown'` requires `content_body` (base64-encoded markdown).
+ * - `'external_ref'` requires `content_uri` (the external resource URL) and
+ *   optionally `external_identifier` (namespaced platform ID, e.g. `vimeo:123`).
+ */
+export type Content =
+  | {
+      /** @discriminator */
+      content_type: 'markdown'
+      /** Content title. */
+      title: string
+      /** Full article body in markdown, base64 encoded. */
+      content_body: string
+      /** Optional teaser, base64 encoded. */
+      teaser?: string
+      /** Price for the content in cents. */
+      price_cents: number
+      /** @default public */
+      visibility: 'public' | 'unlisted'
+      /** Flexible metadata for additional context. */
+      metadata?: {
+        author?: string
+        /** @format date-time */
+        publication_date?: string
+        reading_time?: string
+        [key: string]: unknown
+      }
+    }
+  | {
+      /** @discriminator */
+      content_type: 'external_ref'
+      /** Content title. */
+      title: string
+      /** URI of the external resource (Vimeo, YouTube, PDF, etc.). */
+      content_uri: string
+      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
+      external_identifier?: string
+      /** Optional teaser, base64 encoded. */
+      teaser?: string
+      /** Price for the content in cents. */
+      price_cents: number
+      /** @default public */
+      visibility: 'public' | 'unlisted'
+      /** Flexible metadata for additional context. */
+      metadata?: {
+        author?: string
+        /** @format date-time */
+        publication_date?: string
+        reading_time?: string
+        [key: string]: unknown
+      }
+    }
 
 /** Full content item returned by all seller content endpoints. */
 export type ContentResponse = components['schemas']['ContentResponse']
@@ -108,6 +163,21 @@ export type SalesStatisticsItem = components['schemas']['SalesStatisticsItem']
 
 /** Buyer statistics item for a merchant store. */
 export type BuyerStatisticsItem = components['schemas']['BuyerStatisticsItem']
+
+/** Pagination metadata included in all paginated list responses. */
+export type PaginationMeta = components['schemas']['PaginationMeta']
+
+/** Paginated list of content items (merchant content endpoints). */
+export type PaginatedContentList = components['schemas']['PaginatedContentList']
+
+/** Paginated list of per-title sales statistics. */
+export type PaginatedSalesList = components['schemas']['PaginatedSalesList']
+
+/** Paginated list of anonymised buyer statistics. */
+export type PaginatedBuyersList = components['schemas']['PaginatedBuyersList']
+
+/** Paginated list of store members. */
+export type PaginatedUsersList = components['schemas']['PaginatedUsersList']
 
 // ---------------------------------------------------------------------------
 // SDK-level types (inline API shapes not promoted to named schemas)
