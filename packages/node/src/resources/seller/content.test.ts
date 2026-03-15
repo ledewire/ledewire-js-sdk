@@ -5,6 +5,7 @@ import {
   contentResponseFixture,
   externalRefContentResponseFixture,
   errorResponseFixture,
+  paginationMetaFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
@@ -141,17 +142,18 @@ describe('seller.content.create', () => {
 // ---------------------------------------------------------------------------
 
 describe('seller.content.search', () => {
-  it('returns matching content items', async () => {
-    const fixtures = [contentResponseFixture()]
+  it('returns matching content items (paginated)', async () => {
+    const items = [contentResponseFixture()]
+    const fixture = { data: items, pagination: paginationMetaFixture() }
     server.use(
-      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, () => HttpResponse.json(fixtures)),
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, () => HttpResponse.json(fixture)),
     )
 
     const result = await makeClient().seller.content.search(STORE, {
       metadata: { author: 'Alice' },
     })
 
-    expect(result).toEqual(fixtures)
+    expect(result.data).toEqual(items)
   })
 
   it('throws AuthError on 401', async () => {

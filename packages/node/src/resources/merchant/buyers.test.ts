@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, ForbiddenError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { errorResponseFixture, buyerStatisticsItemFixture } from '@ledewire/core/test-utils'
+import {
+  errorResponseFixture,
+  buyerStatisticsItemFixture,
+  paginationMetaFixture,
+} from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -27,34 +31,37 @@ function makeClient() {
 // ---------------------------------------------------------------------------
 
 describe('merchant.buyers.list', () => {
-  it('returns aggregated buyer statistics', async () => {
-    const fixture = [
+  it('returns paginated buyer statistics', async () => {
+    const items = [
       buyerStatisticsItemFixture(),
       buyerStatisticsItemFixture({ buyer_ref: 'buyer-ref-2', buyer_status: 'new' }),
     ]
+    const fixture = { data: items, pagination: paginationMetaFixture({ total: 2 }) }
     server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/buyers`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.buyers.list(STORE_ID)
 
-    expect(result).toEqual(fixture)
-    expect(result).toHaveLength(2)
+    expect(result.data).toEqual(items)
+    expect(result.pagination.total).toBe(2)
   })
 
-  it('returns an empty list when no buyers exist', async () => {
-    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/buyers`, () => HttpResponse.json([])))
+  it('returns an empty page when no buyers exist', async () => {
+    const fixture = { data: [], pagination: paginationMetaFixture({ total: 0, total_pages: 0 }) }
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/buyers`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.buyers.list(STORE_ID)
 
-    expect(result).toEqual([])
+    expect(result.data).toEqual([])
   })
 
   it('returns buyer statistics with expected fields', async () => {
-    const fixture = [buyerStatisticsItemFixture()]
+    const items = [buyerStatisticsItemFixture()]
+    const fixture = { data: items, pagination: paginationMetaFixture() }
     server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/buyers`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.buyers.list(STORE_ID)
 
-    const [buyer] = result
+    const [buyer] = result.data
     expect(buyer).toMatchObject({
       buyer_ref: 'buyer-ref-1',
       purchases_count: 2,

@@ -3,6 +3,7 @@ import { AuthError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   merchantTokenFixture,
+  merchantLoginStoreFixture,
   manageableStoreFixture,
   errorResponseFixture,
 } from '@ledewire/core/test-utils'
@@ -125,5 +126,78 @@ describe('merchant.auth.listStores', () => {
     )
 
     await expect(makeClient().merchant.auth.listStores()).rejects.toThrow(AuthError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.loginWithEmailAndListStores
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.loginWithEmailAndListStores', () => {
+  it('returns tokens and embedded stores in a single HTTP call', async () => {
+    const loginStore = merchantLoginStoreFixture()
+    const tokenFixture = merchantTokenFixture({ stores: [loginStore] })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(tokenFixture)),
+    )
+
+    const result = await makeClient().merchant.auth.loginWithEmailAndListStores({
+      email: 'owner@example.com',
+      password: 'password123',
+    })
+
+    expect(result.tokens).toEqual(tokenFixture)
+    expect(result.stores).toEqual([loginStore])
+  })
+
+  it('stores tokens automatically', async () => {
+    const tokenFixture = merchantTokenFixture({ access_token: 'combo-email-token' })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(tokenFixture)),
+    )
+
+    const client = makeClient()
+    await client.merchant.auth.loginWithEmailAndListStores({
+      email: 'owner@example.com',
+      password: 'password123',
+    })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBe('combo-email-token')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.loginWithGoogleAndListStores
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.loginWithGoogleAndListStores', () => {
+  it('returns tokens and embedded stores in a single HTTP call', async () => {
+    const loginStores = [
+      merchantLoginStoreFixture(),
+      merchantLoginStoreFixture({ id: 'store-2', name: 'Second Store' }),
+    ]
+    const tokenFixture = merchantTokenFixture({ stores: loginStores })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(tokenFixture)),
+    )
+
+    const result = await makeClient().merchant.auth.loginWithGoogleAndListStores({
+      id_token: 'google-jwt',
+    })
+
+    expect(result.tokens).toEqual(tokenFixture)
+    expect(result.stores).toHaveLength(2)
+  })
+
+  it('stores tokens automatically', async () => {
+    const tokenFixture = merchantTokenFixture({ access_token: 'combo-google-token' })
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(tokenFixture)),
+    )
+
+    const client = makeClient()
+    await client.merchant.auth.loginWithGoogleAndListStores({ id_token: 'google-jwt' })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBe('combo-google-token')
   })
 })

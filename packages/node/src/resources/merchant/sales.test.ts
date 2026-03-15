@@ -6,6 +6,7 @@ import {
   salesSummaryFixture,
   salesStatisticsItemFixture,
   merchantSaleFixture,
+  paginationMetaFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
@@ -82,25 +83,27 @@ describe('merchant.sales.summary', () => {
 // ---------------------------------------------------------------------------
 
 describe('merchant.sales.list', () => {
-  it('returns per-title sales rollup', async () => {
-    const fixture = [
+  it('returns a paginated list of per-title sales', async () => {
+    const items = [
       salesStatisticsItemFixture(),
       salesStatisticsItemFixture({ content_id: 'content-id-2', title: 'Second Article' }),
     ]
+    const fixture = { data: items, pagination: paginationMetaFixture({ total: 2 }) }
     server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.sales.list(STORE_ID)
 
-    expect(result).toEqual(fixture)
-    expect(result).toHaveLength(2)
+    expect(result.data).toEqual(items)
+    expect(result.pagination.total).toBe(2)
   })
 
-  it('returns an empty list when no sales exist', async () => {
-    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json([])))
+  it('returns an empty page when no sales exist', async () => {
+    const fixture = { data: [], pagination: paginationMetaFixture({ total: 0, total_pages: 0 }) }
+    server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/sales`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.sales.list(STORE_ID)
 
-    expect(result).toEqual([])
+    expect(result.data).toEqual([])
   })
 
   it('throws AuthError on 401', async () => {

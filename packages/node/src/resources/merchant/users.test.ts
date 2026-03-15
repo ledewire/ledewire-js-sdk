@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, ForbiddenError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { merchantUserFixture, errorResponseFixture } from '@ledewire/core/test-utils'
+import {
+  merchantUserFixture,
+  paginationMetaFixture,
+  errorResponseFixture,
+} from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -27,17 +31,18 @@ function makeClient() {
 // ---------------------------------------------------------------------------
 
 describe('merchant.users.list', () => {
-  it('returns an array of store members', async () => {
-    const fixture = [
+  it('returns a paginated list of store members', async () => {
+    const members = [
       merchantUserFixture(),
       merchantUserFixture({ id: 'store-user-id-2', email: 'author@example.com', role: null }),
     ]
+    const fixture = { data: members, pagination: paginationMetaFixture({ total: 2 }) }
     server.use(http.get(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.users.list(STORE_ID)
 
-    expect(result).toEqual(fixture)
-    expect(result).toHaveLength(2)
+    expect(result.data).toEqual(members)
+    expect(result.pagination.total).toBe(2)
   })
 
   it('throws AuthError on 401', async () => {
@@ -153,5 +158,68 @@ describe('merchant.users.remove', () => {
     await expect(makeClient().merchant.users.remove(STORE_ID, 'store-user-id-1')).rejects.toThrow(
       AuthError,
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.users.update
+// ---------------------------------------------------------------------------
+
+describe('merchant.users.update', () => {
+  it('sets a custom author_fee_bps override', async () => {
+    const fixture = merchantUserFixture({ author_fee_bps: 1800 })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`, () =>
+        HttpResponse.json(fixture),
+      ),
+    )
+
+    const result = await makeClient().merchant.users.update(STORE_ID, 'store-user-id-1', {
+      author_fee_bps: 1800,
+    })
+
+    expect(result.author_fee_bps).toBe(1800)
+  })
+
+  it('clears the author_fee_bps override when null is passed', async () => {
+    const fixture = merchantUserFixture({ author_fee_bps: null })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`, () =>
+        HttpResponse.json(fixture),
+      ),
+    )
+
+    const result = await makeClient().merchant.users.update(STORE_ID, 'store-user-id-1', {
+      author_fee_bps: null,
+    })
+
+    expect(result.author_fee_bps).toBeNull()
+  })
+
+  it('toggles is_author', async () => {
+    const fixture = merchantUserFixture({ is_author: false })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`, () =>
+        HttpResponse.json(fixture),
+      ),
+    )
+
+    const result = await makeClient().merchant.users.update(STORE_ID, 'store-user-id-1', {
+      is_author: false,
+    })
+
+    expect(result.is_author).toBe(false)
+  })
+
+  it('throws ForbiddenError on 403', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE_ID}/users/store-user-id-1`, () =>
+        HttpResponse.json(errorResponseFixture(1002, 'Forbidden'), { status: 403 }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.users.update(STORE_ID, 'store-user-id-1', { is_author: true }),
+    ).rejects.toThrow(ForbiddenError)
   })
 })
