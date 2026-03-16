@@ -25,6 +25,7 @@ describe('init', () => {
   it('returns a BrowserClient with all namespaces', () => {
     const client = init({ apiKey: 'test-api-key' })
 
+    expect(client.config).toBeDefined()
     expect(client.auth).toBeDefined()
     expect(client.checkout).toBeDefined()
     expect(client.wallet).toBeDefined()

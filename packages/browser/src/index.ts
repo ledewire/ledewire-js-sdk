@@ -29,6 +29,7 @@
 // Re-export core types and errors
 export type {
   AuthenticationResponse,
+  PublicConfigResponse,
   CheckoutNextAction,
   CheckoutState,
   CheckoutStateResponse,

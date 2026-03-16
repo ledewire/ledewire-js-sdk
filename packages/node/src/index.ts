@@ -31,6 +31,7 @@
 // Re-export core types and errors for consumers who only install @ledewire/node
 export type {
   AuthenticationResponse,
+  PublicConfigResponse,
   BuyerStatisticsItem,
   CheckoutNextAction,
   CheckoutState,

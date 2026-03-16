@@ -37,6 +37,15 @@ components:
         - For write operations (creating, updating, deleting content), authenticate with API key + secret to receive `full` permission
 
   schemas:
+    PublicConfigResponse:
+      type: object
+      description: Platform-level public configuration. No authentication required.
+      required: [google_client_id]
+      properties:
+        google_client_id:
+          type: string
+          description: Google OAuth client ID for initialising the Google Identity Services library.
+
     ContentAccessInfo:
       type: object
       required:
@@ -462,7 +471,7 @@ components:
           description: Full article body in markdown, base64 encoded. For `markdown` content only.
         content_uri:
           type: string
-          description: URI of the external resource. For `external_ref` content only.
+          description: URI of the resource. Required for `external_ref` content; optional for `markdown` content.
           example: https://vimeo.com/123456789
         external_identifier:
           type: [string, 'null']
@@ -760,6 +769,7 @@ components:
       description: >
         Create request body for content. Required fields vary by `content_type`:
         `markdown` requires `content_body`; `external_ref` requires `content_uri`.
+        Both types accept an optional `content_uri` link.
       required: [content_type, title, price_cents]
       properties:
         content_type:
@@ -777,7 +787,7 @@ components:
           description: Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
         content_uri:
           type: string
-          description: URI of the external resource (Vimeo, YouTube, PDF, etc.). Required when `content_type` is `external_ref`.
+          description: URI of the resource. Required when `content_type` is `external_ref`; optional for `markdown` content.
           example: https://vimeo.com/123456789
         external_identifier:
           type: string
@@ -1255,6 +1265,24 @@ security:
   - BearerAuth: []
 
 paths:
+  /v1/config/public:
+    get:
+      summary: Get public platform configuration
+      description: >
+        Returns platform-level configuration values that are safe to expose publicly.
+        No authentication is required. Use this endpoint to retrieve the Google OAuth
+        client ID before the user has signed in.
+      tags:
+        - Config
+      security: []
+      responses:
+        '200':
+          description: Public platform configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicConfigResponse'
+
   /v1/auth/signup:
     post:
       summary: Register a new user with email and password
@@ -1545,12 +1573,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MerchantAuthenticationResponse'
-        default:
-          description: Error response
+        '400':
+          description: Missing or invalid request fields
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_credentials:
+                  summary: Wrong password or unknown email
+                  value:
+                    error:
+                      code: 404
+                      message: 'Invalid email or password'
+        '403':
+          description: >
+            Authenticated successfully but the account has no merchant store access.
+            The credentials are valid; the account needs to be added as an owner
+            or author to at least one store before it can use the merchant API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no_merchant_access:
+                  summary: Account exists but has no store associations
+                  value:
+                    error:
+                      code: 403
+                      message: 'This account does not have merchant access. Use a merchant or owner account.'
 
   /v1/auth/merchant/login/google:
     post:
@@ -1573,7 +1630,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MerchantAuthenticationResponse'
         '400':
-          description: Invalid request
+          description: Missing or invalid request fields
           content:
             application/json:
               schema:
@@ -1584,6 +1641,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            Google token is valid and the account was found, but the account has
+            no merchant store access. This is the expected response when a personal
+            Google account previously registered as a buyer is used on the merchant
+            login endpoint. Use a different account or have the account added as
+            an owner or author to a store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no_merchant_access:
+                  summary: Buyer account authenticated via Google — no store associations
+                  value:
+                    error:
+                      code: 403
+                      message: 'This account does not have merchant access. Use a merchant or owner account.'
         '503':
           description: Google service unavailable
           content:
@@ -2016,9 +2091,10 @@ paths:
         schema:
           type: string
     post:
-      summary: Search content by metadata
+      summary: Search content
       description: >
-        Search content using metadata key/value pairs. All criteria must match (AND logic).
+        Search content by title (partial, case-insensitive), URI (partial, case-insensitive),
+        and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied.
         Results are scoped by role: owners see all content, `is_author` users see only their own.
         Returns a paginated envelope identical to `GET /v1/merchant/{store_id}/content`.
       tags:
@@ -2049,12 +2125,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [metadata]
               properties:
+                title:
+                  type: string
+                  description: Case-insensitive partial match against the content title.
+                uri:
+                  type: string
+                  description: Case-insensitive partial match against the content URI (external_ref content only).
                 metadata:
                   type: object
                   additionalProperties: true
                   minProperties: 1
+                  description: Exact key/value pairs to match in the content metadata (AND logic).
       responses:
         '200':
           description: Paginated matching content
@@ -3336,12 +3418,14 @@ paths:
 
   /v1/seller/content/search:
     post:
-      summary: Search content by metadata
+      summary: Search content
       tags:
         - Content
       description: >
-        Search for content using metadata key/value pairs. Supports searching by internal reference identifiers
-        such as vimeo_id, external_url, or any custom metadata fields. All criteria must match (AND logic).
+        Search for content by title (partial, case-insensitive), URI (partial, case-insensitive),
+        and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied.
+        Metadata search supports internal reference identifiers such as vimeo_id, external_url,
+        or any custom metadata fields.
 
 
         **Required Permission:** `view` or `full`
@@ -3353,15 +3437,27 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - metadata
               properties:
+                title:
+                  type: string
+                  description: Case-insensitive partial match against the content title.
+                uri:
+                  type: string
+                  description: Case-insensitive partial match against the content URI (external_ref content only).
                 metadata:
                   type: object
-                  description: Key/value pairs to search for in content metadata
+                  description: Exact key/value pairs to match in the content metadata (AND logic).
                   additionalProperties: true
                   minProperties: 1
             examples:
+              searchByTitle:
+                summary: Search by title
+                value:
+                  title: 'Introduction'
+              searchByUri:
+                summary: Search by URI
+                value:
+                  uri: 'example.com'
               searchByVimeoId:
                 summary: Search by Vimeo ID
                 value:
@@ -3372,11 +3468,11 @@ paths:
                 value:
                   metadata:
                     external_url: 'https://example.com/page'
-              searchByMultipleCriteria:
-                summary: Search with multiple criteria
+              searchByTitleAndMetadata:
+                summary: Search by title and metadata
                 value:
+                  title: 'Tutorial'
                   metadata:
-                    vimeo_id: '123456789'
                     category: 'tutorial'
               searchByCustomField:
                 summary: Search by custom metadata field

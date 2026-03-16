@@ -13,6 +13,14 @@ describe('createMockClient', () => {
     expect(client).toHaveProperty('purchases')
     expect(client).toHaveProperty('content')
     expect(client).toHaveProperty('checkout')
+    expect(client).toHaveProperty('config')
+  })
+
+  it('stubs config.getPublic', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.config.getPublic).toBe('function')
+    expect(vi.isMockFunction(client.config.getPublic)).toBe(true)
   })
 
   it('stubs all buyer auth methods', () => {

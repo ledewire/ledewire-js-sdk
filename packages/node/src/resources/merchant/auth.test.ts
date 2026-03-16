@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError } from '@ledewire/core'
+import { AuthError, ForbiddenError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   merchantTokenFixture,
@@ -64,6 +64,24 @@ describe('merchant.auth.loginWithEmail', () => {
       makeClient().merchant.auth.loginWithEmail({ email: 'x@x.com', password: 'bad' }),
     ).rejects.toThrow(AuthError)
   })
+
+  it('throws ForbiddenError on 403 (account exists but has no store access)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/email`, () =>
+        HttpResponse.json(
+          errorResponseFixture(
+            403,
+            'This account does not have merchant access. Use a merchant or owner account.',
+          ),
+          { status: 403 },
+        ),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.auth.loginWithEmail({ email: 'buyer@example.com', password: 'pw' }),
+    ).rejects.toThrow(ForbiddenError)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -100,6 +118,24 @@ describe('merchant.auth.loginWithGoogle', () => {
     await expect(
       makeClient().merchant.auth.loginWithGoogle({ id_token: 'bad-token' }),
     ).rejects.toThrow(AuthError)
+  })
+
+  it('throws ForbiddenError on 403 (buyer account authenticated via Google — no store access)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/login/google`, () =>
+        HttpResponse.json(
+          errorResponseFixture(
+            403,
+            'This account does not have merchant access. Use a merchant or owner account.',
+          ),
+          { status: 403 },
+        ),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.auth.loginWithGoogle({ id_token: 'buyer-google-jwt' }),
+    ).rejects.toThrow(ForbiddenError)
   })
 })
 

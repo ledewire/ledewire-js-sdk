@@ -42,11 +42,23 @@ const lw = init({
 
 | Namespace      | Description                                      |
 | -------------- | ------------------------------------------------ |
+| `lw.config`    | Platform public config (no auth required)        |
 | `lw.auth`      | Buyer signup, email/password login, Google OAuth |
 | `lw.wallet`    | Wallet balance, fund wallet via payment session  |
 | `lw.purchases` | List and create content purchases                |
 | `lw.content`   | Fetch content with buyer access info             |
 | `lw.checkout`  | Checkout state — what action is required next    |
+
+## Example: Fetch Google OAuth Client ID Before Sign-In
+
+```ts
+const lw = Ledewire.init({ apiKey: 'your_api_key' })
+
+// No login needed — safe to call on page load
+const { google_client_id } = await lw.config.getPublic()
+google.accounts.id.initialize({ client_id: google_client_id, callback: handleCredential })
+google.accounts.id.renderButton(document.getElementById('signin-btn'), { theme: 'outline' })
+```
 
 ## Example: Full Checkout Flow
 

@@ -184,6 +184,13 @@ export type PaginatedUsersList = components['schemas']['PaginatedUsersList']
 // ---------------------------------------------------------------------------
 
 /**
+ * Platform-level public configuration returned by `GET /v1/config/public`.
+ * No authentication required. Use this to get the Google OAuth client ID
+ * before the user has signed in.
+ */
+export type PublicConfigResponse = components['schemas']['PublicConfigResponse']
+
+/**
  * Store public configuration returned by `GET /v1/merchant/{store_id}/config`.
  * The `google_client_id` is used to initialise the Google OAuth button on the
  * buyer-facing storefront.

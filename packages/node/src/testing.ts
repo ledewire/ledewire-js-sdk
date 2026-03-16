@@ -152,5 +152,8 @@ export function createMockClient(
     checkout: {
       state: stub(),
     },
+    config: {
+      getPublic: stub(),
+    },
   } as unknown as MockNodeClient
 }

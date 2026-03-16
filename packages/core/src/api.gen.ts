@@ -4,6 +4,45 @@
  */
 
 export interface paths {
+  '/v1/config/public': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get public platform configuration
+     * @description Returns platform-level configuration values that are safe to expose publicly. No authentication is required. Use this endpoint to retrieve the Google OAuth client ID before the user has signed in.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Public platform configuration */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PublicConfigResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/auth/signup': {
     parameters: {
       query?: never
@@ -366,8 +405,26 @@ export interface paths {
             'application/json': components['schemas']['MerchantAuthenticationResponse']
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description Missing or invalid request fields */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Authenticated successfully but the account has no merchant store access. The credentials are valid; the account needs to be added as an owner or author to at least one store before it can use the merchant API. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Invalid email or password */
+        404: {
           headers: {
             [name: string]: unknown
           }
@@ -418,7 +475,7 @@ export interface paths {
             'application/json': components['schemas']['MerchantAuthenticationResponse']
           }
         }
-        /** @description Invalid request */
+        /** @description Missing or invalid request fields */
         400: {
           headers: {
             [name: string]: unknown
@@ -429,6 +486,15 @@ export interface paths {
         }
         /** @description Invalid or expired Google token */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -867,8 +933,8 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Search content by metadata
-     * @description Search content using metadata key/value pairs. All criteria must match (AND logic). Results are scoped by role: owners see all content, `is_author` users see only their own. Returns a paginated envelope identical to `GET /v1/merchant/{store_id}/content`.
+     * Search content
+     * @description Search content by title (partial, case-insensitive), URI (partial, case-insensitive), and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied. Results are scoped by role: owners see all content, `is_author` users see only their own. Returns a paginated envelope identical to `GET /v1/merchant/{store_id}/content`.
      */
     post: {
       parameters: {
@@ -887,7 +953,12 @@ export interface paths {
       requestBody: {
         content: {
           'application/json': {
-            metadata: {
+            /** @description Case-insensitive partial match against the content title. */
+            title?: string
+            /** @description Case-insensitive partial match against the content URI (external_ref content only). */
+            uri?: string
+            /** @description Exact key/value pairs to match in the content metadata (AND logic). */
+            metadata?: {
               [key: string]: unknown
             }
           }
@@ -2259,8 +2330,8 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Search content by metadata
-     * @description Search for content using metadata key/value pairs. Supports searching by internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields. All criteria must match (AND logic).
+     * Search content
+     * @description Search for content by title (partial, case-insensitive), URI (partial, case-insensitive), and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied. Metadata search supports internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields.
      *
      *     **Required Permission:** `view` or `full`
      */
@@ -2274,8 +2345,12 @@ export interface paths {
       requestBody: {
         content: {
           'application/json': {
-            /** @description Key/value pairs to search for in content metadata */
-            metadata: {
+            /** @description Case-insensitive partial match against the content title. */
+            title?: string
+            /** @description Case-insensitive partial match against the content URI (external_ref content only). */
+            uri?: string
+            /** @description Exact key/value pairs to match in the content metadata (AND logic). */
+            metadata?: {
               [key: string]: unknown
             }
           }
@@ -2895,6 +2970,11 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description Platform-level public configuration. No authentication required. */
+    PublicConfigResponse: {
+      /** @description Google OAuth client ID for initialising the Google Identity Services library. */
+      google_client_id: string
+    }
     ContentAccessInfo: {
       user_id: string | null
       has_purchased: boolean
@@ -3142,7 +3222,7 @@ export interface components {
        */
       content_body?: string
       /**
-       * @description URI of the external resource. For `external_ref` content only.
+       * @description URI of the resource. Required for `external_ref` content; optional for `markdown` content.
        * @example https://vimeo.com/123456789
        */
       content_uri?: string
@@ -3374,7 +3454,7 @@ export interface components {
        */
       started_at?: string
     }
-    /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `external_ref` requires `content_uri`. */
+    /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `external_ref` requires `content_uri`. Both types accept an optional `content_uri` link. */
     Content: {
       /**
        * @description The type of content being created.
@@ -3389,7 +3469,7 @@ export interface components {
        */
       content_body?: string
       /**
-       * @description URI of the external resource (Vimeo, YouTube, PDF, etc.). Required when `content_type` is `external_ref`.
+       * @description URI of the resource. Required when `content_type` is `external_ref`; optional for `markdown` content.
        * @example https://vimeo.com/123456789
        */
       content_uri?: string

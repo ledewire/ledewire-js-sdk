@@ -2,6 +2,7 @@ import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@l
 import type { TokenStorage, StoredTokens } from '@ledewire/core'
 import { AuthNamespace } from './resources/auth.js'
 import { CheckoutNamespace } from './resources/checkout.js'
+import { ConfigNamespace } from './resources/config.js'
 import { ContentNamespace } from './resources/content.js'
 import { MerchantNamespace } from './resources/merchant/index.js'
 import { PurchasesNamespace } from './resources/purchases.js'
@@ -143,6 +144,9 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
  * Instantiate with {@link createClient} rather than constructing directly.
  */
 export class NodeClient {
+  /** Platform-level public configuration (no auth required) */
+  readonly config: ConfigNamespace
+
   /** Buyer authentication: email/password, Google, API key, password reset */
   readonly auth: AuthNamespace
 
@@ -173,6 +177,7 @@ export class NodeClient {
     public readonly _tokenManager: TokenManager,
     public readonly _config: NodeClientConfig,
   ) {
+    this.config = new ConfigNamespace(_http)
     this.auth = new AuthNamespace(_http, _tokenManager)
     this.merchant = new MerchantNamespace(_http, _tokenManager)
     this.seller = new SellerNamespace(_http)

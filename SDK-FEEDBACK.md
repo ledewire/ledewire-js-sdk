@@ -3,30 +3,30 @@
 Collected during development of the demo producer site (Next.js 15, strict TypeScript).
 Items are categorised by severity: 🔴 Bug/Breaking · 🟡 DX Friction · 🟢 Nice-to-have
 
-_Last updated: 2026-03-13 — see individual items for resolution status._
+_Last updated: 2026-03-16 — see individual items for resolution status._
 
 ---
 
 ## Status Summary
 
-| Item                                                 | Severity      | Status                                            | Released |
-| ---------------------------------------------------- | ------------- | ------------------------------------------------- | -------- |
-| `@ledewire/core` types not bundled                   | 🔴 Bug        | ✅ Fixed                                          | v0.2.2   |
-| `ManageableStore` missing `store_name`               | 🟡 DX         | ✅ Already present in API                         | v0.2.2   |
-| README `.id` → `.store_id` bug                       | 🟡 DX         | ✅ Fixed                                          | v0.2.3   |
-| Two-step login boilerplate                           | 🟡 DX         | ✅ Fixed — `loginWithEmailAndListStores()` added  | v0.2.3   |
-| `onTokenRefreshed` vs `storage.setTokens` confusion  | 🟡 DX         | ✅ Fixed — JSDoc clarified                        | v0.2.3   |
-| `content_type` untyped; no discriminated union       | 🟡 DX         | ✅ Fixed — `Content` is now a discriminated union | v0.2.3   |
-| No merchant JWT flow README section                  | 🟢 NTH        | ✅ Fixed — section added with serverless warning  | v0.2.3   |
-| `MemoryTokenStorage` serverless cold-start           | 🟢 NTH        | ✅ Fixed — JSDoc warning + explanation added      | v0.2.3   |
-| No test utilities / mock factory                     | 🟢 NTH        | ✅ Fixed — `@ledewire/node/testing` subpath added | v0.2.3   |
-| `snake_case` field naming                            | 🟡 DX         | ⏳ Pending — SDK-only; low priority               | —        |
-| No pagination on list endpoints                      | 🔴 Missing    | ✅ Fixed — paginated envelope on all list methods | v0.3.0   |
-| `content.search()` metadata-only                     | 🟡 DX         | ⏳ Pending — **requires API changes**             | —        |
-| Public config endpoint (Google Sign-In circular dep) | 🔴 Design Bug | ⏳ Pending — **requires API changes**             | —        |
-| Opaque role mismatch errors                          | 🟡 DX         | ⏳ Pending — **requires API changes**             | —        |
-| `author_fee_bps` not manageable per-author           | 🟢 NTH        | ✅ Fixed — `merchant.users.update()` added        | v0.3.0   |
-| Login response didn't include stores                 | 🟡 DX         | ✅ Fixed — `MerchantLoginStore[]` in token resp   | v0.3.0   |
+| Item                                                 | Severity      | Status                                             | Released |
+| ---------------------------------------------------- | ------------- | -------------------------------------------------- | -------- |
+| `@ledewire/core` types not bundled                   | 🔴 Bug        | ✅ Fixed                                           | v0.2.2   |
+| `ManageableStore` missing `store_name`               | 🟡 DX         | ✅ Already present in API                          | v0.2.2   |
+| README `.id` → `.store_id` bug                       | 🟡 DX         | ✅ Fixed                                           | v0.2.3   |
+| Two-step login boilerplate                           | 🟡 DX         | ✅ Fixed — `loginWithEmailAndListStores()` added   | v0.2.3   |
+| `onTokenRefreshed` vs `storage.setTokens` confusion  | 🟡 DX         | ✅ Fixed — JSDoc clarified                         | v0.2.3   |
+| `content_type` untyped; no discriminated union       | 🟡 DX         | ✅ Fixed — `Content` is now a discriminated union  | v0.2.3   |
+| No merchant JWT flow README section                  | 🟢 NTH        | ✅ Fixed — section added with serverless warning   | v0.2.3   |
+| `MemoryTokenStorage` serverless cold-start           | 🟢 NTH        | ✅ Fixed — JSDoc warning + explanation added       | v0.2.3   |
+| No test utilities / mock factory                     | 🟢 NTH        | ✅ Fixed — `@ledewire/node/testing` subpath added  | v0.2.3   |
+| `snake_case` field naming                            | 🟡 DX         | ⏳ Pending — SDK-only; low priority                | —        |
+| No pagination on list endpoints                      | 🔴 Missing    | ✅ Fixed — paginated envelope on all list methods  | v0.3.0   |
+| `content.search()` metadata-only                     | 🟡 DX         | ✅ Fixed — `title` + `uri` partial-match added     | v0.4.0   |
+| Public config endpoint (Google Sign-In circular dep) | 🔴 Design Bug | ✅ Fixed — `GET /v1/config/public` (no auth)       | v0.4.0   |
+| Opaque role mismatch errors                          | 🟡 DX         | ✅ Fixed — API returns 403 with actionable message | v0.4.0   |
+| `author_fee_bps` not manageable per-author           | 🟢 NTH        | ✅ Fixed — `merchant.users.update()` added         | v0.3.0   |
+| Login response didn't include stores                 | 🟡 DX         | ✅ Fixed — `MerchantLoginStore[]` in token resp    | v0.3.0   |
 
 ---
 
@@ -287,37 +287,40 @@ immediately caught by consumers.
 
 ---
 
-## 🟡 DX — `content.search()` is metadata-only; no title or full-text search
+## ✅ Fixed in v0.4.0 — `content.search()` extended with title and URI search
 
-`client.seller.content.search(storeId, { metadata: Record<string, unknown> })` matches only
-against arbitrary metadata key/value pairs (AND logic). There is no way to search by `title`,
-`content_body`, `content_type`, or `visibility` through the SDK.
-
-**Consequences:**
-
-1. Producers cannot search their catalogue by title — the most natural search intent.
-2. The endpoint is only useful if producers happened to store searchable values as metadata
-   upfront, which is not obvious from the README or types.
-3. Consumers who need title or type filtering must fetch the full dataset and filter client-side,
-   incurring all the same unbounded-list costs noted in the pagination feedback item.
-
-**Workaround applied in this project:** Client-side `title.toLowerCase().includes(query)`
-filtering on the already-loaded `initialItems` list. Works at demo-scale; not production-viable.
-
-**Recommended fix:** Extend `ContentSearchRequest` to support the common filterable fields:
+`ContentSearchRequest` now accepts three optional, combinable criteria:
 
 ```ts
-interface ContentSearchRequest {
-  query?: string // full-text / title search
-  content_type?: 'markdown' | 'external_ref'
-  visibility?: 'public' | 'private'
-  metadata?: Record<string, unknown> // AND-matched key/value pairs (existing behaviour)
-}
+await client.seller.content.search(storeId, { title: 'intro' })
+await client.seller.content.search(storeId, { uri: 'vimeo.com' })
+await client.seller.content.search(storeId, { title: 'tutorial', metadata: { category: 'ml' } })
 ```
+
+`title` and `uri` are case-insensitive partial matches. `metadata` retains its existing
+exact AND-match behaviour. All three fields are now optional (previously `metadata` was
+required), and at least one must be supplied.
 
 ---
 
-## 🔴 Design Bug — `GET /v1/seller/config` (and `/v1/merchant/{store_id}/config`) requires authentication, but the response is needed _before_ authentication
+## ✅ Fixed in v0.4.0 — Public config endpoint added; Google Sign-In circular dependency resolved
+
+`GET /v1/config/public` is now available with no authentication required:
+
+```ts
+// Node
+const { google_client_id } = await client.config.getPublic()
+// Browser
+const { google_client_id } = await lw.config.getPublic()
+```
+
+Both `@ledewire/node` and `@ledewire/browser` expose `client.config.getPublic()`. The
+original authenticated `GET /v1/merchant/{store_id}/config` endpoint remains available
+for store-specific config.
+
+---
+
+## (Archived) 🔴 Design Bug — `GET /v1/seller/config` (and `/v1/merchant/{store_id}/config`) requires authentication, but the response is needed _before_ authentication
 
 Both config endpoints return `{ google_client_id: string }` and are protected by `BearerAuth`.
 This creates an unsolvable circular dependency for any client that wants to use
@@ -364,33 +367,26 @@ This unblocks the common case where all stores share one LedeWire-managed Google
 
 ---
 
-## 🟡 DX — Merchant auth endpoints return opaque error messages on role mismatch
+## ✅ Fixed in v0.4.0 — Merchant auth returns 403 with actionable message on role mismatch
 
-`POST /v1/auth/merchant/login/email` and `POST /v1/auth/merchant/login/google` return a
-generic error (observed: `"invalid role"`) when the authenticating account exists on the
-platform but has a non-merchant role (e.g. `buyer`).
+Both `loginWithEmail` and `loginWithGoogle` now return `403 Forbidden` (mapped to
+`ForbiddenError` in the SDK) when credentials are valid but the account has no merchant
+store access:
 
-**Why this is a problem:** During development, it is common to test with a personal Google
-account that was previously registered as a buyer. The error `"invalid role"` gives no
-indication that:
-
-1. Authentication itself succeeded (the credentials/token are valid).
-2. The account exists but has the wrong role for the merchant endpoint.
-3. The fix is to use a different account or have the role upgraded.
-
-A developer seeing `"invalid role"` typically begins debugging their OAuth configuration,
-their SDK integration, or their server-side route — all of which are correct. The real cause
-(account role) is not suggested anywhere.
-
-**Recommended fix:** Return a distinct, actionable error for role mismatches:
-
-```json
-{ "error": "This account does not have merchant access. Use a merchant or owner account." }
+```ts
+try {
+  await client.merchant.auth.loginWithEmail({ email, password })
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // Account authenticated but has no store access — use a different account
+    // or have an owner add this account to a store first.
+  } else if (err instanceof AuthError) {
+    // Wrong password / unknown email
+  }
+}
 ```
 
-Or distinguish the HTTP status: `403 Forbidden` (authenticated but wrong role) vs
-`401 Unauthorized` (bad credentials / invalid token) would immediately narrow the problem
-space for developers.
+The error message is now `"This account does not have merchant access. Use a merchant or owner account."` rather than the previous opaque `"invalid role"`.
 
 ---
 

@@ -17,12 +17,16 @@ import type {
 import type { PaginationParams } from '../merchant/users.js'
 
 /**
- * Search criteria for content metadata search.
- * All entries in `metadata` must match (AND logic).
+ * Search criteria for content search.
+ * At least one field must be supplied. All supplied fields must match (AND logic).
  */
 export interface ContentSearchRequest {
-  /** Key/value pairs to match against content metadata. */
-  metadata: Record<string, unknown>
+  /** Case-insensitive partial match against the content title. */
+  title?: string
+  /** Case-insensitive partial match against the content URI (`external_ref` content only). */
+  uri?: string
+  /** Exact key/value pairs to AND-match against content metadata. */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -93,9 +97,14 @@ export class SellerContentNamespace {
    *
    * @example
    * ```ts
-   * const { data, pagination } = await client.seller.content.search('store-id', {
-   *   metadata: { author: 'Alice' },
-   * })
+   * // Search by title
+   * const { data } = await client.seller.content.search('store-id', { title: 'intro' })
+   *
+   * // Search by URI
+   * const { data } = await client.seller.content.search('store-id', { uri: 'vimeo.com' })
+   *
+   * // Search by metadata
+   * const { data } = await client.seller.content.search('store-id', { metadata: { author: 'Alice' } })
    * ```
    */
   async search(

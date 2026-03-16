@@ -34,6 +34,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 ### Node client (`createClient()`)
 
 ```
+client.config.*            platform public config (no auth required)
 client.auth.*              buyer auth (email, google, api-key, refresh, password reset)
 client.merchant.auth.*     merchant auth (email, google) + store listing
 client.merchant.users.*    team management (invite, list, remove, update)
@@ -58,6 +59,7 @@ import { createMockClient } from '@ledewire/node/testing'
 ### Browser client (`init()`)
 
 ```
+lw.config.*     platform public config (no auth required)
 lw.auth.*       signup, login (email + google), logout, password reset
 lw.checkout.*   checkout state machine for a content item
 lw.wallet.*     balance, fund (payment session), transactions

@@ -32,6 +32,7 @@ const stores = await client.merchant.auth.listStores()
 
 | Namespace                | Description                                         |
 | ------------------------ | --------------------------------------------------- |
+| `client.config`          | Platform-level public config (no auth required)     |
 | `client.auth`            | Buyer signup, email/password login, Google OAuth    |
 | `client.wallet`          | Buyer wallet balance and payment sessions           |
 | `client.purchases`       | Buyer purchase history and create purchases         |
@@ -148,6 +149,18 @@ await client.seller.content.create(storeId, {
 const items = await client.seller.content.list(storeId)
 // items.data — ContentListItem[]
 // items.pagination — PaginationMeta
+
+// Search by title (partial match), URI, and/or metadata
+const results = await client.seller.content.search(storeId, { title: 'intro' })
+const byUri = await client.seller.content.search(storeId, { uri: 'vimeo.com' })
+const combined = await client.seller.content.search(storeId, {
+  title: 'tutorial',
+  metadata: { category: 'ml' },
+})
+
+// Fetch Google OAuth client ID before the user has signed in
+const { google_client_id } = await client.config.getPublic()
+// google.accounts.id.initialize({ client_id: google_client_id, callback })
 ```
 
 ## Documentation

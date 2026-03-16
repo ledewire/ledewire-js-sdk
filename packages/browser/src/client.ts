@@ -1,6 +1,7 @@
 import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
 import type { TokenStorage } from '@ledewire/core'
 import { BrowserAuthNamespace } from './resources/auth.js'
+import { BrowserConfigNamespace } from './resources/config.js'
 import { BrowserContentNamespace } from './resources/content.js'
 import { BrowserPurchasesNamespace } from './resources/purchases.js'
 import { BrowserWalletNamespace } from './resources/wallet.js'
@@ -107,6 +108,9 @@ export function init(config: BrowserClientConfig): BrowserClient {
  * Instantiate with {@link init} rather than constructing directly.
  */
 export class BrowserClient {
+  /** Platform-level public configuration (no auth required) */
+  readonly config: BrowserConfigNamespace
+
   /** Buyer authentication: email/password signup/login, Google, password reset */
   readonly auth: BrowserAuthNamespace
 
@@ -128,6 +132,7 @@ export class BrowserClient {
     public readonly _tokenManager: TokenManager,
     public readonly _config: BrowserClientConfig,
   ) {
+    this.config = new BrowserConfigNamespace(_http)
     this.auth = new BrowserAuthNamespace(_http, _tokenManager)
     this.checkout = new CheckoutNamespace(_http)
     this.wallet = new BrowserWalletNamespace(_http)

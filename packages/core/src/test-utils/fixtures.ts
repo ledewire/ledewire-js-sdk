@@ -24,6 +24,7 @@ type SalesSummarySchema = components['schemas']['SalesSummaryResponse']
 type SalesStatisticsSchema = components['schemas']['SalesStatisticsItem']
 type MerchantSaleSchema = components['schemas']['MerchantSaleResponse']
 type BuyerStatisticsSchema = components['schemas']['BuyerStatisticsItem']
+type PublicConfigSchema = components['schemas']['PublicConfigResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -359,6 +360,16 @@ export function buyerStatisticsItemFixture(
     first_purchase_at: '2099-01-01T00:00:00Z',
     last_purchase_at: '2099-01-02T00:00:00Z',
     buyer_status: 'repeat',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a public platform configuration fixture.
+ */
+export function publicConfigFixture(overrides?: Partial<PublicConfigSchema>): PublicConfigSchema {
+  return {
+    google_client_id: 'google-client-id-test',
     ...overrides,
   }
 }

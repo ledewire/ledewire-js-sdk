@@ -207,6 +207,62 @@ describe('seller.content.search', () => {
       makeClient().seller.content.search(STORE, { metadata: { author: 'Alice' } }),
     ).rejects.toThrow(AuthError)
   })
+
+  it('searches by title only', async () => {
+    let capturedBody: unknown = null
+    const fixture = { data: [contentResponseFixture()], pagination: paginationMetaFixture() }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.search(STORE, { title: 'intro' })
+
+    expect(capturedBody).toEqual({ title: 'intro' })
+  })
+
+  it('searches by uri only', async () => {
+    let capturedBody: unknown = null
+    const fixture = {
+      data: [externalRefContentResponseFixture()],
+      pagination: paginationMetaFixture(),
+    }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.search(STORE, { uri: 'vimeo.com' })
+
+    expect(capturedBody).toEqual({ uri: 'vimeo.com' })
+  })
+
+  it('searches by title, uri, and metadata combined', async () => {
+    let capturedBody: unknown = null
+    const fixture = { data: [], pagination: paginationMetaFixture({ total: 0 }) }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.search(STORE, {
+      title: 'tutorial',
+      uri: 'vimeo.com',
+      metadata: { category: 'ml' },
+    })
+
+    expect(capturedBody).toEqual({
+      title: 'tutorial',
+      uri: 'vimeo.com',
+      metadata: { category: 'ml' },
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
