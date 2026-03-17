@@ -35,6 +35,7 @@ const client = createClient({
 ## Client namespaces
 
 ### @ledewire/browser — init()
+- `lw.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
 - `lw.auth.signup(body)` — create buyer account
 - `lw.auth.loginWithEmail({ email, password })` — buyer email login
 - `lw.auth.loginWithGoogle({ id_token })` — buyer Google login
@@ -49,6 +50,7 @@ const client = createClient({
 - `lw.content.getWithAccess(contentId, options?)` → content + access info
 
 ### @ledewire/node — createClient()
+- `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
 - `client.auth.*` — buyer auth (signup, email, google, logout, password reset)
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
@@ -60,7 +62,7 @@ const client = createClient({
 - `client.merchant.sales.list(storeId)` → `SalesStatisticsItem[]`
 - `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse`
 - `client.merchant.buyers.list(storeId)` → `BuyerStatisticsItem[]`
-- `client.merchant.config.get(storeId)` → `StoreConfig` (includes `google_client_id`)
+- `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; requires merchant auth)
 - `client.seller.content.*` — content CRUD + search
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.*` — create, list, get
