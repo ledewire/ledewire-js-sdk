@@ -12,6 +12,7 @@ type MerchantUserSchema = components['schemas']['MerchantUser']
 type PaginationMetaSchema = components['schemas']['PaginationMeta']
 type ManageableStoreSchema = components['schemas']['ManageableStore']
 type ContentResponseSchema = components['schemas']['ContentResponse']
+type ContentListItemSchema = components['schemas']['ContentListItem']
 type ContentWithAccessSchema = components['schemas']['ContentWithAccessResponse']
 type WalletBalanceSchema = components['schemas']['WalletBalanceResponse']
 type WalletTransactionSchema = components['schemas']['WalletTransactionItem']
@@ -166,6 +167,46 @@ export function externalRefContentResponseFixture(
     teaser: btoa('A beginner-friendly introduction to ML concepts.'),
     price_cents: 1500,
     visibility: 'public',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a valid markdown ContentListItem fixture (list/search endpoints).
+ */
+export function contentListItemFixture(
+  overrides?: Partial<ContentListItemSchema>,
+): ContentListItemSchema {
+  return {
+    id: 'content-id-1',
+    content_type: 'markdown',
+    title: 'Test Article',
+    teaser: btoa('A short teaser.'),
+    price_cents: 500,
+    visibility: 'public',
+    created_at: '2099-01-01T00:00:00Z',
+    content_uri: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a valid external_ref ContentListItem fixture (list/search endpoints).
+ * Includes `content_uri` — use directly as an `<a href>`.
+ */
+export function externalRefContentListItemFixture(
+  overrides?: Partial<ContentListItemSchema>,
+): ContentListItemSchema {
+  return {
+    id: 'content-id-ext-1',
+    content_type: 'external_ref',
+    title: 'Intro to Machine Learning',
+    teaser: btoa('A beginner-friendly introduction to ML concepts.'),
+    price_cents: 1500,
+    visibility: 'public',
+    created_at: '2099-01-01T00:00:00Z',
+    content_uri: 'https://vimeo.com/987654321',
+    external_identifier: 'vimeo:987654321',
     ...overrides,
   }
 }

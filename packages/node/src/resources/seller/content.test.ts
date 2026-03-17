@@ -4,6 +4,7 @@ import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   contentResponseFixture,
   externalRefContentResponseFixture,
+  externalRefContentListItemFixture,
   errorResponseFixture,
   paginationMetaFixture,
 } from '@ledewire/core/test-utils'
@@ -58,6 +59,17 @@ describe('seller.content.list', () => {
     const url = new URL(capturedUrl)
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('per_page')).toBe('10')
+  })
+
+  it('includes content_uri for external_ref items', async () => {
+    const extItem = externalRefContentListItemFixture()
+    const fixture = { data: [extItem], pagination: paginationMetaFixture({ total: 1 }) }
+    server.use(http.get(`${BASE}/v1/merchant/${STORE}/content`, () => HttpResponse.json(fixture)))
+
+    const { data } = await makeClient().seller.content.list(STORE)
+
+    expect(data[0]!.content_uri).toBe('https://vimeo.com/987654321')
+    expect(data[0]!.content_type).toBe('external_ref')
   })
 
   it('throws AuthError on 401', async () => {
@@ -194,6 +206,18 @@ describe('seller.content.search', () => {
     const url = new URL(capturedUrl)
     expect(url.searchParams.get('page')).toBe('2')
     expect(url.searchParams.get('per_page')).toBe('10')
+  })
+
+  it('includes content_uri for external_ref items in search results', async () => {
+    const extItem = externalRefContentListItemFixture()
+    const fixture = { data: [extItem], pagination: paginationMetaFixture({ total: 1 }) }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, () => HttpResponse.json(fixture)),
+    )
+
+    const { data } = await makeClient().seller.content.search(STORE, { uri: 'vimeo.com' })
+
+    expect(data[0]!.content_uri).toBe('https://vimeo.com/987654321')
   })
 
   it('throws AuthError on 401', async () => {

@@ -3614,7 +3614,7 @@ export interface components {
       data: components['schemas']['MerchantUser'][]
       pagination: components['schemas']['PaginationMeta']
     }
-    /** @description Lightweight content representation returned by list and search endpoints. Omits body fields to keep list payloads small. Use the detail endpoint (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI. */
+    /** @description Lightweight content representation returned by list and search endpoints. Omits `content_body` to keep list payloads small. Use the detail endpoint (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body. */
     ContentListItem: {
       id: string
       /** @enum {string} */
@@ -3630,6 +3630,8 @@ export interface components {
       visibility: 'public' | 'unlisted' | 'private'
       /** Format: date-time */
       created_at: string
+      /** @description External URI for `external_ref` content; optional supplementary link for `markdown` content. Null when not set. */
+      content_uri: string | null
       /** @description Namespaced platform ID for `external_ref` content. Null for other types. */
       external_identifier?: string | null
     }

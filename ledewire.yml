@@ -976,9 +976,9 @@ components:
       type: object
       description: >
         Lightweight content representation returned by list and search endpoints.
-        Omits body fields to keep list payloads small. Use the detail endpoint
-        (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body or URI.
-      required: [id, content_type, title, price_cents, teaser, visibility, created_at]
+        Omits `content_body` to keep list payloads small. Use the detail endpoint
+        (`GET /v1/merchant/:store_id/content/:id`) to retrieve the full body.
+      required: [id, content_type, title, price_cents, teaser, visibility, created_at, content_uri]
       properties:
         id:
           type: string
@@ -999,6 +999,9 @@ components:
         created_at:
           type: string
           format: date-time
+        content_uri:
+          type: [string, 'null']
+          description: External URI for `external_ref` content; optional supplementary link for `markdown` content. Null when not set.
         external_identifier:
           type: [string, 'null']
           description: Namespaced platform ID for `external_ref` content. Null for other types.

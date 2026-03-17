@@ -244,6 +244,21 @@ const { data, pagination } = await client.seller.content.list(storeId, {
 ## Key types
 
 ```ts
+interface ContentListItem {
+  id: string
+  content_type: 'markdown' | 'external_ref'
+  title: string
+  price_cents: number
+  teaser: string | null       // base64-encoded teaser; null when not set
+  visibility: 'public' | 'unlisted' | 'private'
+  created_at: string          // ISO 8601
+  content_uri: string | null  // external URL for external_ref items; null for markdown
+  external_identifier?: string | null  // e.g. 'vimeo:987654321' — NOT a URL
+}
+// content_uri is safe to use as <a href> directly — no conversion or extra fetch needed
+```
+
+```ts
 interface CheckoutStateResponse {
   content_id: string
   content_title: string
