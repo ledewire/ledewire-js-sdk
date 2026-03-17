@@ -7,7 +7,7 @@
  * @module
  */
 import { parseExpiresAt } from '@ledewire/core'
-import type { HttpClient, TokenManager } from '@ledewire/core'
+import type { HttpClient, TokenManager, StoredTokens } from '@ledewire/core'
 import type {
   MerchantEmailLoginRequest,
   MerchantGoogleLoginRequest,
@@ -18,12 +18,16 @@ import type {
 
 /**
  * Result returned by the one-step login-and-discover helpers.
- * Contains both the raw token response and the list of stores the
+ * Contains normalized stored tokens and the list of stores the
  * authenticated user can manage, sourced directly from the login response.
  */
 export interface MerchantLoginResult {
-  /** Raw token response from the authentication endpoint. */
-  tokens: MerchantAuthenticationResponse
+  /**
+   * Normalized tokens in the same coordinate system as `TokenStorage`.
+   * Fields are camelCase and `expiresAt` is a Unix ms timestamp — ready
+   * to pass directly to a storage adapter without any remapping.
+   */
+  tokens: StoredTokens
   /**
    * Stores the authenticated user can manage.
    * Sourced from the login response — no additional network request needed.
@@ -159,8 +163,15 @@ export class MerchantAuthNamespace {
    * ```
    */
   async loginWithEmailAndListStores(body: MerchantEmailLoginRequest): Promise<MerchantLoginResult> {
-    const tokens = await this.loginWithEmail(body)
-    return { tokens, stores: tokens.stores }
+    const raw = await this.loginWithEmail(body)
+    return {
+      tokens: {
+        accessToken: raw.access_token,
+        refreshToken: raw.refresh_token,
+        expiresAt: parseExpiresAt(raw.expires_at),
+      },
+      stores: raw.stores,
+    }
   }
 
   /**
@@ -183,8 +194,15 @@ export class MerchantAuthNamespace {
   async loginWithGoogleAndListStores(
     body: MerchantGoogleLoginRequest,
   ): Promise<MerchantLoginResult> {
-    const tokens = await this.loginWithGoogle(body)
-    return { tokens, stores: tokens.stores }
+    const raw = await this.loginWithGoogle(body)
+    return {
+      tokens: {
+        accessToken: raw.access_token,
+        refreshToken: raw.refresh_token,
+        expiresAt: parseExpiresAt(raw.expires_at),
+      },
+      stores: raw.stores,
+    }
   }
 
   private async storeTokens(res: MerchantAuthenticationResponse): Promise<void> {

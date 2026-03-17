@@ -2,6 +2,39 @@
 
 ## 0.4.0
 
+### Breaking Changes
+
+- `MerchantLoginResult.tokens` is now typed as `StoredTokens` instead of
+  `MerchantAuthenticationResponse`.
+
+  Previously the combo helpers returned the raw API shape (snake_case fields,
+  `expires_at` as an ISO 8601 string), requiring manual remapping before the
+  tokens could be passed to a `TokenStorage` adapter:
+
+  ```ts
+  // Before — manual remapping required
+  const { tokens } = await client.merchant.auth.loginWithEmailAndListStores(...)
+  storage.accessToken = tokens.access_token
+  storage.expiresAt = parseExpiresAt(tokens.expires_at)
+  ```
+
+  Now `tokens` is already normalized — ready to use directly:
+
+  ```ts
+  // After — no remapping needed
+  const { tokens, stores } = await client.merchant.auth.loginWithEmailAndListStores(...)
+  // tokens: { accessToken, refreshToken, expiresAt } — same shape as TokenStorage
+  await myStorage.setTokens(tokens)
+  const storeId = stores[0].id
+  ```
+
+  The tokens are still stored automatically in the configured `storage` adapter
+  (behaviour unchanged). This only affects code that reads fields off `tokens`
+  directly — update any `tokens.access_token` → `tokens.accessToken`,
+  `tokens.expires_at` → `tokens.expiresAt`.
+
+  Applies to both `loginWithEmailAndListStores` and `loginWithGoogleAndListStores`.
+
 ### Minor Changes
 
 - dc814b0: ## New: `client.config.getPublic()` — unauthenticated public config

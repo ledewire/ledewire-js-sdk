@@ -93,7 +93,9 @@ client.merchant.auth.loginWithEmailAndListStores({ email, password }) → Promis
 client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promise<MerchantLoginResult>
 ```
 
-`MerchantLoginResult = { tokens: MerchantAuthenticationResponse, stores: MerchantLoginStore[] }`
+`MerchantLoginResult = { tokens: StoredTokens, stores: MerchantLoginStore[] }`
+// StoredTokens = { accessToken: string, refreshToken: string, expiresAt: number (Unix ms) }
+// tokens are already normalized — no remapping or parseExpiresAt() call needed
 
 **Critical — `MerchantLoginStore` vs `ManageableStore`:**
 

@@ -178,7 +178,11 @@ describe('merchant.auth.loginWithEmailAndListStores', () => {
       password: 'password123',
     })
 
-    expect(result.tokens).toEqual(tokenFixture)
+    expect(result.tokens).toEqual({
+      accessToken: tokenFixture.access_token,
+      refreshToken: tokenFixture.refresh_token,
+      expiresAt: new Date(tokenFixture.expires_at).getTime(),
+    })
     expect(result.stores).toEqual([loginStore])
   })
 
@@ -217,7 +221,11 @@ describe('merchant.auth.loginWithGoogleAndListStores', () => {
       id_token: 'google-jwt',
     })
 
-    expect(result.tokens).toEqual(tokenFixture)
+    expect(result.tokens).toEqual({
+      accessToken: tokenFixture.access_token,
+      refreshToken: tokenFixture.refresh_token,
+      expiresAt: new Date(tokenFixture.expires_at).getTime(),
+    })
     expect(result.stores).toHaveLength(2)
   })
 
