@@ -66,21 +66,19 @@ describe('merchant.auth.loginWithEmail', () => {
   })
 
   it('throws ForbiddenError on 403 (account exists but has no store access)', async () => {
+    const message = 'This account does not have merchant access. Use a merchant or owner account.'
     server.use(
       http.post(`${BASE}/v1/auth/merchant/login/email`, () =>
-        HttpResponse.json(
-          errorResponseFixture(
-            403,
-            'This account does not have merchant access. Use a merchant or owner account.',
-          ),
-          { status: 403 },
-        ),
+        HttpResponse.json(errorResponseFixture(403, message), { status: 403 }),
       ),
     )
 
-    await expect(
-      makeClient().merchant.auth.loginWithEmail({ email: 'buyer@example.com', password: 'pw' }),
-    ).rejects.toThrow(ForbiddenError)
+    const err = await makeClient()
+      .merchant.auth.loginWithEmail({ email: 'buyer@example.com', password: 'pw' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ForbiddenError)
+    expect((err as ForbiddenError).message).toBe(message)
+    expect((err as ForbiddenError).statusCode).toBe(403)
   })
 })
 
@@ -121,21 +119,19 @@ describe('merchant.auth.loginWithGoogle', () => {
   })
 
   it('throws ForbiddenError on 403 (buyer account authenticated via Google — no store access)', async () => {
+    const message = 'This account does not have merchant access. Use a merchant or owner account.'
     server.use(
       http.post(`${BASE}/v1/auth/merchant/login/google`, () =>
-        HttpResponse.json(
-          errorResponseFixture(
-            403,
-            'This account does not have merchant access. Use a merchant or owner account.',
-          ),
-          { status: 403 },
-        ),
+        HttpResponse.json(errorResponseFixture(403, message), { status: 403 }),
       ),
     )
 
-    await expect(
-      makeClient().merchant.auth.loginWithGoogle({ id_token: 'buyer-google-jwt' }),
-    ).rejects.toThrow(ForbiddenError)
+    const err = await makeClient()
+      .merchant.auth.loginWithGoogle({ id_token: 'buyer-google-jwt' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ForbiddenError)
+    expect((err as ForbiddenError).message).toBe(message)
+    expect((err as ForbiddenError).statusCode).toBe(403)
   })
 })
 

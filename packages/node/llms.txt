@@ -1,0 +1,308 @@
+# @ledewire/node
+
+> LedeWire Node.js SDK — full API surface for merchant stores, seller content, and buyer flows.
+> npm install @ledewire/node
+> Source: https://github.com/ledewire/ledewire-js-sdk
+> API docs: https://ledewire.github.io/ledewire-js-sdk/api/
+
+## Install
+
+```bash
+npm install @ledewire/node
+```
+
+## Quick start
+
+```ts
+import { createClient } from '@ledewire/node'
+
+// API key + secret — write access for seller/merchant operations
+const client = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+
+// Merchant JWT auth (no API key needed)
+const client = createClient()
+const { stores } = await client.merchant.auth.loginWithEmailAndListStores({
+  email: 'owner@example.com',
+  password: process.env.MERCHANT_PASSWORD,
+})
+const storeId = stores[0].id  // MerchantLoginStore — use .id (not .store_id)
+```
+
+## createClient() configuration
+
+```ts
+import { createClient } from '@ledewire/node'
+import type { NodeClientConfig } from '@ledewire/node'
+
+const client = createClient({
+  // Optional — omit for merchant JWT-only flows
+  apiKey: string,
+  apiSecret: string,          // omit for read-only seller access
+
+  baseUrl: string,            // defaults to 'https://api.ledewire.com'
+
+  // Token persistence (required for serverless/edge — in-memory by default)
+  storage: {
+    getTokens: () => Promise<StoredTokens | null>,
+    setTokens: (t: StoredTokens) => Promise<void>,
+    clearTokens: () => Promise<void>,
+  },
+
+  onTokenRefreshed: (tokens: StoredTokens) => Promise<void> | void,
+  onAuthExpired: () => void,  // called when refresh fails — re-authenticate
+})
+```
+
+Token refresh is automatic — never call a refresh method manually.
+
+> **Serverless / edge:** MemoryTokenStorage (default) resets on every cold start.
+> Always provide a custom `storage` adapter (Redis, database, encrypted cookie).
+
+## Complete method reference
+
+### client.config
+
+```ts
+client.config.getPublic() → Promise<PublicConfigResponse>
+// { google_client_id: string, ... }
+// Safe to call before authentication — no credentials required.
+```
+
+### client.auth (buyer auth)
+
+```ts
+client.auth.signup(body)                         → Promise<AuthenticationResponse>
+client.auth.loginWithEmail({ email, password })  → Promise<AuthenticationResponse>
+client.auth.loginWithGoogle({ id_token })        → Promise<AuthenticationResponse>
+client.auth.logout()                             → Promise<void>
+client.auth.refreshToken()                       → Promise<AuthenticationResponse>
+client.auth.requestPasswordReset({ email })      → Promise<void>
+client.auth.resetPassword({ token, password })   → Promise<void>
+```
+
+### client.merchant.auth
+
+```ts
+client.merchant.auth.loginWithEmail({ email, password })     → Promise<MerchantAuthenticationResponse>
+client.merchant.auth.loginWithGoogle({ id_token })           → Promise<MerchantAuthenticationResponse>
+client.merchant.auth.listStores()                            → Promise<ManageableStore[]>
+client.merchant.auth.loginWithEmailAndListStores({ email, password }) → Promise<MerchantLoginResult>
+client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promise<MerchantLoginResult>
+```
+
+`MerchantLoginResult = { tokens: MerchantAuthenticationResponse, stores: MerchantLoginStore[] }`
+
+**Critical — `MerchantLoginStore` vs `ManageableStore`:**
+
+| Type | Source | Fields |
+|---|---|---|
+| `MerchantLoginStore` | Embedded in login response (combo helpers) | `.id`, `.name`, `.role` |
+| `ManageableStore` | Returned by `listStores()` (second HTTP call) | `.store_id`, `.store_name`, `.store_key`, `.role`, `.is_author`, `.logo` |
+
+```ts
+// Combo helper (recommended — single HTTP call)
+const { stores } = await client.merchant.auth.loginWithEmailAndListStores(...)
+stores[0].id        // ✅ MerchantLoginStore.id
+
+// Separate listStores call (use only when you need store_key / logo)
+await client.merchant.auth.loginWithEmail(...)
+const stores = await client.merchant.auth.listStores()
+stores[0].store_id  // ✅ ManageableStore.store_id
+```
+
+**Error handling for merchant login:**
+
+```ts
+import { ForbiddenError, AuthError } from '@ledewire/node'
+
+try {
+  await client.merchant.auth.loginWithGoogle({ id_token })
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // 403 — credentials are VALID but the account has no merchant store access.
+    // This is the expected error when a personal Google account previously
+    // registered as a buyer is used on the merchant login endpoint.
+    // err.message → "This account does not have merchant access. Use a merchant or owner account."
+    // Fix: use a dedicated merchant/owner Google account, or ask a store owner to add your account.
+  } else if (err instanceof AuthError) {
+    // 401 — bad credentials or expired token.
+  }
+}
+```
+
+The same `ForbiddenError` (403) vs `AuthError` (401) distinction applies to all four
+merchant auth methods: `loginWithEmail`, `loginWithGoogle`, `loginWithEmailAndListStores`,
+`loginWithGoogleAndListStores`.
+
+### client.merchant.users
+
+```ts
+client.merchant.users.list(storeId, params?)   → Promise<PaginatedUsersList>
+client.merchant.users.invite(storeId, body)    → Promise<MerchantUser>
+client.merchant.users.remove(storeId, userId)  → Promise<void>
+client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) → Promise<MerchantUser>
+// MerchantUserUpdateRequest: { author_fee_bps?: number | null }
+// author_fee_bps in basis points (1800 = 18%). null reverts to store default.
+```
+
+### client.merchant.sales
+
+```ts
+client.merchant.sales.summary(storeId)              → Promise<SalesSummaryResponse>
+client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>
+client.merchant.sales.get(storeId, saleId)           → Promise<MerchantSaleResponse>
+client.merchant.sales.statistics(storeId, params?)   → Promise<{ data: SalesStatisticsItem[], pagination: PaginationMeta }>
+```
+
+### client.merchant.buyers
+
+```ts
+client.merchant.buyers.list(storeId, params?)  → Promise<PaginatedBuyersList>
+```
+
+### client.merchant.config
+
+```ts
+client.merchant.config.get(storeId)            → Promise<StoreConfig>
+client.merchant.config.update(storeId, body)   → Promise<StoreConfig>
+```
+
+### client.merchant.content
+
+```ts
+client.merchant.content.list(storeId, params?)         → Promise<PaginatedContentList>
+client.merchant.content.get(storeId, contentId)        → Promise<ContentResponse>
+client.merchant.content.create(storeId, body)          → Promise<ContentResponse>
+client.merchant.content.update(storeId, contentId, body) → Promise<ContentResponse>
+client.merchant.content.delete(storeId, contentId)     → Promise<void>
+client.merchant.content.search(storeId, query, params?) → Promise<PaginatedContentList>
+```
+
+### client.seller.content
+
+```ts
+client.seller.content.list(storeId, params?)            → Promise<PaginatedContentList>
+client.seller.content.get(storeId, contentId)           → Promise<ContentResponse>
+client.seller.content.create(storeId, body)             → Promise<ContentResponse>
+client.seller.content.update(storeId, contentId, body)  → Promise<ContentResponse>
+client.seller.content.delete(storeId, contentId)        → Promise<void>
+client.seller.content.search(storeId, query, params?)   → Promise<PaginatedContentList>
+```
+
+### client.wallet
+
+```ts
+client.wallet.balance()                            → Promise<WalletBalanceResponse>
+client.wallet.transactions(params?)                → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+client.wallet.createPaymentSession(body)           → Promise<WalletPaymentSessionResponse>
+client.wallet.getPaymentStatus(sessionId)          → Promise<WalletPaymentStatusResponse>
+```
+
+### client.purchases
+
+```ts
+client.purchases.create({ content_id: string })   → Promise<PurchaseResponse>
+client.purchases.list(params?)                    → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
+client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
+```
+
+### client.content
+
+```ts
+client.content.getWithAccess(contentId, options?) → Promise<ContentWithAccessResponse>
+```
+
+### client.checkout
+
+```ts
+client.checkout.state(contentId)                  → Promise<CheckoutStateResponse>
+```
+
+## Paginated responses
+
+All list methods return `{ data, pagination }` — never plain arrays:
+
+```ts
+import type { PaginationParams, PaginationMeta } from '@ledewire/node'
+
+const { data, pagination } = await client.seller.content.list(storeId, {
+  page: 2,
+  per_page: 20,
+})
+// pagination: { total, per_page, current_page, total_pages, next_page, prev_page }
+
+// Affected methods: merchant.users.list, merchant.sales.list, merchant.buyers.list,
+// seller.content.list, seller.content.search, merchant.content.list,
+// merchant.content.search, wallet.transactions, purchases.list
+```
+
+## Key types
+
+```ts
+interface CheckoutStateResponse {
+  content_id: string
+  content_title: string
+  price_cents: number
+  checkout_state: {
+    is_authenticated: boolean
+    has_sufficient_funds: boolean | null
+    has_purchased: boolean
+    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  }
+}
+
+interface StoredTokens {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number  // Unix timestamp (ms)
+}
+
+interface TokenStorage {
+  getTokens(): Promise<StoredTokens | null>
+  setTokens(tokens: StoredTokens): Promise<void>
+  clearTokens(): Promise<void>
+}
+```
+
+## Error classes
+
+All errors extend `LedewireError`. Always catch by subclass for actionable handling:
+
+```ts
+import {
+  LedewireError,
+  AuthError,
+  ForbiddenError,
+  NotFoundError,
+  PurchaseError,
+} from '@ledewire/node'
+
+class LedewireError extends Error {
+  statusCode: number        // HTTP status code
+  code: number | undefined  // machine-readable code from API body
+  message: string           // human-readable description from API body
+}
+
+class AuthError extends LedewireError {}       // 401 — bad credentials / expired token
+class ForbiddenError extends LedewireError {}  // 403 — authenticated but insufficient access
+class NotFoundError extends LedewireError {}   // 404 — resource not found
+class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+```
+
+## Testing with mock client
+
+```ts
+// ONLY import from the /testing subpath — never from the main entry point.
+// This subpath is excluded from production bundles.
+import { createMockClient } from '@ledewire/node/testing'
+
+const client = createMockClient()
+
+// All methods return undefined by default.
+// Override per-test:
+vi.mocked(client.merchant.auth.loginWithEmail).mockResolvedValue(tokenFixture)
+vi.mocked(client.seller.content.list).mockResolvedValue({ data: [], pagination: ... })
+```

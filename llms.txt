@@ -84,11 +84,34 @@ interface CheckoutStateResponse {
 
 // All SDK errors extend LedewireError
 class LedewireError extends Error { statusCode: number; code: number | undefined }
-class AuthError extends LedewireError {}       // statusCode 401
-class ForbiddenError extends LedewireError {}  // statusCode 403
+class AuthError extends LedewireError {}       // statusCode 401 — bad credentials or expired token
+class ForbiddenError extends LedewireError {}  // statusCode 403 — authenticated but wrong role
 class NotFoundError extends LedewireError {}   // statusCode 404
 class PurchaseError extends LedewireError {}   // statusCode 409/422
 ```
+
+## Merchant auth error distinction (important)
+
+`merchant.auth.loginWithEmail` and `merchant.auth.loginWithGoogle` throw
+`ForbiddenError` (403), **not** `AuthError` (401), when the credentials are
+valid but the account has no merchant store associations — for example, a
+personal Google account previously registered as a buyer.
+
+```ts
+try {
+  await client.merchant.auth.loginWithGoogle({ id_token })
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // err.message → "This account does not have merchant access. Use a merchant or owner account."
+    // Fix: use an account that is an owner or author on at least one store.
+  } else if (err instanceof AuthError) {
+    // Bad or expired credentials.
+  }
+}
+```
+
+The same pattern applies to `loginWithEmailAndListStores` and
+`loginWithGoogleAndListStores`.
 
 ## Token storage adapter interface
 

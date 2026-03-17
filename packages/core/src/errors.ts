@@ -45,6 +45,33 @@ export class AuthError extends LedewireError {
 /**
  * Thrown when the authenticated user does not have permission
  * to perform the requested operation.
+ *
+ * **Common cause — merchant login with the wrong account role:**
+ * `POST /v1/auth/merchant/login/email` and `POST /v1/auth/merchant/login/google`
+ * return `403 Forbidden` (not `401`) when the credentials are valid but the
+ * account has no merchant store associations (e.g. a buyer account used on the
+ * merchant endpoint). The `err.message` will be:
+ * `"This account does not have merchant access. Use a merchant or owner account."`
+ *
+ * Use a different account or ask a store owner to add your account as a member.
+ *
+ * @example
+ * ```ts
+ * import { ForbiddenError, AuthError } from '@ledewire/node'
+ *
+ * try {
+ *   await client.merchant.auth.loginWithGoogle({ id_token })
+ * } catch (err) {
+ *   if (err instanceof ForbiddenError) {
+ *     // Credentials were valid but account has no merchant store access.
+ *     // err.message → "This account does not have merchant access. Use a merchant or owner account."
+ *     console.error('Wrong account role:', err.message)
+ *   } else if (err instanceof AuthError) {
+ *     // Bad credentials or expired token — re-authenticate.
+ *     console.error('Authentication failed:', err.message)
+ *   }
+ * }
+ * ```
  */
 export class ForbiddenError extends LedewireError {
   constructor(message: string, code?: number) {

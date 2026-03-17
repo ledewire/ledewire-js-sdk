@@ -79,6 +79,36 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`).
 
+#### Merchant auth role mismatch — `ForbiddenError`, not `AuthError`
+
+This is the most common source of confusion in merchant integrations:
+
+- `401 AuthError` — credentials are **invalid** (bad password, expired Google token, etc.)
+- `403 ForbiddenError` — credentials are **valid** but the account has no merchant store
+  associations (e.g. a personal Google account previously registered as a buyer)
+
+When a developer tests with a buyer account, the API returns `403`, not `401`.
+The `err.message` will be:
+`"This account does not have merchant access. Use a merchant or owner account."`
+
+```ts
+import { ForbiddenError, AuthError } from '@ledewire/node'
+
+try {
+  await client.merchant.auth.loginWithGoogle({ id_token })
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // err.message → "This account does not have merchant access. Use a merchant or owner account."
+    // Fix: use a merchant/owner account, or have the account added to a store.
+  } else if (err instanceof AuthError) {
+    // Bad credentials — re-authenticate.
+  }
+}
+```
+
+The same applies to `loginWithEmail`, `loginWithEmailAndListStores`, and
+`loginWithGoogleAndListStores`.
+
 ### Paginated list endpoints
 
 All list endpoints return a `{ data, pagination }` envelope — never a plain array:

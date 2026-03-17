@@ -163,6 +163,41 @@ const { google_client_id } = await client.config.getPublic()
 // google.accounts.id.initialize({ client_id: google_client_id, callback })
 ```
 
+## Error Handling
+
+All SDK errors extend `LedewireError` — use `instanceof` checks on named subclasses:
+
+```ts
+import { createClient, ForbiddenError, AuthError, NotFoundError } from '@ledewire/node'
+
+try {
+  await client.merchant.auth.loginWithGoogle({ id_token })
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // 403 — credentials are VALID but the account has no merchant store access.
+    // This is the expected error when a personal Google account previously
+    // registered as a buyer is used on the merchant login endpoint.
+    // err.message → "This account does not have merchant access. Use a merchant or owner account."
+    // Fix: use a dedicated merchant/owner account, or have a store owner add your account.
+    console.error('Wrong account role:', err.message)
+  } else if (err instanceof AuthError) {
+    // 401 — bad credentials or expired token. Re-authenticate.
+    console.error('Authentication failed:', err.message)
+  } else if (err instanceof NotFoundError) {
+    // 404 — resource not found (e.g. wrong email/password on email login).
+    console.error('Not found:', err.message)
+  }
+}
+```
+
+| Subclass         | Status  | When thrown                                                             |
+| ---------------- | ------- | ----------------------------------------------------------------------- |
+| `AuthError`      | 401     | Invalid credentials, expired token, failed token refresh                |
+| `ForbiddenError` | 403     | Valid credentials, wrong account role (e.g. buyer on merchant endpoint) |
+| `NotFoundError`  | 404     | Resource not found, wrong email/password on email login                 |
+| `PurchaseError`  | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)           |
+| `LedewireError`  | any     | Catch-all base class for all other API errors                           |
+
 ## Documentation
 
 - [Getting Started Guide](https://ledewire.github.io/ledewire-js-sdk/guides/node-npm.html)
