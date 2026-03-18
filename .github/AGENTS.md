@@ -125,10 +125,10 @@ exported from `@ledewire/node`. Affected methods: `merchant.users.list`,
 
 ### `MerchantLoginStore` vs `ManageableStore` — do not confuse these
 
-| Type                 | Source                                                               | Fields                                                                   |
-| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `MerchantLoginStore` | Embedded in the login response (`loginWithEmailAndListStores`, etc.) | `.id`, `.name`, `.role`                                                  |
-| `ManageableStore`    | Returned by `merchant.auth.listStores()` — a separate HTTP call      | `.store_id`, `.store_name`, `.store_key`, `.role`, `.is_author`, `.logo` |
+| Type                 | Source                                                               | Fields                                                       |
+| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `MerchantLoginStore` | Embedded in the login response (`loginWithEmailAndListStores`, etc.) | `.id`, `.name`, `.role`                                      |
+| `ManageableStore`    | Returned by `merchant.auth.listStores()` — a separate HTTP call      | `.id`, `.name`, `.store_key`, `.role`, `.is_author`, `.logo` |
 
 Use the combo-login helpers when you just need a store ID after login:
 
@@ -154,6 +154,23 @@ Call `listStores()` only when you need the full `ManageableStore` detail
 
 CI fails if public API members lack JSDoc. Every exported function, class,
 interface, and type must have at minimum a one-sentence description.
+
+### Field naming convention
+
+All API response types use `snake_case` field names, matching the wire format
+exactly. SDK-owned types that do not map 1:1 to a raw API response
+(e.g. `StoredTokens`, `MerchantLoginResult`) use `camelCase`.
+
+| Category                        | Case         | Examples                                             |
+| ------------------------------- | ------------ | ---------------------------------------------------- |
+| Raw API response types          | `snake_case` | `access_token`, `price_cents`, `store_key`           |
+| SDK-internal / normalized types | `camelCase`  | `StoredTokens.accessToken`, `StoredTokens.expiresAt` |
+
+Do not add a `transformKeys` option or camelCase aliases for response types.
+`snake_case` response fields are intentional — they mirror the wire format
+so network inspector output and TypeScript types are in the same coordinate
+system. `StoredTokens` is camelCase because it's an SDK abstraction:
+`expiresAt: number` is fundamentally different from `expires_at: string`.
 
 ## Development Commands
 

@@ -65,6 +65,21 @@ Token refresh is automatic — never call a refresh method manually.
 > **Serverless / edge:** MemoryTokenStorage (default) resets on every cold start.
 > Always provide a custom `storage` adapter (Redis, database, encrypted cookie).
 
+## Field naming convention
+
+All API response types use `snake_case` field names (`access_token`, `price_cents`,
+`store_key`), matching the wire format exactly — what you see in a network inspector
+matches your TypeScript type.
+
+SDK-owned types that do not map 1:1 to a raw API response use `camelCase`:
+- `StoredTokens` — `accessToken`, `refreshToken`, `expiresAt: number` (already
+  converted from ISO string; not the same thing as `expires_at: string`)
+- `MerchantLoginResult` — `tokens: StoredTokens`, `stores: MerchantLoginStore[]`
+- `PaginationParams` — `page`, `perPage`
+
+Do not attempt to remap snake_case response fields to camelCase — the SDK
+does not offer a `transformKeys` option and is not designed for one.
+
 ## Complete method reference
 
 ### client.config

@@ -66,6 +66,17 @@ const lw = init({
 Use `MemoryTokenStorage` (default) for highest security — tokens are never written
 to disk and are cleared when the page unloads.
 
+## Field naming convention
+
+All API response types use `snake_case` field names (`access_token`, `price_cents`,
+`content_uri`), matching the wire format exactly.
+
+SDK-owned types use `camelCase` where they do not map 1:1 to a raw API response
+field: `StoredTokens.accessToken`, `StoredTokens.expiresAt: number` (a converted
+Unix ms timestamp, not the raw `expires_at: string`).
+
+Do not attempt to remap snake_case fields — the SDK has no `transformKeys` option.
+
 ## Complete method reference
 
 ### lw.config
