@@ -32,7 +32,7 @@ jobs:
       - run: pnpm build
 
       - name: Run integration tests
-        run: pnpm test -- --reporter=verbose
+        run: pnpm test:verbose
         env:
           LEDEWIRE_BASE_URL: https://api-staging.ledewire.com
           LEDEWIRE_TEST_API_KEY: ${{ secrets.STAGING_API_KEY }}
