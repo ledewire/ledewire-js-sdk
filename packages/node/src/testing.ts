@@ -4,25 +4,54 @@
  * Test utilities for consumers of `@ledewire/node`.
  * Import from `@ledewire/node/testing` in your test files only.
  *
- * @example Vitest:
+ * ## Vitest — per-method mock control (recommended)
+ *
+ * Wrap individual methods with `vi.mocked()` to access `.mockResolvedValue()`,
+ * `.mock.calls`, etc. This is the lightest approach and works without any
+ * top-level wrapper:
+ *
  * ```ts
  * import { createMockClient } from '@ledewire/node/testing'
  * import { vi } from 'vitest'
  *
  * const client = createMockClient(vi.fn)
  *
+ * // Narrow to a single method to control its return value / read call records:
  * vi.mocked(client.merchant.sales.list).mockResolvedValue({
  *   data: [],
  *   pagination: { total: 0, per_page: 25, current_page: 1, total_pages: 0 },
  * })
  * vi.mocked(client.seller.content.create).mockResolvedValue(contentItem)
  *
- * // Pass to your route handler under test
  * const result = await myRouteHandler(client)
- * expect(client.merchant.sales.list).toHaveBeenCalledWith('store-id')
+ * expect(vi.mocked(client.merchant.sales.list).mock.calls).toHaveLength(1)
  * ```
  *
- * @example Jest:
+ * ## Vitest — whole-client deep mock (when you need full MockInstance types)
+ *
+ * Wrap the entire client with `vi.mocked(client, true)` (note the `true` flag
+ * for deep mocking) to surface `MockInstance` methods on every nested function
+ * without calling `vi.mocked()` on each one individually:
+ *
+ * ```ts
+ * import { createMockClient } from '@ledewire/node/testing'
+ * import { vi } from 'vitest'
+ *
+ * // vi.mocked(..., true) returns MaybeMockedDeep<MockNodeClient> — all methods
+ * // are typed as Mock<...> and support .mockResolvedValue(), .mock.calls, etc.
+ * const client = vi.mocked(createMockClient(vi.fn), true)
+ *
+ * client.merchant.sales.list.mockResolvedValue({ data: [], pagination: { ... } })
+ * client.seller.content.create.mockResolvedValue(contentItem)
+ * ```
+ *
+ * Without `vi.mocked(client, true)`, TypeScript sees methods as plain function
+ * signatures and will report `Property 'mockResolvedValue' does not exist on
+ * type '(...) => Promise<...>'`. The underlying stubs ARE vi.fn() instances at
+ * runtime — the `vi.mocked()` call is purely a type-level cast.
+ *
+ * ## Jest
+ *
  * ```ts
  * import { createMockClient } from '@ledewire/node/testing'
  *
@@ -55,10 +84,10 @@ type DeepMutable<T> = {
  * removed so individual methods can be replaced with `vi.fn()` / `jest.fn()`
  * stubs. Internal `_http`, `_tokenManager`, and `_config` fields are excluded.
  *
- * Assign stubs to specific methods as needed:
- * ```ts
- * client.merchant.sales.list = vi.fn().mockResolvedValue([])
- * ```
+ * Methods are typed as plain function signatures. To access `MockInstance`
+ * methods (`.mockResolvedValue()`, `.mock.calls`, etc.) use one of:
+ * - Per-method: `vi.mocked(client.some.method).mockResolvedValue(...)`
+ * - Whole-client: `const client = vi.mocked(createMockClient(vi.fn), true)`
  */
 export type MockNodeClient = DeepMutable<Omit<NodeClient, '_http' | '_tokenManager' | '_config'>>
 
@@ -79,13 +108,19 @@ type AnyFn = (...args: never[]) => unknown
  * @param fn - A spy factory function. Pass `vi.fn` or `jest.fn`.
  * @returns A {@link MockNodeClient} with all methods pre-stubbed.
  *
- * @example
+ * @example Per-method control (Vitest)
  * ```ts
- * import { createMockClient } from '@ledewire/node/testing'
- * import { vi } from 'vitest'
- *
  * const client = createMockClient(vi.fn)
- * vi.mocked(client.merchant.sales.list).mockResolvedValue([])
+ * // Wrap individual methods to access MockInstance types:
+ * vi.mocked(client.merchant.sales.list).mockResolvedValue({ data: [], pagination: { ... } })
+ * expect(vi.mocked(client.merchant.sales.list).mock.calls).toHaveLength(1)
+ * ```
+ *
+ * @example Whole-client deep mock (Vitest)
+ * ```ts
+ * // vi.mocked(..., true) casts all nested functions to Mock<...> at once:
+ * const client = vi.mocked(createMockClient(vi.fn), true)
+ * client.merchant.sales.list.mockResolvedValue({ data: [], pagination: { ... } })
  * ```
  */
 export function createMockClient(

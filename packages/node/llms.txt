@@ -318,11 +318,28 @@ class PurchaseError extends LedewireError {}   // 409/422 — purchase validatio
 // ONLY import from the /testing subpath — never from the main entry point.
 // This subpath is excluded from production bundles.
 import { createMockClient } from '@ledewire/node/testing'
+```
 
-const client = createMockClient()
+**Per-method mock control** (recommended — works with Vitest and Jest):
 
-// All methods return undefined by default.
-// Override per-test:
+```ts
+const client = createMockClient(vi.fn)
+
+// Wrap individual methods with vi.mocked() to access MockInstance types:
 vi.mocked(client.merchant.auth.loginWithEmail).mockResolvedValue(tokenFixture)
-vi.mocked(client.seller.content.list).mockResolvedValue({ data: [], pagination: ... })
+vi.mocked(client.seller.content.list).mockResolvedValue({ data: [], pagination: { ... } })
+expect(vi.mocked(client.merchant.sales.list).mock.calls).toHaveLength(1)
+```
+
+**Whole-client deep mock** (Vitest only — surfaces MockInstance on every method without
+per-call `vi.mocked()` wrappers):
+
+```ts
+// vi.mocked(..., true) casts all nested functions to Mock<...> at once.
+// Without the `true` flag (or without vi.mocked at all), TypeScript reports:
+//   Property 'mockResolvedValue' does not exist on type '(...) => Promise<...>'
+const client = vi.mocked(createMockClient(vi.fn), true)
+
+client.merchant.auth.loginWithEmail.mockResolvedValue(tokenFixture)
+client.seller.content.list.mockResolvedValue({ data: [], pagination: { ... } })
 ```
