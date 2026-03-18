@@ -87,7 +87,7 @@ export interface NodeClientConfig {
 /**
  * Creates a fully configured LedeWire Node.js client.
  *
- * @example Full access (API key + secret):
+ * @example API key + secret (seller / buyer access):
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
@@ -97,11 +97,32 @@ export interface NodeClientConfig {
  * })
  * ```
  *
- * @example Merchant email/password auth:
+ * @example Merchant JWT auth (email / password, no API key):
  * ```ts
- * const client = createClient()
- * await client.merchant.auth.loginWithEmail({ email, password })
- * const sales = await client.merchant.sales.list({ storeId: 'store-id' })
+ * import { createClient, ForbiddenError } from '@ledewire/node'
+ *
+ * const client = createClient({
+ *   storage: {
+ *     getTokens: async () => JSON.parse((await redis.get('lw:tokens')) ?? 'null'),
+ *     setTokens: async (t) => redis.set('lw:tokens', JSON.stringify(t)),
+ *     clearTokens: async () => redis.del('lw:tokens'),
+ *   },
+ *   onAuthExpired: () => redirect('/login'),
+ * })
+ *
+ * const { tokens, stores } = await client.merchant.auth.loginWithEmailAndListStores({
+ *   email: 'owner@example.com',
+ *   password: process.env.MERCHANT_PASSWORD,
+ * })
+ * const storeId = stores[0].id
+ * ```
+ *
+ * @example Merchant JWT auth (Google OAuth):
+ * ```ts
+ * const { tokens, stores } = await client.merchant.auth.loginWithGoogleAndListStores({
+ *   id_token: googleIdToken,
+ * })
+ * const storeId = stores[0].id
  * ```
  */
 export function createClient(config: NodeClientConfig = {}): NodeClient {

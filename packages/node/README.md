@@ -60,8 +60,10 @@ const client = createClient({
     clearTokens: async () => redis.del('lw:tokens'),
   },
 
+  // Side-effects only — storage.setTokens is already the persistence hook.
+  // Use onTokenRefreshed for audit logging or cache invalidation on refresh.
   onTokenRefreshed: async (tokens) => {
-    await db.sessions.upsert({ tokens })
+    await auditLog.record('token_refreshed', { expiresAt: tokens.expiresAt })
   },
 
   onAuthExpired: () => {
@@ -79,39 +81,62 @@ Token refresh is handled automatically — you never need to call a refresh meth
 ## Example: Merchant JWT Auth (no API key)
 
 Use this flow when running a merchant backend that authenticates via email/password or Google.
-The one-step helper logs in and returns both the token response and the accessible stores list
-in a single call:
+No API key is required. Token refresh is automatic — the SDK handles it transparently.
+
+### Email / password login
+
+The one-step helper logs in and returns both the normalized tokens and the accessible stores
+list in a single HTTP call:
 
 ```ts
-import { createClient } from '@ledewire/node'
+import { createClient, ForbiddenError } from '@ledewire/node'
 
 const client = createClient({
-  // Persist tokens across requests (required for serverless)
+  // Required for serverless/edge — MemoryTokenStorage (default) resets on cold start.
   storage: {
     getTokens: async () => JSON.parse((await redis.get('lw:tokens')) ?? 'null'),
     setTokens: async (t) => redis.set('lw:tokens', JSON.stringify(t)),
     clearTokens: async () => redis.del('lw:tokens'),
   },
-  onAuthExpired: () => {
-    // Session fully expired — redirect user to re-authenticate
-    redirect('/login')
-  },
+  onAuthExpired: () => redirect('/login'),
 })
 
-// Single call: logs in and returns stores together
-const { stores } = await client.merchant.auth.loginWithEmailAndListStores({
-  email: 'owner@example.com',
-  password: process.env.MERCHANT_PASSWORD,
+try {
+  const { tokens, stores } = await client.merchant.auth.loginWithEmailAndListStores({
+    email: 'owner@example.com',
+    password: process.env.MERCHANT_PASSWORD,
+  })
+  // tokens: StoredTokens — { accessToken, refreshToken, expiresAt: number (Unix ms) }
+  // stores: MerchantLoginStore[] — use .id, .name, .role
+  const storeId = stores[0].id
+} catch (err) {
+  if (err instanceof ForbiddenError) {
+    // Valid credentials but account has no merchant store access (e.g. buyer account).
+    // err.message: "This account does not have merchant access. Use a merchant or owner account."
+  }
+}
+```
+
+### Google OAuth login
+
+Same flow with a Google ID token instead of email/password:
+
+```ts
+const { tokens, stores } = await client.merchant.auth.loginWithGoogleAndListStores({
+  id_token: googleIdToken, // from Google Identity Services callback
 })
 const storeId = stores[0].id
 ```
 
-Or use separate calls if you need the token response independently:
+### Separate login + store list (when you need full store detail)
+
+Use this only when you need fields available on `ManageableStore` but not on `MerchantLoginStore`
+(`store_key`, `logo`):
 
 ```ts
 await client.merchant.auth.loginWithEmail({ email, password })
-const stores = await client.merchant.auth.listStores()
-const storeId = stores[0].store_id // ManageableStore uses .store_id
+const stores = await client.merchant.auth.listStores() // ManageableStore[]
+const storeId = stores[0].id // .id and .name match MerchantLoginStore
 ```
 
 ## Example: Merchant Store Setup
@@ -125,7 +150,7 @@ await client.merchant.auth.loginWithEmail({
 })
 
 const stores = await client.merchant.auth.listStores()
-const storeId = stores[0].store_id // ManageableStore uses .store_id
+const storeId = stores[0].id
 
 // Create a markdown article
 await client.seller.content.create(storeId, {
