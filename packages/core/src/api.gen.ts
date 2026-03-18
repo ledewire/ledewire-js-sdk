@@ -3083,8 +3083,8 @@ export interface components {
       refresh_token?: string
     }
     ManageableStore: {
-      store_id: string
-      store_name: string
+      id: string
+      name: string
       store_key: string
       /**
        * @description Derived role. `owner` if the user owns this store; `author` if they have author permissions only.

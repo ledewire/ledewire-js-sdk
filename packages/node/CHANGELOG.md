@@ -4,6 +4,25 @@
 
 ### Breaking Changes
 
+- `ManageableStore` (returned by `client.merchant.auth.listStores()`) fields renamed
+  to match `MerchantLoginStore`: `store_id` → `id`, `store_name` → `name`.
+
+  Both types now use the same field names for the store identifier and display name,
+  eliminating the context-switching between combo helpers and `listStores()`.
+
+  ```ts
+  // Before
+  const stores = await client.merchant.auth.listStores()
+  stores[0].store_id // string
+  stores[0].store_name // string
+
+  // After
+  stores[0].id // string
+  stores[0].name // string
+  ```
+
+  `store_key`, `role`, `is_author`, and `logo` are unchanged.
+
 - `MerchantLoginResult.tokens` is now typed as `StoredTokens` instead of
   `MerchantAuthenticationResponse`.
 
@@ -134,7 +153,7 @@
 
   ## Changed: `loginWithEmailAndListStores` / `loginWithGoogleAndListStores` are now a single HTTP call
 
-  Both helpers now read `stores` from the login response directly — no second `/stores` request is made. `MerchantLoginResult.stores` is now `MerchantLoginStore[]` (fields: `.id`, `.name`, `.role`), replacing the previous `ManageableStore[]` (which had `.store_id`, `.store_name`).
+  Both helpers now read `stores` from the login response directly — no second `/stores` request is made. `MerchantLoginResult.stores` is now `MerchantLoginStore[]` (fields: `.id`, `.name`, `.role`), replacing the previous `ManageableStore[]`.
 
   ```ts
   const { tokens, stores } = await client.merchant.auth.loginWithEmailAndListStores(email, password)

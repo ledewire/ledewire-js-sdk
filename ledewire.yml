@@ -246,11 +246,11 @@ components:
 
     ManageableStore:
       type: object
-      required: [store_id, store_name, store_key, role, is_author, logo]
+      required: [id, name, store_key, role, is_author, logo]
       properties:
-        store_id:
+        id:
           type: string
-        store_name:
+        name:
           type: string
         store_key:
           type: string
@@ -1521,8 +1521,8 @@ paths:
                 stores:
                   summary: Stores the user manages
                   value:
-                    - store_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'
-                      store_name: 'My Store'
+                    - id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'
+                      name: 'My Store'
                       store_key: 'my-store'
                       role: 'owner'
                       is_author: true

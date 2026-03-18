@@ -97,12 +97,15 @@ client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promis
 // StoredTokens = { accessToken: string, refreshToken: string, expiresAt: number (Unix ms) }
 // tokens are already normalized — no remapping or parseExpiresAt() call needed
 
-**Critical — `MerchantLoginStore` vs `ManageableStore`:**
+**`MerchantLoginStore` vs `ManageableStore`:**
+
+Both types share the same `id`/`name` field names for the store identifier and display name.
+`ManageableStore` (from `listStores()`) additionally carries `.store_key`, `.is_author`, and `.logo`.
 
 | Type | Source | Fields |
 |---|---|---|
 | `MerchantLoginStore` | Embedded in login response (combo helpers) | `.id`, `.name`, `.role` |
-| `ManageableStore` | Returned by `listStores()` (second HTTP call) | `.store_id`, `.store_name`, `.store_key`, `.role`, `.is_author`, `.logo` |
+| `ManageableStore` | Returned by `listStores()` (second HTTP call) | `.id`, `.name`, `.store_key`, `.role`, `.is_author`, `.logo` |
 
 ```ts
 // Combo helper (recommended — single HTTP call)
@@ -112,7 +115,7 @@ stores[0].id        // ✅ MerchantLoginStore.id
 // Separate listStores call (use only when you need store_key / logo)
 await client.merchant.auth.loginWithEmail(...)
 const stores = await client.merchant.auth.listStores()
-stores[0].store_id  // ✅ ManageableStore.store_id
+stores[0].id        // ✅ ManageableStore.id — same field name
 ```
 
 **Error handling for merchant login:**

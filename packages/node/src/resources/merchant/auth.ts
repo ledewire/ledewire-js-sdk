@@ -135,7 +135,7 @@ export class MerchantAuthNamespace {
    * @example
    * ```ts
    * const stores = await client.merchant.auth.listStores()
-   * const storeId = stores[0].store_id
+   * const storeId = stores[0].id
    * ```
    */
   async listStores(): Promise<ManageableStore[]> {

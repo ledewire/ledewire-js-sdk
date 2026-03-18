@@ -123,8 +123,8 @@ export function manageableStoreFixture(
   overrides?: Partial<ManageableStoreSchema>,
 ): ManageableStoreSchema {
   return {
-    store_id: 'store-id-1',
-    store_name: 'Test Store',
+    id: 'store-id-1',
+    name: 'Test Store',
     store_key: 'test-store',
     role: 'owner',
     is_author: true,

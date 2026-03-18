@@ -141,7 +141,7 @@ describe('merchant.auth.loginWithGoogle', () => {
 
 describe('merchant.auth.listStores', () => {
   it('returns the list of manageable stores', async () => {
-    const fixture = [manageableStoreFixture(), manageableStoreFixture({ store_id: 'store-id-2' })]
+    const fixture = [manageableStoreFixture(), manageableStoreFixture({ id: 'store-id-2' })]
     server.use(http.get(`${BASE}/v1/auth/merchant/stores`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().merchant.auth.listStores()
