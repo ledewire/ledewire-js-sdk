@@ -57,12 +57,17 @@ export interface NodeClientConfig {
    */
   storage?: TokenStorage
   /**
-   * Called after a successful token refresh, in addition to `storage.setTokens`.
+   * Called after a successful background token refresh, in addition to `storage.setTokens`.
    *
-   * Use this **only** for side-effects where a separate storage write is not
-   * needed (e.g. audit logging, metrics). If you are using a `storage` adapter,
+   * **Scope:** fires only on background token refresh — not on initial login or signup.
+   * `storage.setTokens` fires on both. If you need to persist tokens on every auth event,
+   * the `storage` adapter is the correct hook.
+   *
+   * Use `onTokenRefreshed` **only** for side-effects that should run specifically when
+   * the SDK auto-refreshes a token in the background, e.g. audit logging, cache
+   * invalidation, or notifying a secondary system. If you are using a `storage` adapter,
    * `storage.setTokens` is already the correct persistence hook — providing both
-   * will result in double-writes.
+   * will result in double-writes on every refresh.
    *
    * @example Audit log only (storage handles persistence separately):
    * ```ts
@@ -102,6 +107,20 @@ export interface NodeClientConfig {
 export function createClient(config: NodeClientConfig = {}): NodeClient {
   const baseUrl = config.baseUrl ?? 'https://api.ledewire.com'
   const storage = config.storage ?? new MemoryTokenStorage()
+
+  if (
+    config.storage !== undefined &&
+    config.onTokenRefreshed !== undefined &&
+    process.env['NODE_ENV'] !== 'production'
+  ) {
+    console.warn(
+      '[LedeWire] Both `storage` and `onTokenRefreshed` are configured. ' +
+        '`storage.setTokens` fires on both login and background token refresh and is the ' +
+        'canonical persistence hook. `onTokenRefreshed` fires only on background refresh ' +
+        'and is intended for side-effects (audit logging, cache invalidation), not duplicate ' +
+        'persistence. If both are writing tokens to the same store, remove `onTokenRefreshed`.',
+    )
+  }
 
   const tokenManager = new TokenManager({
     storage,

@@ -47,10 +47,14 @@ const client = createClient({
   // Token persistence (required for serverless/edge — in-memory by default)
   storage: {
     getTokens: () => Promise<StoredTokens | null>,
-    setTokens: (t: StoredTokens) => Promise<void>,
+    setTokens: (t: StoredTokens) => Promise<void>,  // fires on login AND refresh
     clearTokens: () => Promise<void>,
   },
 
+  // Optional — fires ONLY on background token refresh (not on login).
+  // Use for side-effects only (audit logging, cache invalidation).
+  // Do NOT use for persistence — storage.setTokens already handles that.
+  // Providing both storage and onTokenRefreshed will double-write on refresh.
   onTokenRefreshed: (tokens: StoredTokens) => Promise<void> | void,
   onAuthExpired: () => void,  // called when refresh fails — re-authenticate
 })

@@ -16,13 +16,18 @@ export interface TokenManagerOptions {
    */
   refreshFn: (refreshToken: string) => Promise<StoredTokens>
   /**
-   * Called after a successful token refresh.
-   * Use in server environments to persist the new tokens to a database or cache.
+   * Called after a successful background token refresh (not on initial login).
+   * Use for side-effects only — e.g. audit logging, cache invalidation, or
+   * notifying a secondary system when tokens rotate.
+   *
+   * **Do not use this for token persistence.** The `storage` adapter's
+   * `setTokens` is the canonical persistence hook and is already called on
+   * every refresh. Providing both will result in double-writes.
    *
    * @example
    * ```ts
    * onTokenRefreshed: async (tokens) => {
-   *   await redis.set('session:tokens', JSON.stringify(tokens))
+   *   await auditLog.record('token_refreshed', { expiresAt: tokens.expiresAt })
    * }
    * ```
    */

@@ -123,6 +123,50 @@ describe('createClient refreshFn', () => {
     )
   })
 
+  it('emits a console.warn in non-production when both storage and onTokenRefreshed are provided', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      // NODE_ENV is 'test' in this environment — satisfies !== 'production'
+      createClient({
+        storage: new MemoryTokenStorage(),
+        onTokenRefreshed: vi.fn(),
+      })
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy.mock.calls[0]![0]).toContain('[LedeWire]')
+      expect(warnSpy.mock.calls[0]![0]).toContain('onTokenRefreshed')
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('does not emit a console.warn in production when both storage and onTokenRefreshed are provided', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const originalEnv = process.env['NODE_ENV']
+
+    try {
+      process.env['NODE_ENV'] = 'production'
+      createClient({
+        storage: new MemoryTokenStorage(),
+        onTokenRefreshed: vi.fn(),
+      })
+      expect(warnSpy).not.toHaveBeenCalled()
+    } finally {
+      process.env['NODE_ENV'] = originalEnv
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('does not emit a console.warn when only onTokenRefreshed is provided (no custom storage)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    try {
+      createClient({ onTokenRefreshed: vi.fn() })
+      expect(warnSpy).not.toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('fires onAuthExpired when a 401 is received and no tokens are stored', async () => {
     const onAuthExpired = vi.fn()
 
