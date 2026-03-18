@@ -52,6 +52,15 @@ export default tseslint.config(
     },
   },
   {
+    // Relax rules for test files.
+    // no-non-null-assertion: tests control fixture data; ! is idiomatic when
+    // noUncheckedIndexedAccess makes arr[0] return T | undefined.
+    files: ['packages/*/src/**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
     // Relax rules for example files and config files
     files: ['examples/**', '*.config.ts', 'eslint.config.ts'],
     rules: {
