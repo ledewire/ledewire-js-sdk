@@ -88,6 +88,18 @@ describe('merchant.users.list', () => {
 // ---------------------------------------------------------------------------
 
 describe('merchant.users.invite', () => {
+  it('compiles and sends without is_author (defaults to true on server)', async () => {
+    const fixture = merchantUserFixture({ email: 'author@example.com' })
+    server.use(http.post(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))
+
+    // is_author omitted — TypeScript should not error
+    const result = await makeClient().merchant.users.invite(STORE_ID, {
+      email: 'author@example.com',
+    })
+
+    expect(result).toEqual(fixture)
+  })
+
   it('returns a MerchantUser when the invited user already has an account', async () => {
     const fixture = merchantUserFixture({ email: 'existing@example.com', role: null })
     server.use(http.post(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))

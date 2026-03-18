@@ -65,10 +65,16 @@ export class MerchantUsersNamespace {
    * otherwise an invitation email is sent (`MerchantInviteResponse`).
    *
    * @param storeId - The store ID to invite the user to.
-   * @param body - Invite request body including email, optional `is_author` flag, and optional `author_fee_bps`.
+   * @param body - Invite request body. Only `email` is required; `is_author` defaults to `true` on the server when omitted.
    *
    * @example
    * ```ts
+   * // Minimal — is_author defaults to true on the server
+   * const result = await client.merchant.users.invite('store-id', {
+   *   email: 'author@example.com',
+   * })
+   *
+   * // Explicit — override is_author or set a custom fee
    * const result = await client.merchant.users.invite('store-id', {
    *   email: 'author@example.com',
    *   is_author: true,

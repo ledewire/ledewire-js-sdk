@@ -47,7 +47,14 @@ export type MerchantLoginStore = components['schemas']['MerchantLoginStore']
 export type MerchantUser = components['schemas']['MerchantUser']
 
 /** Request body for inviting a user to a merchant store. */
-export type MerchantInviteRequest = components['schemas']['MerchantInviteRequest']
+// openapi-typescript generates properties with `default:` as required on both
+// request and response bodies. For request bodies the correct behaviour is
+// optional — the server applies the default when the field is omitted.
+// Override here so consumers don't have to supply the field unnecessarily.
+export type MerchantInviteRequest = Omit<
+  components['schemas']['MerchantInviteRequest'],
+  'is_author'
+> & { is_author?: boolean }
 
 /** Response from inviting a user to a merchant store. */
 export type MerchantInviteResponse = components['schemas']['MerchantInviteResponse']
