@@ -36,6 +36,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate npm token
+        run: |
+          WHOAMI=$(npm whoami --registry https://registry.npmjs.org 2>&1) || true
+          if echo "$WHOAMI" | grep -q "npm error\|ENEEDAUTH\|ENOTFOUND\|EINVALIDNPMTOKEN"; then
+            echo "::error::NPM_TOKEN is invalid or lacks publish permission. npm whoami output: $WHOAMI"
+            exit 1
+          fi
+          echo "npm token is valid — authenticated as: $WHOAMI"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Build
         run: pnpm build
 
@@ -98,5 +109,6 @@ jobs:
             echo "No docs changes to commit."
           else
             git commit -m "docs: regenerate API reference [skip ci]"
+            git pull --rebase origin main
             git push
           fi
