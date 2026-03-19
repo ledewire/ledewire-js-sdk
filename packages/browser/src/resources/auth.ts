@@ -9,6 +9,7 @@
 import { parseExpiresAt } from '@ledewire/core'
 import type { HttpClient, TokenManager } from '@ledewire/core'
 import type {
+  AuthLoginApiKeyRequest,
   AuthLoginEmailRequest,
   AuthLoginOAuthRequest,
   AuthSignupRequest,
@@ -68,6 +69,32 @@ export class BrowserAuthNamespace {
    */
   async loginWithGoogle(body: AuthLoginOAuthRequest): Promise<AuthenticationResponse> {
     const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/google', body)
+    await this.storeTokens(res)
+    return res
+  }
+
+  /**
+   * Log in using an API key to obtain a seller token.
+   * Provide only `key` for read-only (`view`) access.
+   * Provide both `key` and `secret` for read/write (`full`) access.
+   * Tokens are stored automatically after successful authentication.
+   *
+   * Use this before calling `lw.seller.content.*` methods.
+   *
+   * @param body - API key credentials.
+   * @returns The authentication token response.
+   *
+   * @example
+   * ```ts
+   * // View access (read-only) — sufficient for seller.content.list/search/get
+   * await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+   *
+   * // Full access (read/write)
+   * await lw.auth.loginWithApiKey({ key: 'your_api_key', secret: 'your_secret' })
+   * ```
+   */
+  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<AuthenticationResponse> {
+    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/api-key', body)
     await this.storeTokens(res)
     return res
   }

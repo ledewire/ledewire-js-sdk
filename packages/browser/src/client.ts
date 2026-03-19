@@ -4,6 +4,7 @@ import { BrowserAuthNamespace } from './resources/auth.js'
 import { BrowserConfigNamespace } from './resources/config.js'
 import { BrowserContentNamespace } from './resources/content.js'
 import { BrowserPurchasesNamespace } from './resources/purchases.js'
+import { BrowserSellerNamespace } from './resources/seller/index.js'
 import { BrowserWalletNamespace } from './resources/wallet.js'
 import { CheckoutNamespace } from './resources/checkout.js'
 
@@ -126,6 +127,9 @@ export class BrowserClient {
   /** Public content with per-user access information */
   readonly content: BrowserContentNamespace
 
+  /** Seller content: list, search, and get (requires API key view token) */
+  readonly seller: BrowserSellerNamespace
+
   /** @internal */
   constructor(
     public readonly _http: HttpClient,
@@ -138,5 +142,6 @@ export class BrowserClient {
     this.wallet = new BrowserWalletNamespace(_http)
     this.purchases = new BrowserPurchasesNamespace(_http)
     this.content = new BrowserContentNamespace(_http)
+    this.seller = new BrowserSellerNamespace(_http)
   }
 }

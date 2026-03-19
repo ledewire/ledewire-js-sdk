@@ -87,12 +87,15 @@ lw.config.getPublic() → Promise<PublicConfigResponse>
 // Safe to call before authentication — use to get the Google Client ID for sign-in UI.
 ```
 
-### lw.auth (buyer auth)
+### lw.auth (buyer and seller auth)
 
 ```ts
 lw.auth.signup(body)                           → Promise<AuthenticationResponse>
 lw.auth.loginWithEmail({ email, password })    → Promise<AuthenticationResponse>
 lw.auth.loginWithGoogle({ id_token })          → Promise<AuthenticationResponse>
+lw.auth.loginWithApiKey({ key, secret? })      → Promise<AuthenticationResponse>
+// key-only → view permission (read-only, sufficient for lw.seller.content.*)
+// key + secret → full permission (read/write)
 lw.auth.logout()                               → Promise<void>
 lw.auth.requestPasswordReset({ email })        → Promise<void>
 lw.auth.resetPassword({ token, password })     → Promise<void>
@@ -158,6 +161,26 @@ lw.content.getWithAccess(contentId: string, options?) → Promise<ContentWithAcc
 // content_type: 'markdown' | 'external_ref'
 // content_body: base64-encoded string (use atob() to decode markdown)
 // content_uri: URL for external_ref content (Vimeo, YouTube, PDF, etc.)
+```
+
+### lw.seller.content (requires API key login)
+
+Read-only operations scoped to the authenticated seller's store.
+Store identity is derived server-side from the token — no `store_id` needed.
+
+```ts
+// 1. Obtain a view token (key-only is sufficient)
+await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+
+// 2. List all store content
+lw.seller.content.list()                              → Promise<ContentResponse[]>
+
+// 3. Search by title, URI, or metadata (AND logic — at least one field required)
+lw.seller.content.search({ title?: string, uri?: string, metadata?: Record<string, unknown> })
+                                                      → Promise<ContentResponse[]>
+
+// 4. Fetch a single item
+lw.seller.content.get(contentId: string)              → Promise<ContentResponse>
 ```
 
 ## Full checkout flow example

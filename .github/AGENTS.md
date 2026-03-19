@@ -59,12 +59,13 @@ import { createMockClient } from '@ledewire/node/testing'
 ### Browser client (`init()`)
 
 ```
-lw.config.*     platform public config (no auth required)
-lw.auth.*       signup, login (email + google), logout, password reset
-lw.checkout.*   checkout state machine for a content item
-lw.wallet.*     balance, fund (payment session), transactions
-lw.purchases.*  create, list, verify
-lw.content.*    content with access info
+lw.config.*          platform public config (no auth required)
+lw.auth.*            signup, login (email + google + api-key), logout, password reset
+lw.checkout.*        checkout state machine for a content item
+lw.wallet.*          balance, fund (payment session), transactions
+lw.purchases.*       create, list, verify
+lw.content.*         content with access info
+lw.seller.content.*  list, search, get store content (API key view token)
 ```
 
 ## Critical Patterns

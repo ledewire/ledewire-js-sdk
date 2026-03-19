@@ -39,6 +39,7 @@ const client = createClient({
 - `lw.auth.signup(body)` — create buyer account
 - `lw.auth.loginWithEmail({ email, password })` — buyer email login
 - `lw.auth.loginWithGoogle({ id_token })` — buyer Google login
+- `lw.auth.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
 - `lw.checkout.state(contentId)` → `CheckoutStateResponse` — next action for content
 - `lw.wallet.balance()` → `{ balance_cents }` — buyer wallet balance
 - `lw.wallet.transactions()` → list of wallet transactions
@@ -48,6 +49,9 @@ const client = createClient({
 - `lw.purchases.list()` → list purchases
 - `lw.purchases.get(id)` → single purchase
 - `lw.content.getWithAccess(contentId, options?)` → content + access info
+- `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
+- `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
+- `lw.seller.content.get(contentId)` → `ContentResponse` — get single content item
 
 ### @ledewire/node — createClient()
 - `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
