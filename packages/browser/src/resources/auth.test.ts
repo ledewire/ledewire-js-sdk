@@ -207,3 +207,124 @@ describe('auth.loginWithApiKey', () => {
     await expect(makeClient().auth.loginWithApiKey({ key: 'bad-key' })).rejects.toThrow(AuthError)
   })
 })
+
+// ---------------------------------------------------------------------------
+// auth.requestPasswordReset
+// ---------------------------------------------------------------------------
+
+describe('auth.requestPasswordReset', () => {
+  const successBody = {
+    data: { message: 'If an account with this email exists, a reset code has been sent.' },
+  }
+
+  it('returns the confirmation message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, () => HttpResponse.json(successBody)),
+    )
+
+    const result = await makeClient().auth.requestPasswordReset({ email: 'buyer@example.com' })
+
+    expect(result).toEqual(successBody)
+  })
+
+  it('sends the email in the request body', async () => {
+    let capturedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(successBody)
+      }),
+    )
+
+    await makeClient().auth.requestPasswordReset({ email: 'buyer@example.com' })
+
+    expect(capturedBody).toEqual({ email: 'buyer@example.com' })
+  })
+
+  it('does not store tokens', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, () => HttpResponse.json(successBody)),
+    )
+
+    const client = makeClient()
+    await client.auth.requestPasswordReset({ email: 'buyer@example.com' })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBeNull()
+  })
+
+  it('throws on 400 (invalid email)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, () =>
+        HttpResponse.json(errorResponseFixture(400, 'email must be a valid email address'), {
+          status: 400,
+        }),
+      ),
+    )
+
+    await expect(
+      makeClient().auth.requestPasswordReset({ email: 'not-an-email' }),
+    ).rejects.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// auth.resetPassword
+// ---------------------------------------------------------------------------
+
+describe('auth.resetPassword', () => {
+  const successBody = { data: { message: 'Password has been successfully reset.' } }
+  const validBody = { email: 'buyer@example.com', reset_code: '123456', password: 'new-pass-word' }
+
+  it('returns the confirmation message', async () => {
+    server.use(http.post(`${BASE}/v1/auth/password/reset`, () => HttpResponse.json(successBody)))
+
+    const result = await makeClient().auth.resetPassword(validBody)
+
+    expect(result).toEqual(successBody)
+  })
+
+  it('sends all required fields in the request body', async () => {
+    let capturedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(successBody)
+      }),
+    )
+
+    await makeClient().auth.resetPassword(validBody)
+
+    expect(capturedBody).toEqual(validBody)
+  })
+
+  it('does not store tokens', async () => {
+    server.use(http.post(`${BASE}/v1/auth/password/reset`, () => HttpResponse.json(successBody)))
+
+    const client = makeClient()
+    await client.auth.resetPassword(validBody)
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBeNull()
+  })
+
+  it('throws on 400 (invalid or expired code)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset`, () =>
+        HttpResponse.json(errorResponseFixture(400, 'Invalid or expired reset code'), {
+          status: 400,
+        }),
+      ),
+    )
+
+    await expect(makeClient().auth.resetPassword(validBody)).rejects.toThrow()
+  })
+
+  it('throws on 404 (user not found)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset`, () =>
+        HttpResponse.json(errorResponseFixture(404, 'User not found'), { status: 404 }),
+      ),
+    )
+
+    await expect(makeClient().auth.resetPassword(validBody)).rejects.toThrow()
+  })
+})

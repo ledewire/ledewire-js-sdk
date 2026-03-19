@@ -61,3 +61,8 @@ export { init } from './client.js'
 export type { BrowserClientConfig } from './client.js'
 export { localStorageAdapter } from './local-storage-adapter.js'
 export type { SellerContentSearchRequest } from './resources/seller/content.js'
+export type {
+  AuthPasswordResetBody,
+  AuthPasswordResetRequestBody,
+  AuthPasswordResetResponse,
+} from '@ledewire/core'

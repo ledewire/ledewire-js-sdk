@@ -40,15 +40,15 @@ const lw = init({
 
 ## Client Namespaces
 
-| Namespace           | Description                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| `lw.config`         | Platform public config (no auth required)                       |
-| `lw.auth`           | Buyer signup, email/password login, Google OAuth, API key login |
-| `lw.wallet`         | Wallet balance, fund wallet via payment session                 |
-| `lw.purchases`      | List and create content purchases                               |
-| `lw.content`        | Fetch content with buyer access info                            |
-| `lw.checkout`       | Checkout state — what action is required next                   |
-| `lw.seller.content` | List, search, and get store content (API key auth)              |
+| Namespace           | Description                                                                     |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `lw.config`         | Platform public config (no auth required)                                       |
+| `lw.auth`           | Buyer signup, email/password login, Google OAuth, API key login, password reset |
+| `lw.wallet`         | Wallet balance, fund wallet via payment session                                 |
+| `lw.purchases`      | List and create content purchases                                               |
+| `lw.content`        | Fetch content with buyer access info                                            |
+| `lw.checkout`       | Checkout state — what action is required next                                   |
+| `lw.seller.content` | List, search, and get store content (API key auth)                              |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
 

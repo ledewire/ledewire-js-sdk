@@ -97,8 +97,8 @@ lw.auth.loginWithApiKey({ key, secret? })      → Promise<AuthenticationRespons
 // key-only → view permission (read-only, sufficient for lw.seller.content.*)
 // key + secret → full permission (read/write)
 lw.auth.logout()                               → Promise<void>
-lw.auth.requestPasswordReset({ email })        → Promise<void>
-lw.auth.resetPassword({ token, password })     → Promise<void>
+lw.auth.requestPasswordReset({ email })        → Promise<AuthPasswordResetResponse>
+lw.auth.resetPassword({ email, reset_code, password }) → Promise<AuthPasswordResetResponse>
 ```
 
 Tokens are stored automatically after every successful login.

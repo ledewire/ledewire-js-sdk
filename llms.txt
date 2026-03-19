@@ -40,6 +40,8 @@ const client = createClient({
 - `lw.auth.loginWithEmail({ email, password })` — buyer email login
 - `lw.auth.loginWithGoogle({ id_token })` — buyer Google login
 - `lw.auth.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
+- `lw.auth.requestPasswordReset({ email })` → `AuthPasswordResetResponse` — send password reset code to buyer email
+- `lw.auth.resetPassword({ email, reset_code, password })` → `AuthPasswordResetResponse` — complete password reset with code
 - `lw.checkout.state(contentId)` → `CheckoutStateResponse` — next action for content
 - `lw.wallet.balance()` → `{ balance_cents }` — buyer wallet balance
 - `lw.wallet.transactions()` → list of wallet transactions

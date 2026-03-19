@@ -206,6 +206,38 @@ export interface StoreConfig {
   google_client_id?: string
 }
 
+/**
+ * Request body for initiating a buyer password reset.
+ * Sent to `POST /v1/auth/password/reset-request`.
+ */
+export interface AuthPasswordResetRequestBody {
+  /** The buyer's registered email address. */
+  email: string
+}
+
+/**
+ * Request body for completing a buyer password reset.
+ * Sent to `POST /v1/auth/password/reset`.
+ */
+export interface AuthPasswordResetBody {
+  /** The buyer's registered email address. */
+  email: string
+  /** 6-digit numeric code delivered to the buyer's email. */
+  reset_code: string
+  /** New password (minimum 6 characters). */
+  password: string
+}
+
+/**
+ * Response returned by both password reset endpoints.
+ * Contains a human-readable confirmation message.
+ */
+export interface AuthPasswordResetResponse {
+  data?: {
+    message?: string
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SDK-internal types (not in the OpenAPI spec)
 // ---------------------------------------------------------------------------

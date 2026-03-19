@@ -12,6 +12,9 @@ import type {
   AuthLoginApiKeyRequest,
   AuthLoginEmailRequest,
   AuthLoginOAuthRequest,
+  AuthPasswordResetBody,
+  AuthPasswordResetRequestBody,
+  AuthPasswordResetResponse,
   AuthSignupRequest,
   AuthenticationResponse,
 } from '@ledewire/core'
@@ -97,6 +100,48 @@ export class BrowserAuthNamespace {
     const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/api-key', body)
     await this.storeTokens(res)
     return res
+  }
+
+  /**
+   * Request a password reset code to be sent to the buyer's email address.
+   *
+   * The response is intentionally ambiguous — if the email does not exist,
+   * the API returns the same success message to prevent account enumeration.
+   *
+   * @param body - The buyer's email address.
+   * @returns A response with a confirmation message.
+   *
+   * @example
+   * ```ts
+   * await lw.auth.requestPasswordReset({ email: 'buyer@example.com' })
+   * // → { data: { message: 'If an account with this email exists, a reset code has been sent.' } }
+   * ```
+   */
+  async requestPasswordReset(
+    body: AuthPasswordResetRequestBody,
+  ): Promise<AuthPasswordResetResponse> {
+    return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset-request', body)
+  }
+
+  /**
+   * Reset a buyer's password using the code delivered to their email.
+   *
+   * Obtain the reset code first by calling `requestPasswordReset()`.
+   *
+   * @param body - Email address, 6-digit reset code, and the new password.
+   * @returns A response with a confirmation message.
+   *
+   * @example
+   * ```ts
+   * await lw.auth.resetPassword({
+   *   email: 'buyer@example.com',
+   *   reset_code: '123456',
+   *   password: 'new-secure-password',
+   * })
+   * ```
+   */
+  async resetPassword(body: AuthPasswordResetBody): Promise<AuthPasswordResetResponse> {
+    return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset', body)
   }
 
   private async storeTokens(res: AuthenticationResponse): Promise<void> {
