@@ -365,13 +365,13 @@ https://cdn.jsdelivr.net/npm/@ledewire/browser@1/dist/ledewire.min.js
 
 ## 13. Design Decisions
 
-| #   | Decision                          | Resolution                                                                                                        |
-| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1   | npm org / scope                   | `@ledewire/` scoped packages confirmed — `@ledewire/browser` and `@ledewire/node`                                 |
-| 2   | Docs domain                       | GitHub Pages initially; migrate to `https://docs.ledewire.org` when ready                                         |
-| 3   | Browser token persistence default | Memory-only default; opt-in `localStorageAdapter` helper exported from `@ledewire/browser`                        |
-| 4   | Google OAuth in browser SDK       | SDK accepts a `id_token` string from the caller — site owner is responsible for obtaining it via Google's own SDK |
-| 5   | Package versioning                | `@ledewire/browser` and `@ledewire/node` version independently via Changesets                                     |
+| #   | Decision                          | Resolution                                                                                                                                       |
+| --- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | npm org / scope                   | `@ledewire/` scoped packages confirmed — `@ledewire/browser` and `@ledewire/node`                                                                |
+| 2   | Docs domain                       | GitHub Pages initially; migrate to `https://docs.ledewire.org` when ready                                                                        |
+| 3   | Browser token persistence default | Memory-only default; opt-in `localStorageAdapter` (cross-tab) and `sessionStorageAdapter` (tab-scoped) helpers exported from `@ledewire/browser` |
+| 4   | Google OAuth in browser SDK       | SDK accepts a `id_token` string from the caller — site owner is responsible for obtaining it via Google's own SDK                                |
+| 5   | Package versioning                | `@ledewire/browser` and `@ledewire/node` version independently via Changesets                                                                    |
 
 ---
 

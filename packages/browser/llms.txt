@@ -51,7 +51,7 @@ Token refresh is automatic — never call a refresh method manually.
 
 ## localStorageAdapter
 
-Persist sessions across page reloads using `localStorage`:
+Persist sessions across page reloads and browser restarts using `localStorage`:
 
 ```ts
 import { init, localStorageAdapter } from '@ledewire/browser'
@@ -60,6 +60,21 @@ const lw = init({
   apiKey: 'your_api_key',
   storage: localStorageAdapter(),     // persists under 'lw_tokens' key
   onAuthExpired: () => showLoginModal(),
+})
+```
+
+## sessionStorageAdapter
+
+Persist sessions within the current tab only (cleared on tab close) using `sessionStorage`.
+Use this to prevent token leakage across tabs — recommended for embedded checkout widgets
+and kiosk-mode UIs:
+
+```ts
+import { init, sessionStorageAdapter } from '@ledewire/browser'
+
+const lw = init({
+  apiKey: 'your_api_key',
+  storage: sessionStorageAdapter(),
 })
 ```
 
@@ -87,15 +102,12 @@ lw.config.getPublic() → Promise<PublicConfigResponse>
 // Safe to call before authentication — use to get the Google Client ID for sign-in UI.
 ```
 
-### lw.auth (buyer and seller auth)
+### lw.auth (buyer auth)
 
 ```ts
 lw.auth.signup(body)                           → Promise<AuthenticationResponse>
 lw.auth.loginWithEmail({ email, password })    → Promise<AuthenticationResponse>
 lw.auth.loginWithGoogle({ id_token })          → Promise<AuthenticationResponse>
-lw.auth.loginWithApiKey({ key, secret? })      → Promise<AuthenticationResponse>
-// key-only → view permission (read-only, sufficient for lw.seller.content.*)
-// key + secret → full permission (read/write)
 lw.auth.logout()                               → Promise<void>
 lw.auth.requestPasswordReset({ email })        → Promise<AuthPasswordResetResponse>
 lw.auth.resetPassword({ email, reset_code, password }) → Promise<AuthPasswordResetResponse>
@@ -156,21 +168,26 @@ lw.purchases.get(purchaseId: string)                  → Promise<PurchaseRespon
 ### lw.content
 
 ```ts
-lw.content.getWithAccess(contentId: string, options?) → Promise<ContentWithAccessResponse>
+lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessResponse>
 // Returns content payload + access info. Requires a valid buyer session.
 // content_type: 'markdown' | 'external_ref'
-// content_body: base64-encoded string (use atob() to decode markdown)
+// content_body: plain text markdown (SDK decodes base64 automatically)
 // content_uri: URL for external_ref content (Vimeo, YouTube, PDF, etc.)
 ```
 
-### lw.seller.content (requires API key login)
+### lw.seller
 
-Read-only operations scoped to the authenticated seller's store.
+Operations scoped to the authenticated seller's store.
 Store identity is derived server-side from the token — no `store_id` needed.
 
 ```ts
+// Authenticate first (key-only → view; key + secret → full)
+lw.seller.loginWithApiKey({ key, secret? })           → Promise<AuthenticationResponse>
+// key-only → view permission (read-only, sufficient for lw.seller.content.*)
+// key + secret → full permission (read/write)
+
 // 1. Obtain a view token (key-only is sufficient)
-await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+await lw.seller.loginWithApiKey({ key: 'your_api_key' })
 
 // 2. List all store content
 lw.seller.content.list()                              → Promise<ContentResponse[]>
@@ -208,7 +225,7 @@ switch (checkout_state.next_required_action) {
     const { content_type, content_body, content_uri } =
       await lw.content.getWithAccess('article-123')
     if (content_type === 'markdown') {
-      renderMarkdown(atob(content_body))  // base64-decode then render
+      renderMarkdown(content_body)  // plain text — SDK decodes base64 automatically
     } else {
       window.location.href = content_uri  // redirect to gated video/PDF
     }

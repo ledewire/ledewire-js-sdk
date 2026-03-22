@@ -83,8 +83,8 @@ switch (checkout_state.next_required_action) {
     const { content_type, content_body, content_uri } =
       await lw.content.getWithAccess('article-123')
     if (content_type === 'markdown') {
-      // render decoded markdown
-      renderMarkdown(atob(content_body))
+      // content_body is plain text — the SDK decodes base64 automatically
+      renderMarkdown(content_body)
     } else {
       // redirect to the gated external URI (Vimeo, PDF, etc.)
       window.location.href = content_uri
@@ -95,14 +95,14 @@ switch (checkout_state.next_required_action) {
 
 ## Example: Seller Content Discovery
 
-Use `lw.auth.loginWithApiKey` with only the `key` to obtain a read-only token,
+Use `lw.seller.loginWithApiKey` with only the `key` to obtain a read-only token,
 then browse your store's content catalogue directly from the browser:
 
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
 // Obtain a view-only seller token (key only — no secret needed)
-await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+await lw.seller.loginWithApiKey({ key: 'your_api_key' })
 
 // List all content
 const items = await lw.seller.content.list()
@@ -118,11 +118,16 @@ const item = await lw.seller.content.get('content-id')
 ## Token Storage
 
 By default tokens are stored **in memory** (most secure — cleared on page unload).
-Use the built-in `localStorageAdapter` to persist sessions across reloads:
+Two built-in adapters are available for persistent sessions:
 
 ```ts
-import { init, localStorageAdapter } from '@ledewire/browser'
+import { init, localStorageAdapter, sessionStorageAdapter } from '@ledewire/browser'
+
+// Persists across tabs and browser restarts
 const lw = init({ apiKey: '...', storage: localStorageAdapter() })
+
+// Persists within the current tab only (cleared on tab close)
+const lw = init({ apiKey: '...', storage: sessionStorageAdapter() })
 ```
 
 Token refresh is handled automatically — you never need to call a refresh method manually.

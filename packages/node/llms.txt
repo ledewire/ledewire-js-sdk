@@ -236,7 +236,8 @@ client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
 ### client.content
 
 ```ts
-client.content.getWithAccess(contentId, options?) → Promise<ContentWithAccessResponse>
+client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessResponse>
+// userId: optional buyer ID for merchant server-side proxy lookups
 ```
 
 ### client.checkout
@@ -271,7 +272,7 @@ interface ContentListItem {
   content_type: 'markdown' | 'external_ref'
   title: string
   price_cents: number
-  teaser: string | null       // base64-encoded teaser; null when not set
+  teaser: string | null       // plain text teaser (SDK decodes base64 automatically); null when not set
   visibility: 'public' | 'unlisted' | 'private'
   created_at: string          // ISO 8601
   content_uri: string | null  // external URL for external_ref items; null for markdown

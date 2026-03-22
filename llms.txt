@@ -39,7 +39,6 @@ const client = createClient({
 - `lw.auth.signup(body)` — create buyer account
 - `lw.auth.loginWithEmail({ email, password })` — buyer email login
 - `lw.auth.loginWithGoogle({ id_token })` — buyer Google login
-- `lw.auth.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
 - `lw.auth.requestPasswordReset({ email })` → `AuthPasswordResetResponse` — send password reset code to buyer email
 - `lw.auth.resetPassword({ email, reset_code, password })` → `AuthPasswordResetResponse` — complete password reset with code
 - `lw.checkout.state(contentId)` → `CheckoutStateResponse` — next action for content
@@ -50,7 +49,8 @@ const client = createClient({
 - `lw.purchases.create({ content_id })` → create purchase
 - `lw.purchases.list()` → list purchases
 - `lw.purchases.get(id)` → single purchase
-- `lw.content.getWithAccess(contentId, options?)` → content + access info
+- `lw.content.getWithAccess(contentId)` → content + access info (authenticated user implicit from token)
+- `lw.seller.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
 - `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
 - `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
 - `lw.seller.content.get(contentId)` → `ContentResponse` — get single content item
@@ -72,7 +72,7 @@ const client = createClient({
 - `client.seller.content.*` — content CRUD + search
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.*` — create, list, get
-- `client.content.getWithAccess(contentId, options?)` → content + access info
+- `client.content.getWithAccess(contentId, userId?)` → content + access info (`userId` for merchant proxy lookups)
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 
 ## Key types (packages/core)
@@ -140,12 +140,16 @@ interface StoredTokens {
 Pass a custom `storage` to `createClient()` or `init()` to persist sessions
 (e.g. to Redis or a database). The default is `MemoryTokenStorage` (in-memory).
 
-For browsers, `localStorageAdapter()` from `@ledewire/browser` persists sessions
-across page reloads:
+For browsers, `localStorageAdapter()` and `sessionStorageAdapter()` from
+`@ledewire/browser` persist sessions across page reloads. Use
+`sessionStorageAdapter` to scope tokens to a single tab (recommended for
+embedded widgets):
 
 ```ts
-import { init, localStorageAdapter } from '@ledewire/browser'
+import { init, localStorageAdapter, sessionStorageAdapter } from '@ledewire/browser'
 const lw = init({ apiKey: 'your_api_key', storage: localStorageAdapter() })
+// or, for tab-scoped sessions:
+const lw = init({ apiKey: 'your_api_key', storage: sessionStorageAdapter() })
 ```
 
 ## Architecture notes

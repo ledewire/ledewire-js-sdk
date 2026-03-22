@@ -25,7 +25,7 @@ content marketplace platform. The SDK has two consumer-facing packages:
 - **Error classes**: all extend `LedewireError` from `packages/core/src/errors.ts`
 - **Token refresh**: handled automatically by `TokenManager` — never call refresh manually
 - **List endpoints return paginated envelopes**: `{ data, pagination }` — never plain arrays. Accept optional `PaginationParams { page?, per_page? }`
-- **`MerchantLoginStore` (`.id`, `.name`) ≠ `ManageableStore` (`.store_id`, `.store_name`)** — login helpers return the former; `listStores()` returns the latter
+- **`MerchantLoginStore` (`.id`, `.name`) ≈ `ManageableStore` (`.id`, `.name`, `.store_key`, `.role`, `.is_author`, `.logo`)** — login helpers return the former (minimal); `listStores()` returns the latter (full store detail)
 - **Testing utilities**: import `createMockClient` from `@ledewire/node/testing` (dedicated subpath — not bundled in production)
 
 ## Where things are

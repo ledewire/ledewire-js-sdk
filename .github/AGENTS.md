@@ -17,17 +17,18 @@ See `OVERVIEW.md` for the full design rationale and build order.
 
 ## Key Files
 
-| File                                            | Purpose                                                        |
-| ----------------------------------------------- | -------------------------------------------------------------- |
-| `ledewire.yml`                                  | OpenAPI 3.1 spec — source of truth for all endpoints and types |
-| `OVERVIEW.md`                                   | Architecture overview, design decisions, build order           |
-| `packages/core/src/errors.ts`                   | `LedewireError` class hierarchy                                |
-| `packages/core/src/http-client.ts`              | Fetch wrapper — auth injection, error mapping, 401 retry       |
-| `packages/core/src/token-manager.ts`            | Proactive + reactive JWT refresh, deduplication                |
-| `packages/core/src/types.ts`                    | Shared TypeScript types from the OpenAPI spec                  |
-| `packages/node/src/client.ts`                   | `createClient()` factory for Node.js                           |
-| `packages/browser/src/client.ts`                | `init()` factory for browsers                                  |
-| `packages/browser/src/local-storage-adapter.ts` | Optional persistent token storage                              |
+| File                                              | Purpose                                                                     |
+| ------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ledewire.yml`                                    | OpenAPI 3.1 spec — source of truth for all endpoints and types              |
+| `OVERVIEW.md`                                     | Architecture overview, design decisions, build order                        |
+| `packages/core/src/errors.ts`                     | `LedewireError` class hierarchy                                             |
+| `packages/core/src/http-client.ts`                | Fetch wrapper — auth injection, error mapping, 401 retry                    |
+| `packages/core/src/token-manager.ts`              | Proactive + reactive JWT refresh, deduplication                             |
+| `packages/core/src/types.ts`                      | Shared TypeScript types from the OpenAPI spec                               |
+| `packages/node/src/client.ts`                     | `createClient()` factory for Node.js                                        |
+| `packages/browser/src/client.ts`                  | `init()` factory for browsers                                               |
+| `packages/browser/src/local-storage-adapter.ts`   | `localStorage`-backed token storage (persists across tabs/restarts)         |
+| `packages/browser/src/session-storage-adapter.ts` | `sessionStorage`-backed token storage (tab-scoped, recommended for widgets) |
 
 ## Client Namespace Structure
 
@@ -60,12 +61,12 @@ import { createMockClient } from '@ledewire/node/testing'
 
 ```
 lw.config.*          platform public config (no auth required)
-lw.auth.*            signup, login (email + google + api-key), logout, password reset
+lw.auth.*            signup, login (email + google), logout, password reset
 lw.checkout.*        checkout state machine for a content item
 lw.wallet.*          balance, fund (payment session), transactions
 lw.purchases.*       create, list, verify
 lw.content.*         content with access info
-lw.seller.content.*  list, search, get store content (API key view token)
+lw.seller.*          loginWithApiKey (view or full), content list/search/get
 ```
 
 ## Critical Patterns
