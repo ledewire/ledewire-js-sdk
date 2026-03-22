@@ -56,9 +56,7 @@ async function main(): Promise<void> {
     const article = await client.seller.content.create(storeId, {
       content_type: 'markdown',
       title: 'Getting Started with LedeWire',
-      content_body: Buffer.from('# Welcome\n\nThis is your first LedeWire article.').toString(
-        'base64',
-      ),
+      content_body: '# Welcome\n\nThis is your first LedeWire article.',
       price_cents: 299,
       visibility: 'public',
     })

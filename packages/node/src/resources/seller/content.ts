@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { decodeContentFields, encodeContentFields } from '@ledewire/core'
 import type { HttpClient } from '@ledewire/core'
 import type {
   Content,
@@ -25,6 +26,12 @@ export interface ContentSearchRequest {
   title?: string
   /** Case-insensitive partial match against the content URI (`external_ref` content only). */
   uri?: string
+  /**
+   * Exact match against the content's external identifier.
+   * Use the full formatted value as it appears in `ContentResponse.external_identifier`,
+   * e.g. `'vimeo:123456789'`.
+   */
+  external_identifier?: string
   /** Exact key/value pairs to AND-match against content metadata. */
   metadata?: Record<string, unknown>
 }
@@ -48,6 +55,7 @@ export class SellerContentNamespace {
    * @example
    * ```ts
    * const { data, pagination } = await client.seller.content.list('store-id')
+   * // data[].teaser is plain text — no atob() needed
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedContentList> {
@@ -55,9 +63,10 @@ export class SellerContentNamespace {
     if (params?.page !== undefined) query.set('page', String(params.page))
     if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
     const qs = query.toString()
-    return this.http.get<PaginatedContentList>(
+    const res = await this.http.get<PaginatedContentList>(
       `/v1/merchant/${storeId}/content${qs ? `?${qs}` : ''}`,
     )
+    return { ...res, data: res.data.map(decodeContentFields) }
   }
 
   /**
@@ -77,14 +86,19 @@ export class SellerContentNamespace {
    * const item = await client.seller.content.create('store-id', {
    *   content_type: 'markdown',
    *   title: 'Hello World',
-   *   content_body: btoa('# Hello World'),
+   *   content_body: '# Hello World',  // plain text — SDK encodes to base64
    *   price_cents: 500,
    *   visibility: 'public',
    * })
+   * // item.content_body is plain text on the response — no atob() needed
    * ```
    */
   async create(storeId: string, body: Content): Promise<ContentResponse> {
-    return this.http.post<ContentResponse>(`/v1/merchant/${storeId}/content`, body)
+    const res = await this.http.post<ContentResponse>(
+      `/v1/merchant/${storeId}/content`,
+      encodeContentFields(body as unknown as Record<string, unknown>),
+    )
+    return decodeContentFields(res)
   }
 
   /**
@@ -103,6 +117,9 @@ export class SellerContentNamespace {
    * // Search by URI
    * const { data } = await client.seller.content.search('store-id', { uri: 'vimeo.com' })
    *
+   * // Search by external identifier
+   * const { data } = await client.seller.content.search('store-id', { external_identifier: 'vimeo:123456789' })
+   *
    * // Search by metadata
    * const { data } = await client.seller.content.search('store-id', { metadata: { author: 'Alice' } })
    * ```
@@ -116,10 +133,11 @@ export class SellerContentNamespace {
     if (params?.page !== undefined) query.set('page', String(params.page))
     if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
     const qs = query.toString()
-    return this.http.post<PaginatedContentList>(
+    const res = await this.http.post<PaginatedContentList>(
       `/v1/merchant/${storeId}/content/search${qs ? `?${qs}` : ''}`,
       body,
     )
+    return { ...res, data: res.data.map(decodeContentFields) }
   }
 
   /**
@@ -131,10 +149,12 @@ export class SellerContentNamespace {
    * @example
    * ```ts
    * const item = await client.seller.content.get('store-id', 'content-id')
+   * // item.content_body and item.teaser are plain text — no atob() needed
    * ```
    */
   async get(storeId: string, id: string): Promise<ContentResponse> {
-    return this.http.get<ContentResponse>(`/v1/merchant/${storeId}/content/${id}`)
+    const res = await this.http.get<ContentResponse>(`/v1/merchant/${storeId}/content/${id}`)
+    return decodeContentFields(res)
   }
 
   /**
@@ -150,10 +170,15 @@ export class SellerContentNamespace {
    *   title: 'Updated Title',
    *   price_cents: 750,
    * })
+   * // updated.content_body and updated.teaser are plain text — no atob() needed
    * ```
    */
   async update(storeId: string, id: string, body: ContentUpdateRequest): Promise<ContentResponse> {
-    return this.http.patch<ContentResponse>(`/v1/merchant/${storeId}/content/${id}`, body)
+    const res = await this.http.patch<ContentResponse>(
+      `/v1/merchant/${storeId}/content/${id}`,
+      encodeContentFields(body as unknown as Record<string, unknown>),
+    )
+    return decodeContentFields(res)
   }
 
   /**

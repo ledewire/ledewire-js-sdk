@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, NotFoundError } from '@ledewire/core'
+import { AuthError, NotFoundError, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
+  authTokenFixture,
   contentResponseFixture,
   externalRefContentResponseFixture,
   errorResponseFixture,
@@ -26,6 +27,71 @@ function makeClient() {
 }
 
 // ---------------------------------------------------------------------------
+// seller.loginWithApiKey
+// ---------------------------------------------------------------------------
+
+describe('seller.loginWithApiKey', () => {
+  it('returns the token response', async () => {
+    const fixture = authTokenFixture()
+    server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().seller.loginWithApiKey({ key: 'test-api-key' })
+
+    expect(result).toEqual(fixture)
+  })
+
+  it('stores tokens automatically after successful login', async () => {
+    const fixture = authTokenFixture({ access_token: 'api-key-token' })
+    server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
+
+    const client = makeClient()
+    await client.seller.loginWithApiKey({ key: 'test-api-key' })
+
+    await expect(client._tokenManager.getAccessToken()).resolves.toBe('api-key-token')
+  })
+
+  it('sends key and secret when both are provided', async () => {
+    let capturedBody: unknown = null
+    const fixture = authTokenFixture()
+    server.use(
+      http.post(`${BASE}/v1/auth/login/api-key`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.loginWithApiKey({ key: 'my-key', secret: 'my-secret' })
+
+    expect(capturedBody).toEqual({ key: 'my-key', secret: 'my-secret' })
+  })
+
+  it('sends only key when secret is omitted (view access)', async () => {
+    let capturedBody: unknown = null
+    const fixture = authTokenFixture()
+    server.use(
+      http.post(`${BASE}/v1/auth/login/api-key`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.loginWithApiKey({ key: 'my-key' })
+
+    expect(capturedBody).toEqual({ key: 'my-key' })
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/login/api-key`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Invalid API key'), { status: 401 }),
+      ),
+    )
+
+    await expect(makeClient().seller.loginWithApiKey({ key: 'bad-key' })).rejects.toThrow(AuthError)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // seller.content.list
 // ---------------------------------------------------------------------------
 
@@ -36,7 +102,7 @@ describe('seller.content.list', () => {
 
     const result = await makeClient().seller.content.list()
 
-    expect(result).toEqual(items)
+    expect(result).toEqual(items.map(decodeContentFields))
     expect(result).toHaveLength(2)
   })
 
@@ -80,7 +146,7 @@ describe('seller.content.search', () => {
 
     const result = await makeClient().seller.content.search({ title: 'intro' })
 
-    expect(result).toEqual(items)
+    expect(result).toEqual(items.map(decodeContentFields))
   })
 
   it('sends the correct request body for title search', async () => {
@@ -109,6 +175,20 @@ describe('seller.content.search', () => {
     await makeClient().seller.content.search({ uri: 'vimeo.com' })
 
     expect(capturedBody).toEqual({ uri: 'vimeo.com' })
+  })
+
+  it('sends the correct request body for external_identifier search', async () => {
+    let capturedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/seller/content/search`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json([])
+      }),
+    )
+
+    await makeClient().seller.content.search({ external_identifier: 'vimeo:123456789' })
+
+    expect(capturedBody).toEqual({ external_identifier: 'vimeo:123456789' })
   })
 
   it('sends the correct request body for metadata search', async () => {
@@ -179,7 +259,7 @@ describe('seller.content.get', () => {
 
     const result = await makeClient().seller.content.get(fixture.id)
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
   })
 
   it('returns external_ref content with content_uri', async () => {

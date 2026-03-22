@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { decodeContentFields } from '@ledewire/core'
 import type { HttpClient } from '@ledewire/core'
 import type { ContentResponse } from '@ledewire/core'
 
@@ -19,6 +20,12 @@ export interface SellerContentSearchRequest {
   title?: string
   /** Case-insensitive partial match against the content URI (`external_ref` content only). */
   uri?: string
+  /**
+   * Exact match against the content's external identifier.
+   * Use the full formatted value as it appears in `ContentResponse.external_identifier`,
+   * e.g. `'vimeo:123456789'`.
+   */
+  external_identifier?: string
   /** Exact key/value pairs to AND-match against content metadata. */
   metadata?: Record<string, unknown>
 }
@@ -31,7 +38,7 @@ export interface SellerContentSearchRequest {
  * @example
  * ```ts
  * const lw = Ledewire.init({ apiKey: 'your_api_key' })
- * await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+ * await lw.seller.loginWithApiKey({ key: 'your_api_key' })
  *
  * const items = await lw.seller.content.list()
  * const results = await lw.seller.content.search({ title: 'intro' })
@@ -46,7 +53,8 @@ export class BrowserSellerContentNamespace {
    * List all content for the authenticated seller's store.
    * Requires a token with at least `view` permission.
    *
-   * @returns Array of content items.
+   * @returns Array of content items. `teaser` is returned as plain text —
+   * the SDK decodes base64 automatically.
    *
    * @example
    * ```ts
@@ -54,7 +62,8 @@ export class BrowserSellerContentNamespace {
    * ```
    */
   async list(): Promise<ContentResponse[]> {
-    return this.http.get<ContentResponse[]>('/v1/seller/content')
+    const res = await this.http.get<ContentResponse[]>('/v1/seller/content')
+    return res.map(decodeContentFields)
   }
 
   /**
@@ -63,17 +72,20 @@ export class BrowserSellerContentNamespace {
    * Requires a token with at least `view` permission.
    *
    * @param body - Search criteria (title, uri, and/or metadata).
-   * @returns Array of matching content items.
+   * @returns Array of matching content items. `teaser` is returned as plain
+   * text — the SDK decodes base64 automatically.
    *
    * @example
    * ```ts
    * const results = await lw.seller.content.search({ title: 'intro' })
    * const byUri = await lw.seller.content.search({ uri: 'vimeo.com' })
+   * const byId = await lw.seller.content.search({ external_identifier: 'vimeo:123456789' })
    * const byMeta = await lw.seller.content.search({ metadata: { author: 'Alice' } })
    * ```
    */
   async search(body: SellerContentSearchRequest): Promise<ContentResponse[]> {
-    return this.http.post<ContentResponse[]>('/v1/seller/content/search', body)
+    const res = await this.http.post<ContentResponse[]>('/v1/seller/content/search', body)
+    return res.map(decodeContentFields)
   }
 
   /**
@@ -81,14 +93,18 @@ export class BrowserSellerContentNamespace {
    * Requires a token with at least `view` permission.
    *
    * @param id - The content ID.
-   * @returns The content item.
+   * @returns The content item. `content_body` and `teaser` are returned as
+   * plain UTF-8 text — the SDK decodes base64 automatically so you can render
+   * them directly without calling `atob()`.
    *
    * @example
    * ```ts
    * const item = await lw.seller.content.get('content-id')
+   * // item.content_body is plain markdown — no atob() needed
    * ```
    */
   async get(id: string): Promise<ContentResponse> {
-    return this.http.get<ContentResponse>(`/v1/seller/content/${id}`)
+    const res = await this.http.get<ContentResponse>(`/v1/seller/content/${id}`)
+    return decodeContentFields(res)
   }
 }

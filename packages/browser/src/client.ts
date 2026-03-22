@@ -112,7 +112,7 @@ export class BrowserClient {
   /** Platform-level public configuration (no auth required) */
   readonly config: BrowserConfigNamespace
 
-  /** Buyer authentication: email/password signup/login, Google, password reset */
+  /** Buyer authentication: email/password signup/login, Google OAuth, password reset */
   readonly auth: BrowserAuthNamespace
 
   /** Checkout state machine: determines next action for a piece of content */
@@ -127,7 +127,7 @@ export class BrowserClient {
   /** Public content with per-user access information */
   readonly content: BrowserContentNamespace
 
-  /** Seller content: list, search, and get (requires API key view token) */
+  /** Seller operations: API key login, content list/search/get */
   readonly seller: BrowserSellerNamespace
 
   /** @internal */
@@ -142,6 +142,6 @@ export class BrowserClient {
     this.wallet = new BrowserWalletNamespace(_http)
     this.purchases = new BrowserPurchasesNamespace(_http)
     this.content = new BrowserContentNamespace(_http)
-    this.seller = new BrowserSellerNamespace(_http)
+    this.seller = new BrowserSellerNamespace(_http, _tokenManager)
   }
 }

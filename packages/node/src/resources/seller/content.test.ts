@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, ForbiddenError, NotFoundError } from '@ledewire/core'
+import { AuthError, ForbiddenError, NotFoundError, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   contentResponseFixture,
@@ -40,7 +40,7 @@ describe('seller.content.list', () => {
 
     const result = await makeClient().seller.content.list(STORE)
 
-    expect(result.data).toEqual(items)
+    expect(result.data).toEqual(items.map(decodeContentFields))
     expect(result.pagination.total).toBe(2)
   })
 
@@ -99,12 +99,55 @@ describe('seller.content.create', () => {
     const result = await makeClient().seller.content.create(STORE, {
       content_type: 'markdown',
       title: 'Test Article',
-      content_body: btoa('# Test'),
+      content_body: '# Test',
       price_cents: 500,
       visibility: 'public',
     })
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
+  })
+
+  it('base64-encodes content_body before sending to the API', async () => {
+    let capturedBody: unknown = null
+    const fixture = contentResponseFixture()
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture, { status: 201 })
+      }),
+    )
+
+    await makeClient().seller.content.create(STORE, {
+      content_type: 'markdown',
+      title: 'Test Article',
+      content_body: '# Test',
+      price_cents: 500,
+      visibility: 'public',
+    })
+
+    expect((capturedBody as Record<string, unknown>)['content_body']).toBe(btoa('# Test'))
+  })
+
+  it('base64-encodes teaser before sending to the API', async () => {
+    let capturedBody: unknown = null
+    const fixture = contentResponseFixture()
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture, { status: 201 })
+      }),
+    )
+
+    await makeClient().seller.content.create(STORE, {
+      content_type: 'markdown',
+      title: 'Test Article',
+      content_body: '# Test',
+      teaser: 'A short teaser.',
+      price_cents: 500,
+      visibility: 'public',
+    })
+
+    expect((capturedBody as Record<string, unknown>)['teaser']).toBe(btoa('A short teaser.'))
   })
 
   it('throws AuthError on 401', async () => {
@@ -118,7 +161,7 @@ describe('seller.content.create', () => {
       makeClient().seller.content.create(STORE, {
         content_type: 'markdown',
         title: 'Test',
-        content_body: btoa('body'),
+        content_body: 'body',
         price_cents: 100,
         visibility: 'public',
       }),
@@ -136,7 +179,7 @@ describe('seller.content.create', () => {
       makeClient().seller.content.create(STORE, {
         content_type: 'markdown',
         title: 'Test',
-        content_body: btoa('body'),
+        content_body: 'body',
         price_cents: 100,
         visibility: 'public',
       }),
@@ -160,7 +203,7 @@ describe('seller.content.create', () => {
       visibility: 'public',
     })
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
     expect(result.content_type).toBe('external_ref')
     expect(result.content_body).toBeNull()
     expect(result.content_uri).toBe('https://vimeo.com/987654321')
@@ -184,7 +227,7 @@ describe('seller.content.search', () => {
       metadata: { author: 'Alice' },
     })
 
-    expect(result.data).toEqual(items)
+    expect(result.data).toEqual(items.map(decodeContentFields))
   })
 
   it('forwards page and per_page as query params', async () => {
@@ -265,6 +308,24 @@ describe('seller.content.search', () => {
     expect(capturedBody).toEqual({ uri: 'vimeo.com' })
   })
 
+  it('searches by external_identifier only', async () => {
+    let capturedBody: unknown = null
+    const fixture = {
+      data: [externalRefContentResponseFixture()],
+      pagination: paginationMetaFixture(),
+    }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE}/content/search`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.search(STORE, { external_identifier: 'vimeo:987654321' })
+
+    expect(capturedBody).toEqual({ external_identifier: 'vimeo:987654321' })
+  })
+
   it('searches by title, uri, and metadata combined', async () => {
     let capturedBody: unknown = null
     const fixture = { data: [], pagination: paginationMetaFixture({ total: 0 }) }
@@ -304,7 +365,7 @@ describe('seller.content.get', () => {
 
     const result = await makeClient().seller.content.get(STORE, fixture.id)
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
   })
 
   it('throws AuthError on 401', async () => {
@@ -348,7 +409,43 @@ describe('seller.content.update', () => {
       price_cents: 750,
     })
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
+  })
+
+  it('base64-encodes content_body before sending to the API', async () => {
+    let capturedBody: unknown = null
+    const fixture = contentResponseFixture({ title: 'Updated' })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE}/content/${fixture.id}`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.update(STORE, fixture.id, {
+      content_body: 'Updated body.',
+    })
+
+    expect((capturedBody as Record<string, unknown>)['content_body']).toBe(btoa('Updated body.'))
+  })
+
+  it('does not encode non-text fields (title, price_cents)', async () => {
+    let capturedBody: unknown = null
+    const fixture = contentResponseFixture({ title: 'New Title', price_cents: 750 })
+    server.use(
+      http.patch(`${BASE}/v1/merchant/${STORE}/content/${fixture.id}`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().seller.content.update(STORE, fixture.id, {
+      title: 'New Title',
+      price_cents: 750,
+    })
+
+    expect((capturedBody as Record<string, unknown>)['title']).toBe('New Title')
+    expect((capturedBody as Record<string, unknown>)['price_cents']).toBe(750)
   })
 
   it('throws AuthError on 401', async () => {

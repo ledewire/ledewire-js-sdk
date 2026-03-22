@@ -3,7 +3,9 @@
  *
  * @module
  */
-import type { HttpClient } from '@ledewire/core'
+import { parseExpiresAt } from '@ledewire/core'
+import type { HttpClient, TokenManager } from '@ledewire/core'
+import type { AuthLoginApiKeyRequest, AuthenticationResponse } from '@ledewire/core'
 import { BrowserSellerContentNamespace } from './content.js'
 
 /**
@@ -14,7 +16,9 @@ import { BrowserSellerContentNamespace } from './content.js'
  * @example
  * ```ts
  * const lw = Ledewire.init({ apiKey: 'your_api_key' })
- * await lw.auth.loginWithApiKey({ key: 'your_api_key' })
+ *
+ * // Authenticate as a seller (key-only = view; key+secret = full)
+ * await lw.seller.loginWithApiKey({ key: 'your_api_key' })
  * const items = await lw.seller.content.list()
  * ```
  */
@@ -23,7 +27,40 @@ export class BrowserSellerNamespace {
   readonly content: BrowserSellerContentNamespace
 
   /** @internal */
-  constructor(http: HttpClient) {
+  constructor(
+    private readonly http: HttpClient,
+    private readonly tokenManager: TokenManager,
+  ) {
     this.content = new BrowserSellerContentNamespace(http)
+  }
+
+  /**
+   * Log in using an API key to obtain a seller token.
+   * Provide only `key` for read-only (`view`) access.
+   * Provide both `key` and `secret` for read/write (`full`) access.
+   * Tokens are stored automatically after successful authentication.
+   *
+   * Use this before calling `lw.seller.content.*` methods.
+   *
+   * @param body - API key credentials.
+   * @returns The authentication token response.
+   *
+   * @example
+   * ```ts
+   * // View access (read-only) — sufficient for seller.content.list/search/get
+   * await lw.seller.loginWithApiKey({ key: 'your_api_key' })
+   *
+   * // Full access (read/write)
+   * await lw.seller.loginWithApiKey({ key: 'your_api_key', secret: 'your_secret' })
+   * ```
+   */
+  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<AuthenticationResponse> {
+    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/api-key', body)
+    await this.tokenManager.setTokens({
+      accessToken: res.access_token,
+      refreshToken: res.refresh_token,
+      expiresAt: parseExpiresAt(res.expires_at),
+    })
+    return res
   }
 }

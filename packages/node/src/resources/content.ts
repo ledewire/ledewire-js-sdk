@@ -14,12 +14,29 @@ export class ContentNamespace {
   constructor(protected readonly http: HttpClient) {}
 
   /**
-   * Returns a content item together with access information for the
-   * authenticated buyer (or a generic access response when unauthenticated).
+   * Returns a content item together with access information for a given user.
+   * Authenticated buyer calls omit `userId` — the token determines the user.
+   * Server-side merchant calls can pass `userId` to proxy-check a specific
+   * buyer's access state without impersonating them (e.g. to resolve a support
+   * ticket or verify entitlement before issuing a refund).
    *
    * @param id - The content ID.
-   * @param userId - Optional user ID to check a specific user's access status.
+   * @param userId - Optional buyer ID to check access for a specific user.
+   *   When omitted, access is evaluated for the token's authenticated user
+   *   (or returns generic/unauthenticated access info if no token is present).
    * @returns The content item with access information.
+   *
+   * @example
+   * ```ts
+   * // Buyer-facing: access evaluated from the bearer token
+   * const result = await client.content.getWithAccess('article-123')
+   *
+   * // Merchant server-side: check a specific buyer's access
+   * const result = await client.content.getWithAccess('article-123', 'user-id-456')
+   * if (result.access_info.has_purchased) {
+   *   // buyer has already purchased — proceed with refund
+   * }
+   * ```
    */
   async getWithAccess(id: string, userId?: string): Promise<ContentWithAccessResponse> {
     const params: Record<string, string> = {}

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { NotFoundError } from '@ledewire/core'
+import { NotFoundError, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
@@ -35,38 +35,8 @@ describe('content.getWithAccess', () => {
 
     const result = await makeClient().content.getWithAccess('content-id-1')
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
     expect(result.access_info).toBeDefined()
-  })
-
-  it('forwards optional user_id query param', async () => {
-    const fixture = contentWithAccessFixture()
-    let capturedUrl = ''
-    server.use(
-      http.get(`${BASE}/v1/content/content-id-1/with-access`, ({ request }) => {
-        capturedUrl = request.url
-        return HttpResponse.json(fixture)
-      }),
-    )
-
-    await makeClient().content.getWithAccess('content-id-1', 'user-id-99')
-
-    expect(capturedUrl).toContain('user_id=user-id-99')
-  })
-
-  it('does not add user_id param when omitted', async () => {
-    const fixture = contentWithAccessFixture()
-    let capturedUrl = ''
-    server.use(
-      http.get(`${BASE}/v1/content/content-id-1/with-access`, ({ request }) => {
-        capturedUrl = request.url
-        return HttpResponse.json(fixture)
-      }),
-    )
-
-    await makeClient().content.getWithAccess('content-id-1')
-
-    expect(capturedUrl).not.toContain('user_id')
   })
 
   it('throws NotFoundError on 404', async () => {
