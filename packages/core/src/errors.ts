@@ -57,6 +57,25 @@ export class AuthError extends LedewireError {
  *
  * @example
  * ```ts
+ * // Browser
+ * import { ForbiddenError, AuthError } from '@ledewire/browser'
+ *
+ * try {
+ *   await lw.auth.loginWithGoogle({ id_token })
+ * } catch (err) {
+ *   if (err instanceof ForbiddenError) {
+ *     // Credentials were valid but account lacks the required role.
+ *     console.error('Access denied:', err.message)
+ *   } else if (err instanceof AuthError) {
+ *     // Bad credentials or expired token — re-authenticate.
+ *     console.error('Authentication failed:', err.message)
+ *   }
+ * }
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Node
  * import { ForbiddenError, AuthError } from '@ledewire/node'
  *
  * try {

@@ -343,6 +343,7 @@ components:
         metadata:
           type: object
           description: Additional metadata to include with the payment session
+          additionalProperties: true
 
     WalletPaymentSessionResponse:
       type: object
@@ -371,6 +372,7 @@ components:
         data:
           type: object
           description: Event data containing the object that triggered the event
+          additionalProperties: true
 
     WalletBalanceResponse:
       type: object
@@ -2135,6 +2137,9 @@ paths:
                 uri:
                   type: string
                   description: Case-insensitive partial match against the content URI (external_ref content only).
+                external_identifier:
+                  type: string
+                  description: Exact match against the content's external_identifier (e.g. 'vimeo:987654321').
                 metadata:
                   type: object
                   additionalProperties: true
@@ -2712,6 +2717,7 @@ paths:
             schema:
               type: object
               description: Payment provider event object
+              additionalProperties: true
       responses:
         '200':
           description: Webhook processed successfully
@@ -2777,6 +2783,7 @@ paths:
             schema:
               type: object
               description: Payment provider event object
+              additionalProperties: true
       responses:
         '200':
           description: Webhook processed successfully
@@ -3447,6 +3454,9 @@ paths:
                 uri:
                   type: string
                   description: Case-insensitive partial match against the content URI (external_ref content only).
+                external_identifier:
+                  type: string
+                  description: Exact match against the content's external_identifier (e.g. 'vimeo:987654321').
                 metadata:
                   type: object
                   description: Exact key/value pairs to match in the content metadata (AND logic).
@@ -3466,6 +3476,10 @@ paths:
                 value:
                   metadata:
                     vimeo_id: '123456789'
+              searchByExternalIdentifier:
+                summary: Search by external_identifier
+                value:
+                  external_identifier: 'vimeo:987654321'
               searchByExternalUrl:
                 summary: Search by external URL
                 value:

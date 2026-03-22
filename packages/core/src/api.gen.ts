@@ -957,6 +957,8 @@ export interface paths {
             title?: string
             /** @description Case-insensitive partial match against the content URI (external_ref content only). */
             uri?: string
+            /** @description Exact match against the content's external_identifier (e.g. 'vimeo:987654321'). */
+            external_identifier?: string
             /** @description Exact key/value pairs to match in the content metadata (AND logic). */
             metadata?: {
               [key: string]: unknown
@@ -1665,7 +1667,9 @@ export interface paths {
       }
       requestBody: {
         content: {
-          'application/json': Record<string, never>
+          'application/json': {
+            [key: string]: unknown
+          }
         }
       }
       responses: {
@@ -1740,7 +1744,9 @@ export interface paths {
       }
       requestBody: {
         content: {
-          'application/json': Record<string, never>
+          'application/json': {
+            [key: string]: unknown
+          }
         }
       }
       responses: {
@@ -2349,6 +2355,8 @@ export interface paths {
             title?: string
             /** @description Case-insensitive partial match against the content URI (external_ref content only). */
             uri?: string
+            /** @description Exact match against the content's external_identifier (e.g. 'vimeo:987654321'). */
+            external_identifier?: string
             /** @description Exact key/value pairs to match in the content metadata (AND logic). */
             metadata?: {
               [key: string]: unknown
@@ -3145,7 +3153,9 @@ export interface components {
        */
       currency: string
       /** @description Additional metadata to include with the payment session */
-      metadata?: Record<string, never>
+      metadata?: {
+        [key: string]: unknown
+      }
     }
     WalletPaymentSessionResponse: {
       /** @description The client secret used by the payment widget to confirm the payment */
@@ -3162,7 +3172,9 @@ export interface components {
       /** @description Type of event (e.g., payment_intent.succeeded, payment_intent.payment_failed) */
       type?: string
       /** @description Event data containing the object that triggered the event */
-      data?: Record<string, never>
+      data?: {
+        [key: string]: unknown
+      }
     }
     WalletBalanceResponse: {
       balance_cents: number

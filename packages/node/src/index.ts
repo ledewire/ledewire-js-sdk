@@ -77,6 +77,8 @@ export {
 
 // Merchant users namespace types
 export type { MerchantUserUpdateRequest, PaginationParams } from './resources/merchant/users.js'
+// Seller content namespace types
+export type { ContentSearchRequest } from './resources/seller/content.js'
 // Package exports (implementations added in build step 4)
 export { createClient } from './client.js'
 export type { NodeClientConfig } from './client.js'

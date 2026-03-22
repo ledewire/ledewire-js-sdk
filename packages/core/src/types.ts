@@ -74,7 +74,8 @@ export type ContentListItem = components['schemas']['ContentListItem']
 /**
  * Content creation request body — a discriminated union on `content_type`.
  *
- * - `'markdown'` requires `content_body` (base64-encoded markdown).
+ * - `'markdown'` requires `content_body` (plain text markdown — the SDK
+ *   encodes it to base64 before transmission).
  * - `'external_ref'` requires `content_uri` (the external resource URL) and
  *   optionally `external_identifier` (namespaced platform ID, e.g. `vimeo:123`).
  */
@@ -84,9 +85,9 @@ export type Content =
       content_type: 'markdown'
       /** Content title. */
       title: string
-      /** Full article body in markdown, base64 encoded. */
+      /** Full article body in plain text markdown. The SDK base64-encodes this before sending. */
       content_body: string
-      /** Optional teaser, base64 encoded. */
+      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
       teaser?: string
       /** Price for the content in cents. */
       price_cents: number
@@ -97,6 +98,7 @@ export type Content =
         author?: string
         /** @format date-time */
         publication_date?: string
+        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
         reading_time?: string
         [key: string]: unknown
       }
@@ -110,7 +112,7 @@ export type Content =
       content_uri: string
       /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
       external_identifier?: string
-      /** Optional teaser, base64 encoded. */
+      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
       teaser?: string
       /** Price for the content in cents. */
       price_cents: number
@@ -121,6 +123,7 @@ export type Content =
         author?: string
         /** @format date-time */
         publication_date?: string
+        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
         reading_time?: string
         [key: string]: unknown
       }
@@ -248,9 +251,16 @@ export interface AuthPasswordResetResponse {
  *
  * @example
  * ```ts
- * // Built-in localStorage adapter (browser only)
+ * // Persist across tabs and browser restarts (browser only)
  * import { localStorageAdapter } from '@ledewire/browser'
- * const client = createBrowserClient({ apiKey, storage: localStorageAdapter() })
+ * const lw = init({ apiKey, storage: localStorageAdapter() })
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Persist within the current tab only — cleared on tab close (browser only)
+ * import { sessionStorageAdapter } from '@ledewire/browser'
+ * const lw = init({ apiKey, storage: sessionStorageAdapter() })
  * ```
  */
 export interface TokenStorage {
@@ -281,13 +291,16 @@ export interface StoredTokens {
  */
 export type CheckoutNextAction = 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
 
-/** Checkout state machine result for a specific content item. */
-export interface CheckoutState {
-  content_id: string
-  checkout_state: {
-    is_authenticated: boolean
-    has_sufficient_funds: boolean
-    has_purchased: boolean
-    next_required_action: CheckoutNextAction
-  }
-}
+/**
+ * Checkout state machine result for a specific content item, as returned by
+ * `lw.checkout.state()`.
+ *
+ * This is a consumer-facing alias for {@link CheckoutStateResponse} — the two
+ * types are identical. Prefer `CheckoutState` in application code; use
+ * `CheckoutStateResponse` when you need to explicitly reference the OpenAPI
+ * schema name.
+ *
+ * Note: `checkout_state.has_sufficient_funds` is `boolean | null` because the
+ * API omits or nulls the field when the buyer is unauthenticated.
+ */
+export type CheckoutState = CheckoutStateResponse

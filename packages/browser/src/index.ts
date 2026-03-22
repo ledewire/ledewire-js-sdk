@@ -34,6 +34,7 @@ export type {
   CheckoutState,
   CheckoutStateResponse,
   ContentAccessInfo,
+  ContentResponse,
   ContentWithAccessResponse,
   NextRequiredAction,
   PurchaseCreateRequest,
@@ -58,8 +59,9 @@ export {
 
 // Package exports (implementations added in build step 5)
 export { init } from './client.js'
-export type { BrowserClientConfig } from './client.js'
 export { localStorageAdapter } from './local-storage-adapter.js'
+export { sessionStorageAdapter } from './session-storage-adapter.js'
+export type { BrowserClientConfig } from './client.js'
 export type { SellerContentSearchRequest } from './resources/seller/content.js'
 export type {
   AuthPasswordResetBody,
