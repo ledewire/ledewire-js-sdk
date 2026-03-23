@@ -12,7 +12,7 @@
 | ~~Medium~~ | 6   | ~~Token normalization duplicated within `MerchantAuthNamespace`~~ ✅ resolved         |
 | ~~Medium~~ | 7   | ~~`public readonly` fields labelled `@internal`~~ ✅ resolved                         |
 | ~~Medium~~ | 8   | ~~`localStorageAdapter`/`sessionStorageAdapter` share no implementation~~ ✅ resolved |
-| Low        | 9   | `process.env` in client factory                                                       |
+| ~~Low~~    | 9   | ~~`process.env` in client factory~~ ✅ resolved                                       |
 | ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                               |
 | ~~Low~~    | 11  | ~~`encodeContentFields` type cast through `unknown`~~ ✅ resolved                     |
 
@@ -114,11 +114,17 @@ All 20 existing adapter tests continue to pass against the public wrappers uncha
 
 ---
 
-## Issue 9 — `process.env` in client factory (Low)
+## ~~Issue 9 — `process.env` in client factory (Low)~~ ✅ Resolved
 
-`packages/node/src/client.ts` references `process.env['NODE_ENV']` directly. While the package is Node-only today, this pattern causes runtime errors on Cloudflare Workers, Deno, and Bun edge runtimes, and prevents future isomorphic use.
+`process.env['NODE_ENV']` in `packages/node/src/client.ts` is now wrapped in a `typeof` guard:
 
-**Fix:** Wrap in a guard (`typeof process !== 'undefined' && process.env?.['NODE_ENV']`) or replace with a bundler-injected `__DEV__` constant.
+```ts
+typeof process === 'undefined' || process.env['NODE_ENV'] !== 'production'
+```
+
+On edge runtimes (Cloudflare Workers, Deno, Bun) where `process` is not defined, `typeof process === 'undefined'` is `true` and the `||` short-circuits — the warning is shown. On Node.js the guard is transparent and existing behaviour is unchanged. The `typeof` check is the safe standard pattern for runtime detection without relying on bundler globals.
+
+**Commit:** `5297fcf` — fix(node): guard process.env access for non-Node runtimes
 
 ---
 
