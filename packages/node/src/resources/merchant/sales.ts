@@ -43,11 +43,7 @@ export class MerchantSalesNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedSalesList> {
-    const query = new URLSearchParams()
-    if (params?.page !== undefined) query.set('page', String(params.page))
-    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-    const qs = query.toString()
-    return this.http.get<PaginatedSalesList>(`/v1/merchant/${storeId}/sales${qs ? `?${qs}` : ''}`)
+    return this.http.get<PaginatedSalesList>(`/v1/merchant/${storeId}/sales`, params)
   }
 
   /**

@@ -28,7 +28,7 @@ describe('HttpClient.get', () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it('appends query params', async () => {
+  it('appends string query params', async () => {
     let receivedUrl = ''
     server.use(
       http.get(`${BASE}/v1/test`, ({ request }) => {
@@ -39,6 +39,20 @@ describe('HttpClient.get', () => {
     await makeClient().get('/v1/test', { foo: 'bar', page: '2' })
     expect(receivedUrl).toContain('foo=bar')
     expect(receivedUrl).toContain('page=2')
+  })
+
+  it('coerces numeric params to strings and omits undefined values', async () => {
+    let receivedUrl = ''
+    server.use(
+      http.get(`${BASE}/v1/test`, ({ request }) => {
+        receivedUrl = request.url
+        return HttpResponse.json({})
+      }),
+    )
+    await makeClient().get('/v1/test', { page: 3, per_page: 25, omitted: undefined })
+    expect(receivedUrl).toContain('page=3')
+    expect(receivedUrl).toContain('per_page=25')
+    expect(receivedUrl).not.toContain('omitted')
   })
 
   it('injects Bearer token when getAccessToken returns one', async () => {

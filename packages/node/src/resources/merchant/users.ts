@@ -45,11 +45,7 @@ export class MerchantUsersNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedUsersList> {
-    const query = new URLSearchParams()
-    if (params?.page !== undefined) query.set('page', String(params.page))
-    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-    const qs = query.toString()
-    return this.http.get<PaginatedUsersList>(`/v1/merchant/${storeId}/users${qs ? `?${qs}` : ''}`)
+    return this.http.get<PaginatedUsersList>(`/v1/merchant/${storeId}/users`, params)
   }
 
   /**

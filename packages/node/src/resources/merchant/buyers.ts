@@ -27,10 +27,6 @@ export class MerchantBuyersNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedBuyersList> {
-    const query = new URLSearchParams()
-    if (params?.page !== undefined) query.set('page', String(params.page))
-    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-    const qs = query.toString()
-    return this.http.get<PaginatedBuyersList>(`/v1/merchant/${storeId}/buyers${qs ? `?${qs}` : ''}`)
+    return this.http.get<PaginatedBuyersList>(`/v1/merchant/${storeId}/buyers`, params)
   }
 }

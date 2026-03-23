@@ -2,19 +2,19 @@
 
 ## Summary Table
 
-| Severity | #   | Issue                                                                              |
-| -------- | --- | ---------------------------------------------------------------------------------- |
-| High     | 1   | Pagination return types violate stated contract (3 endpoints)                      |
-| ~~High~~ | 2   | ~~`refreshFn` copy-pasted between package clients~~ ✅ resolved                    |
-| High     | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending) |
-| Medium   | 4   | `PaginationParams` defined in the wrong module                                     |
-| Medium   | 5   | Pagination query building copy-pasted 4 times                                      |
-| Medium   | 6   | Token normalization duplicated within `MerchantAuthNamespace`                      |
-| Medium   | 7   | `public readonly` fields labelled `@internal`                                      |
-| Medium   | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
-| Low      | 9   | `process.env` in client factory                                                    |
-| ~~Low~~  | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                            |
-| Low      | 11  | `encodeContentFields` type cast through `unknown`                                  |
+| Severity   | #   | Issue                                                                              |
+| ---------- | --- | ---------------------------------------------------------------------------------- |
+| High       | 1   | Pagination return types violate stated contract (3 endpoints)                      |
+| ~~High~~   | 2   | ~~`refreshFn` copy-pasted between package clients~~ ✅ resolved                    |
+| High       | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending) |
+| ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                     |
+| Medium     | 5   | Pagination query building copy-pasted 4 times                                      |
+| Medium     | 6   | Token normalization duplicated within `MerchantAuthNamespace`                      |
+| Medium     | 7   | `public readonly` fields labelled `@internal`                                      |
+| Medium     | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
+| Low        | 9   | `process.env` in client factory                                                    |
+| ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                            |
+| Low        | 11  | `encodeContentFields` type cast through `unknown`                                  |
 
 ---
 
@@ -55,11 +55,11 @@ Three endpoints return plain arrays in violation of this contract:
 
 ---
 
-## Issue 4 — `PaginationParams` defined in the wrong module (Medium)
+## ~~Issue 4 — `PaginationParams` defined in the wrong module (Medium)~~ ✅ Resolved
 
-`PaginationParams` is defined inside `packages/node/src/resources/merchant/users.ts` — a domain-specific users file. It is then cross-imported by `seller/content.ts`, `merchant/sales.ts`, and `merchant/buyers.ts`.
+`PaginationParams` moved to `packages/core/src/types.ts`. All four node resource files (`merchant/users`, `merchant/sales`, `merchant/buyers`, `seller/content`) now import from `@ledewire/core`. Exported from both `@ledewire/node` and `@ledewire/browser` public index files.
 
-**Fix:** Move `PaginationParams` to `packages/core/src/types.ts`. Export it from both `@ledewire/node` and `@ledewire/browser` public index files.
+**Commit:** `1f7de94` — refactor(core): move PaginationParams to @ledewire/core
 
 ---
 

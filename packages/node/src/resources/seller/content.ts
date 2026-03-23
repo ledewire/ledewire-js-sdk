@@ -59,13 +59,7 @@ export class SellerContentNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedContentList> {
-    const query = new URLSearchParams()
-    if (params?.page !== undefined) query.set('page', String(params.page))
-    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-    const qs = query.toString()
-    const res = await this.http.get<PaginatedContentList>(
-      `/v1/merchant/${storeId}/content${qs ? `?${qs}` : ''}`,
-    )
+    const res = await this.http.get<PaginatedContentList>(`/v1/merchant/${storeId}/content`, params)
     return { ...res, data: res.data.map(decodeContentFields) }
   }
 
@@ -129,13 +123,10 @@ export class SellerContentNamespace {
     body: ContentSearchRequest,
     params?: PaginationParams,
   ): Promise<PaginatedContentList> {
-    const query = new URLSearchParams()
-    if (params?.page !== undefined) query.set('page', String(params.page))
-    if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-    const qs = query.toString()
     const res = await this.http.post<PaginatedContentList>(
-      `/v1/merchant/${storeId}/content/search${qs ? `?${qs}` : ''}`,
+      `/v1/merchant/${storeId}/content/search`,
       body,
+      params,
     )
     return { ...res, data: res.data.map(decodeContentFields) }
   }

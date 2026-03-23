@@ -214,6 +214,7 @@ export interface PaginationParams {
   page?: number
   /** Items per page. Maximum 100. Defaults to 25. */
   per_page?: number
+  [key: string]: number | undefined
 }
 
 /** Pagination metadata included in all paginated list responses. */

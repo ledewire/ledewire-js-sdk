@@ -51,9 +51,9 @@ export class HttpClient {
   /**
    * GET request with optional query parameters.
    * @param path - API path (e.g. `/v1/wallet/balance`)
-   * @param params - Query string parameters
+   * @param params - Query string parameters. `undefined` values are omitted; numbers are coerced to strings.
    */
-  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
     return this.request<T>('GET', this.buildUrl(path, params))
   }
 
@@ -61,9 +61,14 @@ export class HttpClient {
    * POST request.
    * @param path - API path
    * @param body - Request body (JSON-serialized)
+   * @param params - Optional query string parameters. `undefined` values are omitted; numbers are coerced to strings.
    */
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('POST', this.buildUrl(path), body)
+  async post<T>(
+    path: string,
+    body?: unknown,
+    params?: Record<string, string | number | undefined>,
+  ): Promise<T> {
+    return this.request<T>('POST', this.buildUrl(path, params), body)
   }
 
   /**
@@ -96,10 +101,15 @@ export class HttpClient {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private buildUrl(path: string, params?: Record<string, string>): string {
+  private buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
     const url = `${this.baseUrl}${path}`
-    if (!params || Object.keys(params).length === 0) return url
-    return `${url}?${new URLSearchParams(params).toString()}`
+    if (!params) return url
+    const filtered = Object.entries(params).filter(
+      (entry): entry is [string, string | number] => entry[1] !== undefined,
+    )
+    if (filtered.length === 0) return url
+    const qs = new URLSearchParams(filtered.map(([k, v]) => [k, String(v)]))
+    return `${url}?${qs.toString()}`
   }
 
   private async request<T>(
