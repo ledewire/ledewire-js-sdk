@@ -10,7 +10,7 @@
 | ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                     |
 | ~~Medium~~ | 5   | ~~Pagination query building copy-pasted 4 times~~ ✅ resolved                      |
 | ~~Medium~~ | 6   | ~~Token normalization duplicated within `MerchantAuthNamespace`~~ ✅ resolved      |
-| Medium     | 7   | `public readonly` fields labelled `@internal`                                      |
+| ~~Medium~~ | 7   | ~~`public readonly` fields labelled `@internal`~~ ✅ resolved                      |
 | Medium     | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
 | Low        | 9   | `process.env` in client factory                                                    |
 | ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                            |
@@ -79,16 +79,19 @@ Extracted private `normalizeTokens(res: MerchantAuthenticationResponse): StoredT
 
 ---
 
-## Issue 7 — `public readonly` fields labelled `@internal` (Medium)
+## ~~Issue 7 — `public readonly` fields labelled `@internal` (Medium)~~ ✅ Resolved
 
-`NodeClient` and `BrowserClient` expose `_http`, `_tokenManager`, and `_config` as `public readonly` constructor fields, then attempt to hide them with a `@internal` JSDoc tag and underscore prefix convention.
+`_http`, `_tokenManager`, and `_config` changed from `public readonly` to `private readonly` in both `NodeClient` (`packages/node/src/client.ts`) and `BrowserClient` (`packages/browser/src/client.ts`). The TypeScript compiler now enforces the boundary rather than relying on a JSDoc convention.
 
-Files:
+All tests that previously accessed these fields were updated:
 
-- `packages/node/src/client.ts`
-- `packages/browser/src/client.ts`
+- Token-storage assertions replaced with an explicit `MemoryTokenStorage` passed to `createClient`/`init` — `storage.getTokens()?.accessToken` is synchronous and has no dependency on `TokenManager` internals.
+- `client._http.get('/v1/wallet/balance')` calls replaced with `client.wallet.balance()`.
+- Token refresh trigger tests call `client.wallet.balance()` and capture the `Authorization` header via MSW to verify the refreshed token was used.
 
-**Fix:** Use TypeScript `private` (or `#private`) for fields that should not be part of the public API. If the testing utilities need access, accept the dependencies as constructor parameters in `createMockClient` directly rather than pulling them off the live client instance.
+`MockNodeClient` in `testing.ts` simplified: `Omit<NodeClient, '_http' | '_tokenManager' | '_config'>` → `DeepMutable<NodeClient>` (private fields are absent from the public interface).
+
+**Commit:** `a396130` — refactor: make NodeClient and BrowserClient constructor fields private
 
 ---
 
