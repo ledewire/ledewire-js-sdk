@@ -78,6 +78,18 @@ export type ContentListItem = components['schemas']['ContentListItem']
  *   encodes it to base64 before transmission).
  * - `'external_ref'` requires `content_uri` (the external resource URL) and
  *   optionally `external_identifier` (namespaced platform ID, e.g. `vimeo:123`).
+ *
+ * @remarks
+ * This type is intentionally hand-written rather than aliased from
+ * `components['schemas']['Content']`. The OpenAPI spec defines `Content` as a
+ * flat object (no `oneOf`/`discriminator`), so `openapi-typescript` cannot
+ * generate the discriminated union that callers need for type-narrowing.
+ *
+ * A compile-time assignability guard below (`_ContentDriftGuard`) will produce
+ * a TypeScript error if this type drifts from the generated schema.
+ *
+ * TODO: remove the hand-written union and alias the generated type once
+ * `ledewire.yml` uses `oneOf` + `discriminator` for the `Content` schema.
  */
 export type Content =
   | {
@@ -128,6 +140,22 @@ export type Content =
         [key: string]: unknown
       }
     }
+
+/**
+ * Compile-time drift guard for the hand-written `Content` type.
+ *
+ * Requires `Content` to be assignable to `components['schemas']['Content']`
+ * (the generated flat schema). If `ledewire.yml` adds new required fields or
+ * narrows enum values, TypeScript will error here before the mismatch can cause
+ * a runtime bug. This is the only protection against silent drift until the spec
+ * adopts `oneOf`+`discriminator` and `Content` can be generated automatically.
+ *
+ * @internal
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _ContentDriftGuard<_T extends U, U> = never
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _ContentSchemaCheck = _ContentDriftGuard<Content, components['schemas']['Content']>
 
 /** Full content item returned by all seller content endpoints. */
 export type ContentResponse = components['schemas']['ContentResponse']
