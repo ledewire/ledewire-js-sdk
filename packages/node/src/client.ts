@@ -138,7 +138,7 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
   if (
     config.storage !== undefined &&
     config.onTokenRefreshed !== undefined &&
-    process.env['NODE_ENV'] !== 'production'
+    (typeof process === 'undefined' || process.env['NODE_ENV'] !== 'production')
   ) {
     console.warn(
       '[LedeWire] Both `storage` and `onTokenRefreshed` are configured. ' +

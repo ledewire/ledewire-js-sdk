@@ -133,7 +133,7 @@ describe('createClient refreshFn', () => {
   it('emits a console.warn in non-production when both storage and onTokenRefreshed are provided', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
-      // NODE_ENV is 'test' in this environment — satisfies !== 'production'
+      // NODE_ENV is 'test' in this environment — process exists and !== 'production'
       createClient({
         storage: new MemoryTokenStorage(),
         onTokenRefreshed: vi.fn(),
