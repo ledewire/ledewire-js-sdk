@@ -8,7 +8,7 @@
 | ~~High~~   | 2   | ~~`refreshFn` copy-pasted between package clients~~ ✅ resolved                    |
 | High       | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending) |
 | ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                     |
-| Medium     | 5   | Pagination query building copy-pasted 4 times                                      |
+| ~~Medium~~ | 5   | ~~Pagination query building copy-pasted 4 times~~ ✅ resolved                      |
 | Medium     | 6   | Token normalization duplicated within `MerchantAuthNamespace`                      |
 | Medium     | 7   | `public readonly` fields labelled `@internal`                                      |
 | Medium     | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
@@ -63,21 +63,11 @@ Three endpoints return plain arrays in violation of this contract:
 
 ---
 
-## Issue 5 — Pagination query building copy-pasted 4+ times (Medium)
+## ~~Issue 5 — Pagination query building copy-pasted 4+ times (Medium)~~ ✅ Resolved
 
-The following pattern is repeated in at least 4 files:
+`HttpClient.get()` and `.post()` params widened to `Record<string, string | number | undefined>`. `buildUrl()` now filters `undefined` and coerces numbers internally. `PaginationParams` gains an index signature to satisfy the `Record` constraint. All five URLSearchParams blocks across `merchant/users`, `merchant/sales`, `merchant/buyers`, and `seller/content` (list + search) replaced with a direct `params` pass-through.
 
-```ts
-const query = new URLSearchParams()
-if (params?.page !== undefined) query.set('page', String(params.page))
-if (params?.per_page !== undefined) query.set('per_page', String(params.per_page))
-const qs = query.toString()
-return this.http.get<T>(`/path${qs ? `?${qs}` : ''}`)
-```
-
-`HttpClient.get()` already builds query strings from `Record<string, string>`. The manual building only exists because numeric values need `String()` coercion.
-
-**Fix:** Change `HttpClient.get()` params type to `Record<string, string | number | undefined>` and filter out `undefined` values internally. All paginated endpoints can then pass `params` directly without manual URLSearchParams construction.
+**Commit:** `6a770d2` — refactor(core): eliminate copy-pasted URLSearchParams query building
 
 ---
 
