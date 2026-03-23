@@ -1,6 +1,5 @@
-import type { TokenStorage, StoredTokens } from '@ledewire/core'
-
-const DEFAULT_STORAGE_KEY = 'lw:tokens'
+import type { TokenStorage } from '@ledewire/core'
+import { webStorageAdapter } from './web-storage-adapter.js'
 
 /**
  * A {@link TokenStorage} adapter that persists tokens in `localStorage`.
@@ -26,23 +25,6 @@ const DEFAULT_STORAGE_KEY = 'lw:tokens'
  * })
  * ```
  */
-export function localStorageAdapter(key = DEFAULT_STORAGE_KEY): TokenStorage {
-  return {
-    getTokens(): StoredTokens | null {
-      const raw = localStorage.getItem(key)
-      if (!raw) return null
-      try {
-        return JSON.parse(raw) as StoredTokens
-      } catch {
-        // Corrupted value - treat as empty
-        return null
-      }
-    },
-    setTokens(tokens: StoredTokens): void {
-      localStorage.setItem(key, JSON.stringify(tokens))
-    },
-    clearTokens(): void {
-      localStorage.removeItem(key)
-    },
-  }
+export function localStorageAdapter(key?: string): TokenStorage {
+  return webStorageAdapter(localStorage, key)
 }
