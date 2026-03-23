@@ -14,8 +14,8 @@ import type {
   ContentResponse,
   ContentUpdateRequest,
   PaginatedContentList,
+  PaginationParams,
 } from '@ledewire/core'
-import type { PaginationParams } from '../merchant/users.js'
 
 /**
  * Search criteria for content search.

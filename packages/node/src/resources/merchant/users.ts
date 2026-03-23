@@ -9,15 +9,8 @@ import type {
   MerchantInviteRequest,
   MerchantInviteResponse,
   PaginatedUsersList,
+  PaginationParams,
 } from '@ledewire/core'
-
-/** Pagination parameters accepted by paginated list endpoints. */
-export interface PaginationParams {
-  /** Page number (1-based). Defaults to 1. */
-  page?: number
-  /** Items per page. Maximum 100. Defaults to 25. */
-  per_page?: number
-}
 
 /** Request body for updating a store member's permissions. */
 export interface MerchantUserUpdateRequest {

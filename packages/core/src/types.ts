@@ -202,6 +202,20 @@ export type SalesStatisticsItem = components['schemas']['SalesStatisticsItem']
 /** Buyer statistics item for a merchant store. */
 export type BuyerStatisticsItem = components['schemas']['BuyerStatisticsItem']
 
+/**
+ * Pagination parameters accepted by paginated list endpoints.
+ *
+ * Pass as the final argument to any `list()` or `search()` method that
+ * accepts optional pagination. Omitting either field defers to the server
+ * default (page 1, 25 items per page).
+ */
+export interface PaginationParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+}
+
 /** Pagination metadata included in all paginated list responses. */
 export type PaginationMeta = components['schemas']['PaginationMeta']
 

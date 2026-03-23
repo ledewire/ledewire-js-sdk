@@ -1,6 +1,5 @@
 import type { HttpClient } from '@ledewire/core'
-import type { PaginatedBuyersList } from '@ledewire/core'
-import type { PaginationParams } from './users.js'
+import type { PaginatedBuyersList, PaginationParams } from '@ledewire/core'
 
 /**
  * Merchant buyers namespace — aggregated, anonymised buyer statistics.

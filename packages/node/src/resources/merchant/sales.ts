@@ -1,6 +1,10 @@
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantSaleResponse, SalesSummaryResponse, PaginatedSalesList } from '@ledewire/core'
-import type { PaginationParams } from './users.js'
+import type {
+  MerchantSaleResponse,
+  SalesSummaryResponse,
+  PaginatedSalesList,
+  PaginationParams,
+} from '@ledewire/core'
 
 /**
  * Merchant sales namespace — revenue summary, per-sale records, and sale detail.

@@ -52,6 +52,7 @@ export type {
   PaginatedSalesList,
   PaginatedUsersList,
   PaginationMeta,
+  PaginationParams,
   PurchaseCreateRequest,
   PurchaseResponse,
   SalesSummaryResponse,
@@ -76,7 +77,7 @@ export {
 } from '@ledewire/core'
 
 // Merchant users namespace types
-export type { MerchantUserUpdateRequest, PaginationParams } from './resources/merchant/users.js'
+export type { MerchantUserUpdateRequest } from './resources/merchant/users.js'
 // Seller content namespace types
 export type { ContentSearchRequest } from './resources/seller/content.js'
 // Package exports (implementations added in build step 4)

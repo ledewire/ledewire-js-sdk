@@ -46,6 +46,7 @@ export type {
   WalletPaymentSessionResponse,
   WalletPaymentStatusResponse,
   WalletTransactionItem,
+  PaginationParams,
 } from '@ledewire/core'
 export {
   AuthError,
