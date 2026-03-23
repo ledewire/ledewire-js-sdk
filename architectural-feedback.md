@@ -9,12 +9,12 @@
 | High       | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending) |
 | ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                     |
 | ~~Medium~~ | 5   | ~~Pagination query building copy-pasted 4 times~~ ✅ resolved                      |
-| Medium     | 6   | Token normalization duplicated within `MerchantAuthNamespace`                      |
+| ~~Medium~~ | 6   | ~~Token normalization duplicated within `MerchantAuthNamespace`~~ ✅ resolved      |
 | Medium     | 7   | `public readonly` fields labelled `@internal`                                      |
 | Medium     | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
 | Low        | 9   | `process.env` in client factory                                                    |
 | ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                            |
-| Low        | 11  | `encodeContentFields` type cast through `unknown`                                  |
+| ~~Low~~    | 11  | ~~`encodeContentFields` type cast through `unknown`~~ ✅ resolved                  |
 
 ---
 
@@ -71,11 +71,11 @@ Three endpoints return plain arrays in violation of this contract:
 
 ---
 
-## Issue 6 — Token normalization duplicated within `MerchantAuthNamespace` (Medium)
+## ~~Issue 6 — Token normalization duplicated within `MerchantAuthNamespace` (Medium)~~ ✅ Resolved
 
-In `packages/node/src/resources/merchant/auth.ts`, `loginWithEmailAndListStores` manually constructs the `StoredTokens` object inline — the exact same transformation already performed by the private `storeTokens()` method in the same class.
+Extracted private `normalizeTokens(res: MerchantAuthenticationResponse): StoredTokens` in `packages/node/src/resources/merchant/auth.ts`. Both `storeTokens()` and the login-and-list helpers now delegate to it — the inline `{ accessToken, refreshToken, expiresAt }` construction is no longer duplicated.
 
-**Fix:** Extract a private `normalizeTokens(res: MerchantAuthenticationResponse): StoredTokens` helper and use it in both `storeTokens()` and the login-and-list helpers.
+**Commit:** `9408200` — refactor: extract normalizeTokens and make encodeContentFields generic
 
 ---
 
@@ -121,14 +121,16 @@ export const sessionStorageAdapter = (key?: string) => webStorageAdapter(session
 
 ---
 
-## Issue 11 — `encodeContentFields` type cast through `unknown` (Low)
+## ~~Issue 11 — `encodeContentFields` type cast through `unknown` (Low)~~ ✅ Resolved
 
-In `packages/node/src/resources/seller/content.ts`, both `create()` and `update()` call:
+`encodeContentFields` in `packages/core/src/base64.ts` is now generic:
 
 ```ts
-encodeContentFields(body as unknown as Record<string, unknown>)
+export function encodeContentFields<T extends { content_body?: string; teaser?: string }>(
+  body: T,
+): T
 ```
 
-The double cast exists because `encodeContentFields` accepts `Record<string, unknown>` but `body` is typed as a discriminated union (`Content`) or `ContentUpdateRequest`.
+Both `create()` and `update()` in `packages/node/src/resources/seller/content.ts` pass `body` directly with no cast. The `as unknown as Record<string, unknown>` double-cast is eliminated.
 
-**Fix:** Update `encodeContentFields` to accept the actual union type, or make it generic: `encodeContentFields<T extends { content_body?: string; teaser?: string }>(body: T): T`. Eliminates the unsafe cast entirely.
+**Commit:** `9408200` — refactor: extract normalizeTokens and make encodeContentFields generic
