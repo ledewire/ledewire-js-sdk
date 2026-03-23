@@ -90,7 +90,7 @@ export class SellerContentNamespace {
   async create(storeId: string, body: Content): Promise<ContentResponse> {
     const res = await this.http.post<ContentResponse>(
       `/v1/merchant/${storeId}/content`,
-      encodeContentFields(body as unknown as Record<string, unknown>),
+      encodeContentFields(body),
     )
     return decodeContentFields(res)
   }
@@ -167,7 +167,7 @@ export class SellerContentNamespace {
   async update(storeId: string, id: string, body: ContentUpdateRequest): Promise<ContentResponse> {
     const res = await this.http.patch<ContentResponse>(
       `/v1/merchant/${storeId}/content/${id}`,
-      encodeContentFields(body as unknown as Record<string, unknown>),
+      encodeContentFields(body),
     )
     return decodeContentFields(res)
   }

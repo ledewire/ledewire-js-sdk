@@ -90,28 +90,28 @@ describe('decodeContentFields', () => {
 describe('encodeContentFields', () => {
   it('encodes content_body when present', () => {
     const result = encodeContentFields({ content_body: '# Title', teaser: undefined })
-    expect(result['content_body']).toBe(btoa('# Title'))
+    expect(result.content_body).toBe(btoa('# Title'))
   })
 
   it('encodes teaser when present', () => {
     const result = encodeContentFields({ teaser: 'A teaser.' })
-    expect(result['teaser']).toBe(btoa('A teaser.'))
+    expect(result.teaser).toBe(btoa('A teaser.'))
   })
 
   it('encodes both fields when both are provided', () => {
     const result = encodeContentFields({ content_body: 'body', teaser: 'teaser' })
-    expect(result['content_body']).toBe(btoa('body'))
-    expect(result['teaser']).toBe(btoa('teaser'))
+    expect(result.content_body).toBe(btoa('body'))
+    expect(result.teaser).toBe(btoa('teaser'))
   })
 
   it('leaves content_body untouched when undefined', () => {
     const result = encodeContentFields({ title: 'Hello' })
-    expect(result['content_body']).toBeUndefined()
+    expect(result.content_body).toBeUndefined()
   })
 
   it('leaves teaser untouched when undefined', () => {
     const result = encodeContentFields({ title: 'Hello' })
-    expect(result['teaser']).toBeUndefined()
+    expect(result.teaser).toBeUndefined()
   })
 
   it('preserves all other fields unchanged', () => {
@@ -121,9 +121,9 @@ describe('encodeContentFields', () => {
       content_body: 'body',
       price_cents: 500,
     })
-    expect(result['content_type']).toBe('markdown')
-    expect(result['title']).toBe('My Post')
-    expect(result['price_cents']).toBe(500)
+    expect(result.content_type).toBe('markdown')
+    expect(result.title).toBe('My Post')
+    expect(result.price_cents).toBe(500)
   })
 
   it('does not mutate the original object', () => {
@@ -135,7 +135,7 @@ describe('encodeContentFields', () => {
 
   it('round-trips with decodeContentFields', () => {
     const original = { content_body: '# Hello\n\nWorld', teaser: 'A teaser.' }
-    const encoded = encodeContentFields(original as Record<string, unknown>)
+    const encoded = encodeContentFields(original)
     const decoded = decodeContentFields(
       encoded as { content_body?: string | null; teaser?: string | null },
     )

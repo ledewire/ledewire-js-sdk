@@ -164,14 +164,7 @@ export class MerchantAuthNamespace {
    */
   async loginWithEmailAndListStores(body: MerchantEmailLoginRequest): Promise<MerchantLoginResult> {
     const raw = await this.loginWithEmail(body)
-    return {
-      tokens: {
-        accessToken: raw.access_token,
-        refreshToken: raw.refresh_token,
-        expiresAt: parseExpiresAt(raw.expires_at),
-      },
-      stores: raw.stores,
-    }
+    return { tokens: this.normalizeTokens(raw), stores: raw.stores }
   }
 
   /**
@@ -195,21 +188,18 @@ export class MerchantAuthNamespace {
     body: MerchantGoogleLoginRequest,
   ): Promise<MerchantLoginResult> {
     const raw = await this.loginWithGoogle(body)
+    return { tokens: this.normalizeTokens(raw), stores: raw.stores }
+  }
+
+  private normalizeTokens(res: MerchantAuthenticationResponse): StoredTokens {
     return {
-      tokens: {
-        accessToken: raw.access_token,
-        refreshToken: raw.refresh_token,
-        expiresAt: parseExpiresAt(raw.expires_at),
-      },
-      stores: raw.stores,
+      accessToken: res.access_token,
+      refreshToken: res.refresh_token,
+      expiresAt: parseExpiresAt(res.expires_at),
     }
   }
 
   private async storeTokens(res: MerchantAuthenticationResponse): Promise<void> {
-    await this.tokenManager.setTokens({
-      accessToken: res.access_token,
-      refreshToken: res.refresh_token,
-      expiresAt: parseExpiresAt(res.expires_at),
-    })
+    await this.tokenManager.setTokens(this.normalizeTokens(res))
   }
 }

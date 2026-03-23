@@ -48,10 +48,12 @@ export function decodeContentFields<
  *
  * @internal
  */
-export function encodeContentFields(body: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...body }
+export function encodeContentFields<T extends { content_body?: string; teaser?: string }>(
+  body: T,
+): T {
+  const out = { ...body } as Record<string, unknown>
   if (typeof out['content_body'] === 'string')
     out['content_body'] = encodeBase64(out['content_body'])
   if (typeof out['teaser'] === 'string') out['teaser'] = encodeBase64(out['teaser'])
-  return out
+  return out as T
 }
