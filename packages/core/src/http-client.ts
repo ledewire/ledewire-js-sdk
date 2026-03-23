@@ -23,7 +23,8 @@ export interface HttpClientConfig {
   onUnauthorized?: () => string | null | Promise<string | null>
 }
 
-const DEFAULT_BASE_URL = 'https://api.ledewire.com'
+/** The default LedeWire API base URL used by all SDK packages. */
+export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
 
 /**
  * Core HTTP client used by all SDK packages.

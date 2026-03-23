@@ -1,4 +1,10 @@
-import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
+import {
+  DEFAULT_BASE_URL,
+  HttpClient,
+  MemoryTokenStorage,
+  TokenManager,
+  createRefreshFn,
+} from '@ledewire/core'
 import type { TokenStorage, StoredTokens } from '@ledewire/core'
 import { AuthNamespace } from './resources/auth.js'
 import { CheckoutNamespace } from './resources/checkout.js'
@@ -126,7 +132,7 @@ export interface NodeClientConfig {
  * ```
  */
 export function createClient(config: NodeClientConfig = {}): NodeClient {
-  const baseUrl = config.baseUrl ?? 'https://api.ledewire.com'
+  const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL
   const storage = config.storage ?? new MemoryTokenStorage()
 
   if (
@@ -145,24 +151,7 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
 
   const tokenManager = new TokenManager({
     storage,
-    refreshFn: async (refreshToken) => {
-      const res = await fetch(`${baseUrl}/v1/auth/token/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      })
-      if (!res.ok) throw new Error('Token refresh failed')
-      const data = (await res.json()) as {
-        access_token: string
-        refresh_token: string
-        expires_at: string
-      }
-      return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: parseExpiresAt(data.expires_at),
-      }
-    },
+    refreshFn: createRefreshFn(baseUrl),
     ...(config.onTokenRefreshed !== undefined && { onTokenRefreshed: config.onTokenRefreshed }),
     ...(config.onAuthExpired !== undefined && { onAuthExpired: config.onAuthExpired }),
   })

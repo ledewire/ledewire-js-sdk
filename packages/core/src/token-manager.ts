@@ -174,3 +174,34 @@ export class MemoryTokenStorage implements TokenStorage {
 export function parseExpiresAt(expiresAt: string): number {
   return new Date(expiresAt).getTime()
 }
+
+/**
+ * Creates the standard LedeWire token refresh function for use with `TokenManager`.
+ *
+ * Encapsulates the `/v1/auth/token/refresh` fetch call, response mapping, and
+ * error handling so both `createClient` (node) and `init` (browser) share a
+ * single implementation.
+ *
+ * @param baseUrl - The resolved API base URL (e.g. `'https://api.ledewire.com'`)
+ * @returns A `refreshFn` compatible with `TokenManagerOptions['refreshFn']`
+ */
+export function createRefreshFn(baseUrl: string): TokenManagerOptions['refreshFn'] {
+  return async (refreshToken: string): Promise<StoredTokens> => {
+    const res = await fetch(`${baseUrl}/v1/auth/token/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    if (!res.ok) throw new Error('Token refresh failed')
+    const data = (await res.json()) as {
+      access_token: string
+      refresh_token: string
+      expires_at: string
+    }
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: parseExpiresAt(data.expires_at),
+    }
+  }
+}

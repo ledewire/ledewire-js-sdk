@@ -1,5 +1,12 @@
-import { describe, it, expect, vi } from 'vitest'
-import { TokenManager, MemoryTokenStorage, parseExpiresAt } from './token-manager.js'
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
+import { setupServer } from 'msw/node'
+import { http, HttpResponse } from 'msw'
+import {
+  TokenManager,
+  MemoryTokenStorage,
+  parseExpiresAt,
+  createRefreshFn,
+} from './token-manager.js'
 import { AuthError } from './errors.js'
 import type { StoredTokens } from './types.js'
 
@@ -155,5 +162,50 @@ describe('parseExpiresAt', () => {
     const ts = parseExpiresAt('2026-01-01T12:00:00Z')
     expect(ts).toBe(new Date('2026-01-01T12:00:00Z').getTime())
     expect(typeof ts).toBe('number')
+  })
+})
+
+describe('createRefreshFn', () => {
+  const BASE = 'https://api.example.com'
+  const server = setupServer()
+
+  beforeAll(() => {
+    server.listen({ onUnhandledRequest: 'error' })
+  })
+  afterEach(() => {
+    server.resetHandlers()
+  })
+  afterAll(() => {
+    server.close()
+  })
+
+  it('returns new StoredTokens on a successful refresh', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+        }),
+      ),
+    )
+
+    const refresh = createRefreshFn(BASE)
+    const result = await refresh('old-refresh')
+
+    expect(result.accessToken).toBe('new-access')
+    expect(result.refreshToken).toBe('new-refresh')
+    expect(result.expiresAt).toBe(new Date('2099-01-01T00:00:00Z').getTime())
+  })
+
+  it('throws when the refresh endpoint returns a non-2xx status', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({ error: 'invalid_grant' }, { status: 401 }),
+      ),
+    )
+
+    const refresh = createRefreshFn(BASE)
+    await expect(refresh('expired-refresh')).rejects.toThrow('Token refresh failed')
   })
 })

@@ -1,4 +1,10 @@
-import { HttpClient, MemoryTokenStorage, TokenManager, parseExpiresAt } from '@ledewire/core'
+import {
+  DEFAULT_BASE_URL,
+  HttpClient,
+  MemoryTokenStorage,
+  TokenManager,
+  createRefreshFn,
+} from '@ledewire/core'
 import type { TokenStorage } from '@ledewire/core'
 import { BrowserAuthNamespace } from './resources/auth.js'
 import { BrowserConfigNamespace } from './resources/config.js'
@@ -66,29 +72,12 @@ export interface BrowserClientConfig {
  * ```
  */
 export function init(config: BrowserClientConfig): BrowserClient {
-  const baseUrl = config.baseUrl ?? 'https://api.ledewire.com'
+  const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL
   const storage = config.storage ?? new MemoryTokenStorage()
 
   const tokenManager = new TokenManager({
     storage,
-    refreshFn: async (refreshToken) => {
-      const res = await fetch(`${baseUrl}/v1/auth/token/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      })
-      if (!res.ok) throw new Error('Token refresh failed')
-      const data = (await res.json()) as {
-        access_token: string
-        refresh_token: string
-        expires_at: string
-      }
-      return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: parseExpiresAt(data.expires_at),
-      }
-    },
+    refreshFn: createRefreshFn(baseUrl),
     ...(config.onAuthExpired !== undefined && { onAuthExpired: config.onAuthExpired }),
   })
 
