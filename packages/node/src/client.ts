@@ -197,14 +197,11 @@ export class NodeClient {
   /** Buyer checkout state — what action is required before accessing content */
   readonly checkout: CheckoutNamespace
 
-  /**
-   * @internal
-   * Exposed for testing and advanced use cases.
-   */
+  /** @internal */
   constructor(
-    public readonly _http: HttpClient,
-    public readonly _tokenManager: TokenManager,
-    public readonly _config: NodeClientConfig,
+    private readonly _http: HttpClient,
+    private readonly _tokenManager: TokenManager,
+    private readonly _config: NodeClientConfig,
   ) {
     this.config = new ConfigNamespace(_http)
     this.auth = new AuthNamespace(_http, _tokenManager)

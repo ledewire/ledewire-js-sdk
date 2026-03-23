@@ -82,14 +82,14 @@ type DeepMutable<T> = {
 /**
  * A fully-typed mock of {@link NodeClient} with all `readonly` modifiers
  * removed so individual methods can be replaced with `vi.fn()` / `jest.fn()`
- * stubs. Internal `_http`, `_tokenManager`, and `_config` fields are excluded.
+ * stubs.
  *
  * Methods are typed as plain function signatures. To access `MockInstance`
  * methods (`.mockResolvedValue()`, `.mock.calls`, etc.) use one of:
  * - Per-method: `vi.mocked(client.some.method).mockResolvedValue(...)`
  * - Whole-client: `const client = vi.mocked(createMockClient(vi.fn), true)`
  */
-export type MockNodeClient = DeepMutable<Omit<NodeClient, '_http' | '_tokenManager' | '_config'>>
+export type MockNodeClient = DeepMutable<NodeClient>
 
 // ---------------------------------------------------------------------------
 // Factory

@@ -121,9 +121,9 @@ export class BrowserClient {
 
   /** @internal */
   constructor(
-    public readonly _http: HttpClient,
-    public readonly _tokenManager: TokenManager,
-    public readonly _config: BrowserClientConfig,
+    private readonly _http: HttpClient,
+    private readonly _tokenManager: TokenManager,
+    private readonly _config: BrowserClientConfig,
   ) {
     this.config = new BrowserConfigNamespace(_http)
     this.auth = new BrowserAuthNamespace(_http, _tokenManager)

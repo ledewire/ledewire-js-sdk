@@ -84,19 +84,25 @@ describe('createClient refreshFn', () => {
       refresh_token: 'new-refresh',
     })
 
+    let authHeader = ''
     server.use(
       // Initial login seeds expired tokens
       http.post(`${BASE}/v1/auth/login/email`, () => HttpResponse.json(expiredTokens)),
       // Refresh endpoint returns fresh tokens
       http.post(`${BASE}/v1/auth/token/refresh`, () => HttpResponse.json(refreshed)),
+      // Any authenticated request triggers getAccessToken → refresh
+      http.get(`${BASE}/v1/wallet/balance`, ({ request }) => {
+        authHeader = request.headers.get('Authorization') ?? ''
+        return HttpResponse.json({ balance_cents: 0 })
+      }),
     )
 
     const client = createClient()
     await client.auth.loginWithEmail({ email: 'u@example.com', password: 'pw' })
 
-    // getAccessToken detects expiry and calls refreshFn
-    const token = await client._tokenManager.getAccessToken()
-    expect(token).toBe('refreshed-access')
+    // wallet.balance() calls getAccessToken() internally, detects expiry, refreshes
+    await client.wallet.balance()
+    expect(authHeader).toBe('Bearer refreshed-access')
   })
 
   it('fires onTokenRefreshed callback after a successful refresh', async () => {
@@ -111,11 +117,12 @@ describe('createClient refreshFn', () => {
     server.use(
       http.post(`${BASE}/v1/auth/login/email`, () => HttpResponse.json(expiredTokens)),
       http.post(`${BASE}/v1/auth/token/refresh`, () => HttpResponse.json(refreshed)),
+      http.get(`${BASE}/v1/wallet/balance`, () => HttpResponse.json({ balance_cents: 0 })),
     )
 
     const client = createClient({ onTokenRefreshed })
     await client.auth.loginWithEmail({ email: 'u@example.com', password: 'pw' })
-    await client._tokenManager.getAccessToken()
+    await client.wallet.balance() // triggers getAccessToken → refresh → fires onTokenRefreshed
 
     expect(onTokenRefreshed).toHaveBeenCalledOnce()
     expect(onTokenRefreshed).toHaveBeenCalledWith(
@@ -179,7 +186,7 @@ describe('createClient refreshFn', () => {
     const client = createClient({ onAuthExpired })
     // No login — no stored tokens.  The 401 triggers handleUnauthorized(),
     // which finds no tokens and calls onAuthExpired before returning null.
-    await expect(client._http.get('/v1/wallet/balance')).rejects.toThrow()
+    await expect(client.wallet.balance()).rejects.toThrow()
     expect(onAuthExpired).toHaveBeenCalledOnce()
   })
 })

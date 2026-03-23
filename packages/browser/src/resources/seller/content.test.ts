@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, NotFoundError, decodeContentFields } from '@ledewire/core'
+import { AuthError, NotFoundError, MemoryTokenStorage, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   authTokenFixture,
@@ -44,10 +44,11 @@ describe('seller.loginWithApiKey', () => {
     const fixture = authTokenFixture({ access_token: 'api-key-token' })
     server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.seller.loginWithApiKey({ key: 'test-api-key' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('api-key-token')
+    expect(storage.getTokens()?.accessToken).toBe('api-key-token')
   })
 
   it('sends key and secret when both are provided', async () => {

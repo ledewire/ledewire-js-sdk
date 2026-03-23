@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError } from '@ledewire/core'
+import { AuthError, MemoryTokenStorage } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import { authTokenFixture, errorResponseFixture } from '@ledewire/core/test-utils'
 import { init } from '../client.js'
@@ -43,14 +43,15 @@ describe('auth.signup', () => {
     const fixture = authTokenFixture({ access_token: 'signup-stored-token' })
     server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.auth.signup({
       email: 'user@example.com',
       password: 'correct-horse',
       name: 'Alice',
     })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('signup-stored-token')
+    expect(storage.getTokens()?.accessToken).toBe('signup-stored-token')
   })
 
   it('throws AuthError on 401', async () => {
@@ -87,10 +88,11 @@ describe('auth.loginWithEmail', () => {
     const fixture = authTokenFixture({ access_token: 'email-login-token' })
     server.use(http.post(`${BASE}/v1/auth/login/email`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.auth.loginWithEmail({ email: 'user@example.com', password: 'secret' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('email-login-token')
+    expect(storage.getTokens()?.accessToken).toBe('email-login-token')
   })
 
   it('throws AuthError on 401', async () => {
@@ -124,10 +126,11 @@ describe('auth.loginWithGoogle', () => {
     const fixture = authTokenFixture({ access_token: 'google-login-token' })
     server.use(http.post(`${BASE}/v1/auth/login/google`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.auth.loginWithGoogle({ id_token: 'google-token' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('google-login-token')
+    expect(storage.getTokens()?.accessToken).toBe('google-login-token')
   })
 
   it('throws AuthError on 401', async () => {
@@ -181,10 +184,11 @@ describe('auth.requestPasswordReset', () => {
       http.post(`${BASE}/v1/auth/password/reset-request`, () => HttpResponse.json(successBody)),
     )
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.auth.requestPasswordReset({ email: 'buyer@example.com' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBeNull()
+    expect(storage.getTokens()).toBeNull()
   })
 
   it('throws on 400 (invalid email)', async () => {
@@ -235,10 +239,11 @@ describe('auth.resetPassword', () => {
   it('does not store tokens', async () => {
     server.use(http.post(`${BASE}/v1/auth/password/reset`, () => HttpResponse.json(successBody)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = init({ apiKey: 'test-api-key', storage })
     await client.auth.resetPassword(validBody)
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBeNull()
+    expect(storage.getTokens()).toBeNull()
   })
 
   it('throws on 400 (invalid or expired code)', async () => {

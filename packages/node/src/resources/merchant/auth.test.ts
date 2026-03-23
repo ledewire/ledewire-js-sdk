@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, ForbiddenError } from '@ledewire/core'
+import { AuthError, ForbiddenError, MemoryTokenStorage } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   merchantTokenFixture,
@@ -47,10 +47,11 @@ describe('merchant.auth.loginWithEmail', () => {
     const fixture = merchantTokenFixture({ access_token: 'merchant-email-token' })
     server.use(http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
     await client.merchant.auth.loginWithEmail({ email: 'owner@example.com', password: 'pw' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('merchant-email-token')
+    expect(storage.getTokens()?.accessToken).toBe('merchant-email-token')
   })
 
   it('throws AuthError on 401', async () => {
@@ -100,10 +101,11 @@ describe('merchant.auth.loginWithGoogle', () => {
     const fixture = merchantTokenFixture({ access_token: 'merchant-google-token' })
     server.use(http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(fixture)))
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
     await client.merchant.auth.loginWithGoogle({ id_token: 'google-jwt' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('merchant-google-token')
+    expect(storage.getTokens()?.accessToken).toBe('merchant-google-token')
   })
 
   it('throws AuthError on 401', async () => {
@@ -192,13 +194,14 @@ describe('merchant.auth.loginWithEmailAndListStores', () => {
       http.post(`${BASE}/v1/auth/merchant/login/email`, () => HttpResponse.json(tokenFixture)),
     )
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
     await client.merchant.auth.loginWithEmailAndListStores({
       email: 'owner@example.com',
       password: 'password123',
     })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('combo-email-token')
+    expect(storage.getTokens()?.accessToken).toBe('combo-email-token')
   })
 })
 
@@ -235,9 +238,10 @@ describe('merchant.auth.loginWithGoogleAndListStores', () => {
       http.post(`${BASE}/v1/auth/merchant/login/google`, () => HttpResponse.json(tokenFixture)),
     )
 
-    const client = makeClient()
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
     await client.merchant.auth.loginWithGoogleAndListStores({ id_token: 'google-jwt' })
 
-    await expect(client._tokenManager.getAccessToken()).resolves.toBe('combo-google-token')
+    expect(storage.getTokens()?.accessToken).toBe('combo-google-token')
   })
 })

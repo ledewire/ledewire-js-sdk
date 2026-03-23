@@ -101,16 +101,22 @@ describe('init refreshFn', () => {
       refresh_token: 'new-refresh',
     })
 
+    let authHeader = ''
     server.use(
       http.post(`${BASE}/v1/auth/login/email`, () => HttpResponse.json(expiredTokens)),
       http.post(`${BASE}/v1/auth/token/refresh`, () => HttpResponse.json(refreshed)),
+      http.get(`${BASE}/v1/wallet/balance`, ({ request }) => {
+        authHeader = request.headers.get('Authorization') ?? ''
+        return HttpResponse.json({ balance_cents: 0 })
+      }),
     )
 
     const client = init({ apiKey: 'test-api-key' })
     await client.auth.loginWithEmail({ email: 'u@example.com', password: 'pw' })
 
-    const token = await client._tokenManager.getAccessToken()
-    expect(token).toBe('refreshed-access')
+    // wallet.balance() calls getAccessToken() internally, detects expiry, refreshes
+    await client.wallet.balance()
+    expect(authHeader).toBe('Bearer refreshed-access')
   })
 
   it('fires onAuthExpired when a 401 is received with no stored tokens', async () => {
@@ -123,7 +129,7 @@ describe('init refreshFn', () => {
     )
 
     const client = init({ apiKey: 'test-api-key', onAuthExpired })
-    await expect(client._http.get('/v1/wallet/balance')).rejects.toThrow()
+    await expect(client.wallet.balance()).rejects.toThrow()
     expect(onAuthExpired).toHaveBeenCalledOnce()
   })
 })
