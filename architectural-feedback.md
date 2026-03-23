@@ -2,19 +2,19 @@
 
 ## Summary Table
 
-| Severity   | #   | Issue                                                                              |
-| ---------- | --- | ---------------------------------------------------------------------------------- |
-| High       | 1   | Pagination return types violate stated contract (3 endpoints)                      |
-| ~~High~~   | 2   | ~~`refreshFn` copy-pasted between package clients~~ ✅ resolved                    |
-| High       | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending) |
-| ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                     |
-| ~~Medium~~ | 5   | ~~Pagination query building copy-pasted 4 times~~ ✅ resolved                      |
-| ~~Medium~~ | 6   | ~~Token normalization duplicated within `MerchantAuthNamespace`~~ ✅ resolved      |
-| ~~Medium~~ | 7   | ~~`public readonly` fields labelled `@internal`~~ ✅ resolved                      |
-| Medium     | 8   | `localStorageAdapter`/`sessionStorageAdapter` share no implementation              |
-| Low        | 9   | `process.env` in client factory                                                    |
-| ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                            |
-| ~~Low~~    | 11  | ~~`encodeContentFields` type cast through `unknown`~~ ✅ resolved                  |
+| Severity   | #   | Issue                                                                                 |
+| ---------- | --- | ------------------------------------------------------------------------------------- |
+| High       | 1   | Pagination return types violate stated contract (3 endpoints)                         |
+| ~~High~~   | 2   | ~~`refreshFn` copy-pasted between package clients~~ ✅ resolved                       |
+| High       | 3   | `Content` type duplicates OpenAPI schema ⏳ partially mitigated (spec fix pending)    |
+| ~~Medium~~ | 4   | ~~`PaginationParams` defined in the wrong module~~ ✅ resolved                        |
+| ~~Medium~~ | 5   | ~~Pagination query building copy-pasted 4 times~~ ✅ resolved                         |
+| ~~Medium~~ | 6   | ~~Token normalization duplicated within `MerchantAuthNamespace`~~ ✅ resolved         |
+| ~~Medium~~ | 7   | ~~`public readonly` fields labelled `@internal`~~ ✅ resolved                         |
+| ~~Medium~~ | 8   | ~~`localStorageAdapter`/`sessionStorageAdapter` share no implementation~~ ✅ resolved |
+| Low        | 9   | `process.env` in client factory                                                       |
+| ~~Low~~    | 10  | ~~`baseUrl` default hardcoded in 3 places~~ ✅ resolved                               |
+| ~~Low~~    | 11  | ~~`encodeContentFields` type cast through `unknown`~~ ✅ resolved                     |
 
 ---
 
@@ -95,16 +95,22 @@ All tests that previously accessed these fields were updated:
 
 ---
 
-## Issue 8 — `localStorageAdapter` and `sessionStorageAdapter` share no implementation (Medium)
+## ~~Issue 8 — `localStorageAdapter` and `sessionStorageAdapter` share no implementation (Medium)~~ ✅ Resolved
 
-The two files are structurally identical — differing only in `localStorage` vs `sessionStorage`. Both live in `packages/browser/src/`.
-
-**Fix:** Implement a shared `webStorageAdapter(backend: Storage, key?: string): TokenStorage` (unexported or exported as `@internal`), then define the two public adapters as thin wrappers:
+Extracted `webStorageAdapter(backend: Storage, key?: string): TokenStorage` into `packages/browser/src/web-storage-adapter.ts` (not exported from the public index). Both adapters are now single-line wrappers:
 
 ```ts
-export const localStorageAdapter = (key?: string) => webStorageAdapter(localStorage, key)
-export const sessionStorageAdapter = (key?: string) => webStorageAdapter(sessionStorage, key)
+export function localStorageAdapter(key?: string): TokenStorage {
+  return webStorageAdapter(localStorage, key)
+}
+export function sessionStorageAdapter(key?: string): TokenStorage {
+  return webStorageAdapter(sessionStorage, key)
+}
 ```
+
+All 20 existing adapter tests continue to pass against the public wrappers unchanged.
+
+**Commit:** `a47d081` — refactor(browser): extract shared webStorageAdapter
 
 ---
 
