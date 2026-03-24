@@ -21,12 +21,16 @@ content marketplace platform. The SDK has two consumer-facing packages:
 - **All exported symbols must have JSDoc** — enforced by ESLint (`jsdoc/require-jsdoc`)
 - **Tests**: Vitest + MSW. Run `pnpm test` (all packages) or `cd packages/<pkg> && pnpm test`
 - **Coverage thresholds**: 90% lines/functions, 85% branches — enforced in CI
-- **API source of truth**: `ledewire.yml` (OpenAPI 3.1) at the repo root
+- **API source of truth**: `ledewire.yml` (OpenAPI 3.1) at the repo root — `api.gen.ts` is generated, never edited manually; CI checks it is up to date
 - **Error classes**: all extend `LedewireError` from `packages/core/src/errors.ts`
 - **Token refresh**: handled automatically by `TokenManager` — never call refresh manually
 - **List endpoints return paginated envelopes**: `{ data, pagination }` — never plain arrays. Accept optional `PaginationParams { page?, per_page? }`
 - **`MerchantLoginStore` (`.id`, `.name`) ≈ `ManageableStore` (`.id`, `.name`, `.store_key`, `.role`, `.is_author`, `.logo`)** — login helpers return the former (minimal); `listStores()` returns the latter (full store detail)
 - **Testing utilities**: import `createMockClient` from `@ledewire/node/testing` (dedicated subpath — not bundled in production)
+- **No `as unknown as` double-casts** — make functions generic instead; ESLint enforces this
+- **No `public _foo` members** — use `private` for internal fields; ESLint enforces this
+- **Guard `process.env` with `typeof process === 'undefined'`** — bare access throws on edge runtimes
+- **Shared implementations → factory functions** — if two adapters differ only in one injected value, extract a factory (see `webStorageAdapter`)
 
 ## Where things are
 
@@ -49,6 +53,8 @@ packages/node/src/
 packages/browser/src/
   client.ts              ← init() factory + BrowserClient
   local-storage-adapter.ts
+  session-storage-adapter.ts
+  web-storage-adapter.ts ← shared impl (not exported publicly)
   resources/{auth,wallet,purchases,content,checkout}.ts
 ```
 
