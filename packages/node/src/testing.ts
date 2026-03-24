@@ -127,6 +127,7 @@ export function createMockClient(
   fn: () => AnyFn = () => () => Promise.resolve(undefined),
 ): MockNodeClient {
   const stub = () => fn()
+  // eslint-disable-next-line no-restricted-syntax -- intentional: plain object literal cast to MockNodeClient; the double-cast is the factory mechanism, not a type workaround.
   return {
     auth: {
       signup: stub(),

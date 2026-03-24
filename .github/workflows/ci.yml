@@ -52,3 +52,13 @@ jobs:
         run: |
           pnpm publint packages/node
           pnpm publint packages/browser
+
+      - name: Check generated types are up to date with ledewire.yml
+        run: |
+          pnpm generate:types
+          git diff --exit-code packages/core/src/api.gen.ts || (
+            echo ""
+            echo "ERROR: packages/core/src/api.gen.ts is out of date with ledewire.yml."
+            echo "Run 'pnpm generate:types' locally and commit the updated file."
+            exit 1
+          )

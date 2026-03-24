@@ -205,3 +205,76 @@ pnpm changeset         # Create a changeset (required before merging feature PRs
 - Do not add browser-only APIs (localStorage, DOM) to `packages/core` or `packages/node`
 - Do not commit secrets, API keys, or tokens
 - Do not add heavy dependencies to `packages/browser` without checking bundle size impact
+
+## Architectural Patterns — Where Things Belong
+
+These conventions are enforced by ESLint rules and CI checks where possible.
+Violations will fail CI; do not add `// eslint-disable` comments to work around them.
+
+### Shared types → `packages/core/src/types.ts` only
+
+Never define types in a resource file (`resources/*/foo.ts`) that are
+used by more than one file. Put them in `packages/core/src/types.ts` and
+import them from `@ledewire/core`. This prevents the situation where a type
+lives in the wrong package and has to be re-exported through an awkward path.
+
+### Generic functions instead of double-casts
+
+Never write `foo as unknown as Bar`. ESLint will reject it.
+If a utility function needs to accept a wide input but preserve the caller's
+specific type, make it generic:
+
+```ts
+// ❌ rejected by ESLint
+encodeContentFields(body as unknown as Record<string, unknown>)
+
+// ✅ correct
+function encodeContentFields<T extends { content_body?: string; teaser?: string }>(body: T): T
+encodeContentFields(body) // T is inferred — no cast needed
+```
+
+### `private` instead of `public _` naming convention
+
+Never use an underscore prefix as a substitute for `private`. ESLint will
+reject `public _foo`. Use `private readonly _foo` (or `#foo`) so the
+TypeScript compiler enforces access control, not just convention.
+
+If tests need to verify internal wiring, inject the dependency explicitly
+rather than reaching into the constructed object:
+
+```ts
+// ❌ tests should not do this — and now can't, because the field is private
+const token = await client._tokenManager.getAccessToken()
+
+// ✅ pass MemoryTokenStorage to createClient and inspect it directly
+const storage = new MemoryTokenStorage()
+const client = createClient({ storage })
+await client.auth.loginWithEmail(credentials)
+expect(storage.getTokens()?.accessToken).toBe('...')
+```
+
+### Runtime environment guards for `process.env`
+
+Always guard `process.env` with `typeof process === 'undefined'`.
+Bare `process.env` throws on Cloudflare Workers, Deno, and Bun:
+
+```ts
+// ❌ throws on edge runtimes
+process.env['NODE_ENV'] !== 'production'
+
+// ✅ safe everywhere
+typeof process === 'undefined' || process.env['NODE_ENV'] !== 'production'
+```
+
+### Shared implementations via factory functions — no copy-paste
+
+If two concrete implementations differ only in one injected value (a `Storage`
+backend, a base URL, an endpoint path), extract a factory and pass the value as
+a parameter. Do not duplicate the logic. See `webStorageAdapter` as the
+canonical example.
+
+### `api.gen.ts` is generated — never edit it manually
+
+CI verifies that `packages/core/src/api.gen.ts` matches what
+`pnpm generate:types` would produce from the current `ledewire.yml`.
+If the check fails, run `pnpm generate:types` and commit the result.

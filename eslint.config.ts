@@ -19,6 +19,23 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          // Catches `foo as unknown as Bar` double-casts — make functions generic instead.
+          selector: 'TSAsExpression > TSAsExpression',
+          message:
+            "Double cast through 'unknown' hides type errors. Make the function generic or narrow the type properly instead.",
+        },
+        {
+          // `public` class members with an underscore prefix should be `private`.
+          // The underscore convention is not a substitute for TypeScript access control.
+          selector:
+            "PropertyDefinition[accessibility='public'][key.name=/^_/], MethodDefinition[accessibility='public'][key.name=/^_/]",
+          message:
+            "Member starts with '_' but is declared public. Use 'private' (or 'private readonly') to enforce the boundary at the type level.",
+        },
+      ],
     },
   },
   {
