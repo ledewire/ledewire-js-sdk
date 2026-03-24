@@ -105,12 +105,12 @@ describe('encodeContentFields', () => {
   })
 
   it('leaves content_body untouched when undefined', () => {
-    const result = encodeContentFields({ title: 'Hello' })
+    const result = encodeContentFields({ title: 'Hello', content_body: undefined })
     expect(result.content_body).toBeUndefined()
   })
 
   it('leaves teaser untouched when undefined', () => {
-    const result = encodeContentFields({ title: 'Hello' })
+    const result = encodeContentFields({ title: 'Hello', teaser: undefined })
     expect(result.teaser).toBeUndefined()
   })
 
