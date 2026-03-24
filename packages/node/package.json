@@ -1,6 +1,6 @@
 {
   "name": "@ledewire/node",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "LedeWire SDK for Node.js — full API surface for building merchant stores",
   "type": "module",
   "exports": {
