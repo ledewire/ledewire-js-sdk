@@ -62,3 +62,13 @@ jobs:
             echo "Run 'pnpm generate:types' locally and commit the updated file."
             exit 1
           )
+
+      - name: Check docs/api is up to date
+        run: |
+          pnpm docs
+          git diff --exit-code docs/api || (
+            echo ""
+            echo "ERROR: docs/api is out of date."
+            echo "Run 'pnpm docs' locally and commit the updated files."
+            exit 1
+          )

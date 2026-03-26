@@ -37,7 +37,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 ```
 client.config.*            platform public config (no auth required)
 client.auth.*              buyer auth (email, google, api-key, refresh, password reset)
-client.merchant.auth.*     merchant auth (email, google) + store listing
+client.merchant.auth.*     merchant auth (email, google) + store listing + password reset
 client.merchant.users.*    team management (invite, list, remove, update)
 client.merchant.content.*  content CRUD + search
 client.merchant.sales.*    sales list, summary, buyer list, store config
@@ -146,11 +146,14 @@ Call `listStores()` only when you need the full `ManageableStore` detail
 
 1. Update `ledewire.yml` if the endpoint or schema isn't there yet
 2. Run `pnpm generate:types` — regenerates `packages/core/src/api.gen.ts` (never edit that file manually)
-3. Add/update type aliases in `packages/core/src/types.ts` if the new types need re-exporting
+3. Add/update types as needed:
+   - **Shared** (used by both `browser` and `node`): add to `packages/core/src/types.ts`
+   - **Node-only** (e.g. merchant-specific request/response shapes): define in the relevant resource file (`packages/node/src/resources/…`) and re-export from `packages/node/src/index.ts` — TypeDoc cannot resolve `@ledewire/core` re-exports in the node entry point so node-only types must live in source files TypeDoc can reach directly
 4. Add the method to the correct namespace in `packages/node/src/resources/` or
    `packages/browser/src/resources/`
 5. Write a Vitest test using MSW — see existing tests for patterns
 6. Run `pnpm typecheck && pnpm test` — both must pass
+7. Run `pnpm docs` and commit the updated `docs/api/`
 
 ### JSDoc is required on all exports
 
@@ -186,6 +189,7 @@ pnpm lint              # Lint all packages
 pnpm lint:fix          # Auto-fix lint issues
 pnpm format            # Format all files with Prettier
 pnpm generate:types    # Regenerate api.gen.ts from ledewire.yml (run after spec changes)
+pnpm docs              # Regenerate docs/api/ HTML from source (run after any API changes)
 pnpm changeset         # Create a changeset (required before merging feature PRs)
 ```
 
@@ -278,3 +282,10 @@ canonical example.
 CI verifies that `packages/core/src/api.gen.ts` matches what
 `pnpm generate:types` would produce from the current `ledewire.yml`.
 If the check fails, run `pnpm generate:types` and commit the result.
+
+### `docs/api/` is generated — never edit it manually
+
+CI verifies that `docs/api/` matches what `pnpm docs` would produce from the
+current source. If the check fails, run `pnpm docs` from the repo root and
+commit the result. Always run `pnpm docs` after adding or changing exported
+types, JSDoc, or public API methods.
