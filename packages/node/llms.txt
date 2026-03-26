@@ -110,6 +110,8 @@ client.merchant.auth.loginWithGoogle({ id_token })           → Promise<Merchan
 client.merchant.auth.listStores()                            → Promise<ManageableStore[]>
 client.merchant.auth.loginWithEmailAndListStores({ email, password }) → Promise<MerchantLoginResult>
 client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promise<MerchantLoginResult>
+client.merchant.auth.requestPasswordReset({ email })         → Promise<MerchantPasswordResetResponse>
+client.merchant.auth.resetPassword({ email, reset_code, password }) → Promise<MerchantPasswordResetResponse>
 ```
 
 `MerchantLoginResult = { tokens: StoredTokens, stores: MerchantLoginStore[] }`

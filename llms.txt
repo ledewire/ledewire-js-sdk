@@ -61,6 +61,8 @@ const client = createClient({
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
+- `client.merchant.auth.requestPasswordReset({ email })` → `MerchantPasswordResetResponse` — send password reset code to merchant email
+- `client.merchant.auth.resetPassword({ email, reset_code, password })` → `MerchantPasswordResetResponse` — complete merchant password reset with code
 - `client.merchant.users.list(storeId)` → team members
 - `client.merchant.users.invite(storeId, body)` → invite team member
 - `client.merchant.users.remove(storeId, userId)` → remove team member

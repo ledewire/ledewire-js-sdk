@@ -30,20 +30,20 @@ const stores = await client.merchant.auth.listStores()
 
 ## Client Namespaces
 
-| Namespace                | Description                                         |
-| ------------------------ | --------------------------------------------------- |
-| `client.config`          | Platform-level public config (no auth required)     |
-| `client.auth`            | Buyer signup, email/password login, Google OAuth    |
-| `client.wallet`          | Buyer wallet balance and payment sessions           |
-| `client.purchases`       | Buyer purchase history and create purchases         |
-| `client.content`         | Fetch content with buyer access info                |
-| `client.checkout`        | Checkout state — what action is required next       |
-| `client.merchant.auth`   | Merchant login (email / Google) and store discovery |
-| `client.merchant.users`  | Merchant user management                            |
-| `client.merchant.buyers` | Buyer management within a store                     |
-| `client.merchant.sales`  | Sales reporting                                     |
-| `client.merchant.config` | Store configuration                                 |
-| `client.seller.content`  | Seller content management (list, create, update)    |
+| Namespace                | Description                                                      |
+| ------------------------ | ---------------------------------------------------------------- |
+| `client.config`          | Platform-level public config (no auth required)                  |
+| `client.auth`            | Buyer signup, email/password login, Google OAuth                 |
+| `client.wallet`          | Buyer wallet balance and payment sessions                        |
+| `client.purchases`       | Buyer purchase history and create purchases                      |
+| `client.content`         | Fetch content with buyer access info                             |
+| `client.checkout`        | Checkout state — what action is required next                    |
+| `client.merchant.auth`   | Merchant login (email / Google), store discovery, password reset |
+| `client.merchant.users`  | Merchant user management                                         |
+| `client.merchant.buyers` | Buyer management within a store                                  |
+| `client.merchant.sales`  | Sales reporting                                                  |
+| `client.merchant.config` | Store configuration                                              |
+| `client.seller.content`  | Seller content management (list, create, update)                 |
 
 ## Configuration
 
@@ -126,6 +126,23 @@ const { tokens, stores } = await client.merchant.auth.loginWithGoogleAndListStor
   id_token: googleIdToken, // from Google Identity Services callback
 })
 const storeId = stores[0].id
+```
+
+### Password reset
+
+Two-step flow — request a code, then submit it with the new password:
+
+```ts
+// Step 1 — send a 6-digit reset code to the merchant's email.
+// Always returns 200 to prevent email enumeration.
+await client.merchant.auth.requestPasswordReset({ email: 'owner@example.com' })
+
+// Step 2 — submit the code and new password.
+await client.merchant.auth.resetPassword({
+  email: 'owner@example.com',
+  reset_code: '246810',
+  password: 'new-secure-password',
+})
 ```
 
 ### Separate login + store list (when you need full store detail)
