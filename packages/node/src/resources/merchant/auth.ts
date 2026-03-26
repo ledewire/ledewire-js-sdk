@@ -17,6 +17,37 @@ import type {
 } from '@ledewire/core'
 
 /**
+ * Request body for initiating a merchant password reset.
+ * Sent to `POST /v1/auth/merchant/password/reset-request`.
+ */
+export interface MerchantPasswordResetRequestBody {
+  /** The merchant's registered email address. */
+  email: string
+}
+
+/**
+ * Request body for completing a merchant password reset.
+ * Sent to `POST /v1/auth/merchant/password/reset`.
+ */
+export interface MerchantPasswordResetBody {
+  /** The merchant's registered email address. */
+  email: string
+  /** 6-digit numeric code delivered to the merchant's email. */
+  reset_code: string
+  /** New password (minimum 6 characters). */
+  password: string
+}
+
+/**
+ * Response returned by both merchant password reset endpoints.
+ * Contains a human-readable confirmation message.
+ */
+export interface MerchantPasswordResetResponse {
+  /** Human-readable result message from the API. */
+  message: string
+}
+
+/**
  * Result returned by the one-step login-and-discover helpers.
  * Contains normalized stored tokens and the list of stores the
  * authenticated user can manage, sourced directly from the login response.
@@ -189,6 +220,51 @@ export class MerchantAuthNamespace {
   ): Promise<MerchantLoginResult> {
     const raw = await this.loginWithGoogle(body)
     return { tokens: this.normalizeTokens(raw), stores: raw.stores }
+  }
+
+  /**
+   * Request a password reset code to be sent to the merchant's email address.
+   *
+   * The response is intentionally ambiguous — if the email does not exist,
+   * the API returns the same success message to prevent account enumeration.
+   *
+   * @param body - The merchant's email address.
+   * @returns A response with a confirmation message.
+   *
+   * @example
+   * ```ts
+   * await client.merchant.auth.requestPasswordReset({ email: 'owner@example.com' })
+   * // → { message: 'If an account with this email exists, a reset code has been sent.' }
+   * ```
+   */
+  async requestPasswordReset(
+    body: MerchantPasswordResetRequestBody,
+  ): Promise<MerchantPasswordResetResponse> {
+    return this.http.post<MerchantPasswordResetResponse>(
+      '/v1/auth/merchant/password/reset-request',
+      body,
+    )
+  }
+
+  /**
+   * Reset a merchant's password using the code delivered to their email.
+   *
+   * Obtain the reset code first by calling `requestPasswordReset()`.
+   *
+   * @param body - Email address, 6-digit reset code, and the new password.
+   * @returns A response with a confirmation message.
+   *
+   * @example
+   * ```ts
+   * await client.merchant.auth.resetPassword({
+   *   email: 'owner@example.com',
+   *   reset_code: '246810',
+   *   password: 'new-secure-password',
+   * })
+   * ```
+   */
+  async resetPassword(body: MerchantPasswordResetBody): Promise<MerchantPasswordResetResponse> {
+    return this.http.post<MerchantPasswordResetResponse>('/v1/auth/merchant/password/reset', body)
   }
 
   private normalizeTokens(res: MerchantAuthenticationResponse): StoredTokens {

@@ -245,3 +245,140 @@ describe('merchant.auth.loginWithGoogleAndListStores', () => {
     expect(storage.getTokens()?.accessToken).toBe('combo-google-token')
   })
 })
+
+// ---------------------------------------------------------------------------
+// merchant.auth.requestPasswordReset
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.requestPasswordReset', () => {
+  const successBody = {
+    message: 'If an account with this email exists, a reset code has been sent.',
+  }
+
+  it('returns the confirmation message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset-request`, () =>
+        HttpResponse.json(successBody),
+      ),
+    )
+
+    const result = await makeClient().merchant.auth.requestPasswordReset({
+      email: 'owner@example.com',
+    })
+
+    expect(result).toEqual(successBody)
+  })
+
+  it('sends the email in the request body', async () => {
+    let capturedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset-request`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(successBody)
+      }),
+    )
+
+    await makeClient().merchant.auth.requestPasswordReset({ email: 'owner@example.com' })
+
+    expect(capturedBody).toEqual({ email: 'owner@example.com' })
+  })
+
+  it('does not store tokens', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset-request`, () =>
+        HttpResponse.json(successBody),
+      ),
+    )
+
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
+    await client.merchant.auth.requestPasswordReset({ email: 'owner@example.com' })
+
+    expect(storage.getTokens()).toBeNull()
+  })
+
+  it('throws on 400 (invalid email format)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset-request`, () =>
+        HttpResponse.json(errorResponseFixture(400, 'email must be a valid email address'), {
+          status: 400,
+        }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.auth.requestPasswordReset({ email: 'not-an-email' }),
+    ).rejects.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.resetPassword
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.resetPassword', () => {
+  const successBody = { message: 'Password has been successfully reset.' }
+  const validBody = {
+    email: 'owner@example.com',
+    reset_code: '246810',
+    password: 'new-secure-password',
+  }
+
+  it('returns the confirmation message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset`, () => HttpResponse.json(successBody)),
+    )
+
+    const result = await makeClient().merchant.auth.resetPassword(validBody)
+
+    expect(result).toEqual(successBody)
+  })
+
+  it('sends all required fields in the request body', async () => {
+    let capturedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset`, async ({ request }) => {
+        capturedBody = await request.json()
+        return HttpResponse.json(successBody)
+      }),
+    )
+
+    await makeClient().merchant.auth.resetPassword(validBody)
+
+    expect(capturedBody).toEqual(validBody)
+  })
+
+  it('does not store tokens', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset`, () => HttpResponse.json(successBody)),
+    )
+
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
+    await client.merchant.auth.resetPassword(validBody)
+
+    expect(storage.getTokens()).toBeNull()
+  })
+
+  it('throws on 400 (invalid or expired code)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset`, () =>
+        HttpResponse.json(errorResponseFixture(400, 'Invalid or expired reset code'), {
+          status: 400,
+        }),
+      ),
+    )
+
+    await expect(makeClient().merchant.auth.resetPassword(validBody)).rejects.toThrow()
+  })
+
+  it('throws on 404 (user not found)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/merchant/password/reset`, () =>
+        HttpResponse.json(errorResponseFixture(404, 'User not found'), { status: 404 }),
+      ),
+    )
+
+    await expect(makeClient().merchant.auth.resetPassword(validBody)).rejects.toThrow()
+  })
+})

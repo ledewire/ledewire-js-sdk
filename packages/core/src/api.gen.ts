@@ -519,6 +519,141 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/auth/merchant/password/reset-request': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Request a merchant password reset code
+     * @description Sends a 6-digit reset code to the given email address if a matching account exists. Always returns 200 to prevent email enumeration.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** Format: email */
+            email: string
+          }
+        }
+      }
+      responses: {
+        /** @description Password reset code sent (if account exists) */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MessageResponse']
+          }
+        }
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests (rate limit exceeded) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/merchant/password/reset': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Reset merchant password using code
+     * @description Validates the 6-digit reset code and replaces the user's password. The reset code is single-use and expires after a short window.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** Format: email */
+            email: string
+            /**
+             * @description 6-digit numeric code received by email
+             * @example 246810
+             */
+            reset_code: string
+            /** @description New password (minimum 6 characters) */
+            password: string
+          }
+        }
+      }
+      responses: {
+        /** @description Password reset successful */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MessageResponse']
+          }
+        }
+        /** @description Invalid request, code, or password */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description User not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/merchant/{store_id}/users': {
     parameters: {
       query?: never
@@ -1957,7 +2092,26 @@ export interface paths {
         cookie?: never
       }
       requestBody?: never
-      responses: never
+      responses: {
+        /** @description User's current checkout state */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              content_id?: string
+              checkout_state?: {
+                is_authenticated?: boolean
+                has_sufficient_funds?: boolean
+                has_purchased?: boolean
+                /** @enum {string} */
+                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+              }
+            }
+          }
+        }
+      }
     }
     put?: never
     post?: never
@@ -3230,7 +3384,7 @@ export interface components {
       title?: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. For `markdown` content only.
+       * @description Full article body in markdown, base64 encoded. For `markdown` content only. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
        */
       content_body?: string
       /**
@@ -3245,7 +3399,7 @@ export interface components {
       external_identifier?: string | null
       /**
        * Format: byte
-       * @description Content teaser, base64 encoded
+       * @description Content teaser, base64 encoded. Must be base64-encoded before sending (e.g. `btoa(teaserText)`)
        */
       teaser?: string
       /** @description Price in cents (must be greater than 0) */
@@ -3477,7 +3631,7 @@ export interface components {
       title: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
+       * @description Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
        */
       content_body?: string
       /**
@@ -3492,7 +3646,7 @@ export interface components {
       external_identifier?: string
       /**
        * Format: byte
-       * @description (Optional) Article teaser, written in markdown and base64 encoded.
+       * @description (Optional) Article teaser, written in markdown and base64 encoded. Must be base64-encoded before sending (e.g. `btoa(teaserText)`).
        */
       teaser?: string
       /** @description Price for the content in cents. */
@@ -3524,7 +3678,7 @@ export interface components {
       title: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`.
+       * @description Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`. Must be base64-decoded before rendering (e.g. `atob(content.content_body ?? '')`).
        */
       content_body?: string | null
       /**
@@ -3539,7 +3693,7 @@ export interface components {
       external_identifier?: string | null
       /**
        * Format: byte
-       * @description Article teaser, base64 encoded.
+       * @description Article teaser, base64 encoded. Must be base64-decoded before rendering (e.g. `atob(content.teaser ?? '')`).
        */
       teaser: string
       /** @description Price for the content in cents. */
@@ -3635,7 +3789,7 @@ export interface components {
       price_cents: number
       /**
        * Format: byte
-       * @description Article teaser, base64 encoded. Null when not set.
+       * @description Article teaser, base64 encoded. Null when not set. Must be base64-decoded before rendering (e.g. `atob(item.teaser ?? '')`).
        */
       teaser: string | null
       /** @enum {string} */

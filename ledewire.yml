@@ -470,7 +470,7 @@ components:
         content_body:
           type: string
           format: byte
-          description: Full article body in markdown, base64 encoded. For `markdown` content only.
+          description: Full article body in markdown, base64 encoded. For `markdown` content only. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
         content_uri:
           type: string
           description: URI of the resource. Required for `external_ref` content; optional for `markdown` content.
@@ -482,7 +482,7 @@ components:
         teaser:
           type: string
           format: byte
-          description: Content teaser, base64 encoded
+          description: Content teaser, base64 encoded. Must be base64-encoded before sending (e.g. `btoa(teaserText)`)
         price_cents:
           type: integer
           minimum: 1
@@ -786,7 +786,7 @@ components:
         content_body:
           type: string
           format: byte
-          description: Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`.
+          description: Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
         content_uri:
           type: string
           description: URI of the resource. Required when `content_type` is `external_ref`; optional for `markdown` content.
@@ -798,7 +798,7 @@ components:
         teaser:
           type: string
           format: byte
-          description: (Optional) Article teaser, written in markdown and base64 encoded.
+          description: (Optional) Article teaser, written in markdown and base64 encoded. Must be base64-encoded before sending (e.g. `btoa(teaserText)`).
         price_cents:
           type: integer
           minimum: 1
@@ -842,7 +842,7 @@ components:
         content_body:
           type: [string, 'null']
           format: byte
-          description: Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`.
+          description: Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`. Must be base64-decoded before rendering (e.g. `atob(content.content_body ?? '')`).
         content_uri:
           type: [string, 'null']
           description: URI of the external resource. Present when `content_type` is `external_ref`.
@@ -854,7 +854,7 @@ components:
         teaser:
           type: string
           format: byte
-          description: Article teaser, base64 encoded.
+          description: Article teaser, base64 encoded. Must be base64-decoded before rendering (e.g. `atob(content.teaser ?? '')`).
         price_cents:
           type: integer
           description: Price for the content in cents.
@@ -994,7 +994,7 @@ components:
         teaser:
           type: [string, 'null']
           format: byte
-          description: Article teaser, base64 encoded. Null when not set.
+          description: Article teaser, base64 encoded. Null when not set. Must be base64-decoded before rendering (e.g. `atob(item.teaser ?? '')`).
         visibility:
           type: string
           enum: [public, unlisted, private]
@@ -1670,6 +1670,135 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/merchant/password/reset-request:
+    post:
+      summary: Request a merchant password reset code
+      description: >
+        Sends a 6-digit reset code to the given email address if a matching account exists.
+        Always returns 200 to prevent email enumeration.
+      tags:
+        - Merchant Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Password reset code sent (if account exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                reset_requested:
+                  summary: Reset code sent (or silently suppressed for unknown email)
+                  value:
+                    message: 'If an account with this email exists, a reset code has been sent.'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_email:
+                  summary: Invalid email format
+                  value:
+                    error:
+                      code: 400
+                      message: 'email must be a valid email address'
+        '429':
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: Rate limit exceeded
+                  value:
+                    error:
+                      code: 429
+                      message: 'Too many reset attempts. Please try again later.'
+
+  /v1/auth/merchant/password/reset:
+    post:
+      summary: Reset merchant password using code
+      description: >
+        Validates the 6-digit reset code and replaces the user's password.
+        The reset code is single-use and expires after a short window.
+      tags:
+        - Merchant Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, reset_code, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                reset_code:
+                  type: string
+                  description: 6-digit numeric code received by email
+                  example: '246810'
+                password:
+                  type: string
+                  description: New password (minimum 6 characters)
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                reset_success:
+                  summary: Password updated
+                  value:
+                    message: 'Password has been successfully reset.'
+        '400':
+          description: Invalid request, code, or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_code:
+                  summary: Invalid or expired code
+                  value:
+                    error:
+                      code: 400
+                      message: 'Invalid or expired reset code'
+                invalid_password:
+                  summary: Password too short
+                  value:
+                    error:
+                      code: 400
+                      message: 'Failed to update password: Password is too short (minimum is 6 characters)'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: User not found
+                  value:
+                    error:
+                      code: 404
+                      message: 'User not found'
 
   /v1/merchant/{store_id}/users:
     parameters:
@@ -2952,28 +3081,28 @@ paths:
           required: true
           schema:
             type: string
-    responses:
-      '200':
-        description: User's current checkout state
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                content_id:
-                  type: string
-                checkout_state:
-                  type: object
-                  properties:
-                    is_authenticated:
-                      type: boolean
-                    has_sufficient_funds:
-                      type: boolean
-                    has_purchased:
-                      type: boolean
-                    next_required_action:
-                      type: string
-                      enum: [authenticate, fund_wallet, purchase, view_content]
+      responses:
+        '200':
+          description: User's current checkout state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content_id:
+                    type: string
+                  checkout_state:
+                    type: object
+                    properties:
+                      is_authenticated:
+                        type: boolean
+                      has_sufficient_funds:
+                        type: boolean
+                      has_purchased:
+                        type: boolean
+                      next_required_action:
+                        type: string
+                        enum: [authenticate, fund_wallet, purchase, view_content]
 
   /v1/purchases:
     get:

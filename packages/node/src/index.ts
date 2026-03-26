@@ -84,3 +84,8 @@ export type { ContentSearchRequest } from './resources/seller/content.js'
 export { createClient } from './client.js'
 export type { NodeClientConfig } from './client.js'
 export type { MerchantLoginResult } from './resources/merchant/auth.js'
+export type {
+  MerchantPasswordResetRequestBody,
+  MerchantPasswordResetBody,
+  MerchantPasswordResetResponse,
+} from './resources/merchant/auth.js'
