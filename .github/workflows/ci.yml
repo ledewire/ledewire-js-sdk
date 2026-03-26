@@ -65,7 +65,7 @@ jobs:
 
       - name: Check docs/api is up to date
         run: |
-          pnpm docs
+          pnpm run docs
           git diff --exit-code docs/api || (
             echo ""
             echo "ERROR: docs/api is out of date."

@@ -99,7 +99,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Generate TypeDoc API reference
-        run: pnpm docs
+        run: pnpm run docs
       - name: Commit updated docs/api
         run: |
           git config user.name "github-actions[bot]"
