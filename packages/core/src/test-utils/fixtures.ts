@@ -28,6 +28,8 @@ type BuyerStatisticsSchema = components['schemas']['BuyerStatisticsItem']
 type PublicConfigSchema = components['schemas']['PublicConfigResponse']
 type MerchantPricingRuleSchema = components['schemas']['MerchantPricingRule']
 type MerchantDomainVerificationSchema = components['schemas']['MerchantDomainVerification']
+type UserApiKeySchema = components['schemas']['UserApiKey']
+type UserApiKeyCreateResponseSchema = components['schemas']['UserApiKeyCreateResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -451,6 +453,36 @@ export function merchantDomainVerificationFixture(
     verified_at: null,
     checked_at: null,
     created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a buyer API key fixture (secret is never present after creation).
+ */
+export function userApiKeyFixture(overrides?: Partial<UserApiKeySchema>): UserApiKeySchema {
+  return {
+    id: 'key-id-1',
+    name: 'My Agent Key',
+    key: 'bktst_abc123',
+    last_used_at: null,
+    spending_limit_cents: null,
+    created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a buyer API key create response fixture.
+ * The `secret` is shown once only — store immediately.
+ */
+export function userApiKeyCreateResponseFixture(
+  overrides?: Partial<UserApiKeyCreateResponseSchema>,
+): UserApiKeyCreateResponseSchema {
+  return {
+    id: 'key-id-1',
+    key: 'bktst_abc123',
+    secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
     ...overrides,
   }
 }

@@ -65,6 +65,10 @@ export type {
   WalletPaymentSessionResponse,
   WalletPaymentStatusResponse,
   WalletTransactionItem,
+  AuthLoginBuyerApiKeyRequest,
+  UserApiKey,
+  UserApiKeyCreateRequest,
+  UserApiKeyCreateResponse,
 } from '@ledewire/core'
 export {
   AuthError,
@@ -81,8 +85,8 @@ export type { MerchantUserUpdateRequest } from './resources/merchant/users.js'
 // Seller content namespace types
 export type { ContentSearchRequest } from './resources/seller/content.js'
 // Package exports (implementations added in build step 4)
-export { createClient } from './client.js'
-export type { NodeClientConfig } from './client.js'
+export { createClient, createAgentClient } from './client.js'
+export type { NodeClientConfig, AgentClientConfig, AgentClient } from './client.js'
 export type { MerchantLoginResult } from './resources/merchant/auth.js'
 export type {
   MerchantPasswordResetRequestBody,

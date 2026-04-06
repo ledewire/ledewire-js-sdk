@@ -105,15 +105,18 @@ lw.config.getPublic() → Promise<PublicConfigResponse>
 ### lw.auth (buyer auth)
 
 ```ts
-lw.auth.signup(body)                           → Promise<AuthenticationResponse>
-lw.auth.loginWithEmail({ email, password })    → Promise<AuthenticationResponse>
-lw.auth.loginWithGoogle({ id_token })          → Promise<AuthenticationResponse>
-lw.auth.logout()                               → Promise<void>
-lw.auth.requestPasswordReset({ email })        → Promise<AuthPasswordResetResponse>
-lw.auth.resetPassword({ email, reset_code, password }) → Promise<AuthPasswordResetResponse>
+lw.auth.signup(body)                                           → Promise<AuthenticationResponse>
+lw.auth.loginWithEmail({ email, password })                    → Promise<AuthenticationResponse>
+lw.auth.loginWithGoogle({ id_token })                          → Promise<AuthenticationResponse>
+lw.auth.loginWithBuyerApiKey({ key, secret })                  → Promise<AuthenticationResponse>
+lw.auth.logout()                                               → Promise<void>
+lw.auth.requestPasswordReset({ email })                        → Promise<AuthPasswordResetResponse>
+lw.auth.resetPassword({ email, reset_code, password })         → Promise<AuthPasswordResetResponse>
 ```
 
 Tokens are stored automatically after every successful login.
+`loginWithBuyerApiKey` is useful in buyer dashboards where the user has created a
+named API key and wants to authenticate headlessly (without email/password).
 
 ### lw.checkout
 
@@ -174,6 +177,21 @@ lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessRespons
 // content_body: plain text markdown (SDK decodes base64 automatically)
 // content_uri: URL for external_ref content (Vimeo, YouTube, PDF, etc.)
 ```
+
+### lw.user
+
+Manage buyer API keys from a buyer-facing dashboard. Keys can be passed to
+`lw.auth.loginWithBuyerApiKey()` for headless authentication.
+
+```ts
+lw.user.apiKeys.list()            → Promise<UserApiKey[]>
+lw.user.apiKeys.create(body)      → Promise<UserApiKeyCreateResponse>
+lw.user.apiKeys.revoke(keyId)     → Promise<void>
+```
+
+The `secret` field in the create response is shown **once** — display it
+immediately in the UI and prompt the user to copy it. There is no way to retrieve
+it again.
 
 ### lw.seller
 

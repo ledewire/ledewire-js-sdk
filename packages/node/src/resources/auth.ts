@@ -14,6 +14,7 @@ import type {
   AuthLoginEmailRequest,
   AuthLoginOAuthRequest,
   AuthLoginApiKeyRequest,
+  AuthLoginBuyerApiKeyRequest,
   AuthenticationResponse,
 } from '@ledewire/core'
 
@@ -77,6 +78,32 @@ export class AuthNamespace {
    */
   async loginWithGoogle(body: AuthLoginOAuthRequest): Promise<AuthenticationResponse> {
     const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/google', body)
+    await this.storeTokens(res)
+    return res
+  }
+
+  /**
+   * Log in using a buyer API key and secret.
+   * Returns a buyer-scoped JWT identical in shape to the email/password login response.
+   * Tokens are stored automatically after successful authentication.
+   *
+   * This is the primary authentication method for autonomous agents — the key+secret
+   * are stored in environment variables and used to self-authenticate with no human
+   * in the loop.
+   *
+   * @remarks
+   * Rate-limited to 60 requests per minute per IP.
+   *
+   * @example
+   * ```ts
+   * await client.auth.loginWithBuyerApiKey({
+   *   key: process.env.LEDEWIRE_BUYER_KEY,
+   *   secret: process.env.LEDEWIRE_BUYER_SECRET,
+   * })
+   * ```
+   */
+  async loginWithBuyerApiKey(body: AuthLoginBuyerApiKeyRequest): Promise<AuthenticationResponse> {
+    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/buyer-api-key', body)
     await this.storeTokens(res)
     return res
   }

@@ -14,6 +14,7 @@ describe('createMockClient', () => {
     expect(client).toHaveProperty('content')
     expect(client).toHaveProperty('checkout')
     expect(client).toHaveProperty('config')
+    expect(client).toHaveProperty('user')
   })
 
   it('stubs config.getPublic', () => {
@@ -30,6 +31,7 @@ describe('createMockClient', () => {
     expect(typeof client.auth.loginWithEmail).toBe('function')
     expect(typeof client.auth.loginWithGoogle).toBe('function')
     expect(typeof client.auth.loginWithApiKey).toBe('function')
+    expect(typeof client.auth.loginWithBuyerApiKey).toBe('function')
   })
 
   it('stubs all merchant auth methods including convenience helpers', () => {
@@ -84,6 +86,14 @@ describe('createMockClient', () => {
     expect(typeof client.merchant.domains.list).toBe('function')
     expect(typeof client.merchant.domains.add).toBe('function')
     expect(typeof client.merchant.domains.remove).toBe('function')
+  })
+
+  it('stubs all user.apiKeys methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.user.apiKeys.list).toBe('function')
+    expect(typeof client.user.apiKeys.create).toBe('function')
+    expect(typeof client.user.apiKeys.revoke).toBe('function')
   })
 
   it('stubs all wallet methods', () => {

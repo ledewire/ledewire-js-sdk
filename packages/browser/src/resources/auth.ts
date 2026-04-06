@@ -14,6 +14,7 @@ import { parseExpiresAt } from '@ledewire/core'
 import type { HttpClient, TokenManager } from '@ledewire/core'
 import type {
   AuthLoginEmailRequest,
+  AuthLoginBuyerApiKeyRequest,
   AuthLoginOAuthRequest,
   AuthPasswordResetBody,
   AuthPasswordResetRequestBody,
@@ -75,6 +76,31 @@ export class BrowserAuthNamespace {
    */
   async loginWithGoogle(body: AuthLoginOAuthRequest): Promise<AuthenticationResponse> {
     const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/google', body)
+    await this.storeTokens(res)
+    return res
+  }
+
+  /**
+   * Log in using a buyer API key and secret.
+   * Returns a buyer-scoped JWT, stored automatically after successful authentication.
+   *
+   * Primarily useful when building buyer-facing dashboards where the user
+   * has created a named API key and wishes to authenticate with it programmatically,
+   * or for agent workflows running inside a browser context.
+   *
+   * @param body - The buyer API key and secret.
+   * @returns The authentication token response.
+   *
+   * @example
+   * ```ts
+   * await lw.auth.loginWithBuyerApiKey({
+   *   key: 'bktst_abc123',
+   *   secret: 'deadbeef...',
+   * })
+   * ```
+   */
+  async loginWithBuyerApiKey(body: AuthLoginBuyerApiKeyRequest): Promise<AuthenticationResponse> {
+    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/buyer-api-key', body)
     await this.storeTokens(res)
     return res
   }

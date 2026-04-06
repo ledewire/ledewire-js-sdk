@@ -13,6 +13,7 @@ import { BrowserPurchasesNamespace } from './resources/purchases.js'
 import { BrowserSellerNamespace } from './resources/seller/index.js'
 import { BrowserWalletNamespace } from './resources/wallet.js'
 import { CheckoutNamespace } from './resources/checkout.js'
+import { UserNamespace } from './resources/user/index.js'
 
 /**
  * Configuration options for the LedeWire browser client.
@@ -119,6 +120,9 @@ export class BrowserClient {
   /** Seller operations: API key login, content list/search/get */
   readonly seller: BrowserSellerNamespace
 
+  /** Authenticated buyer account: API key management */
+  readonly user: UserNamespace
+
   /** @internal */
   constructor(
     private readonly _http: HttpClient,
@@ -132,5 +136,6 @@ export class BrowserClient {
     this.purchases = new BrowserPurchasesNamespace(_http)
     this.content = new BrowserContentNamespace(_http)
     this.seller = new BrowserSellerNamespace(_http, _tokenManager)
+    this.user = new UserNamespace(_http)
   }
 }

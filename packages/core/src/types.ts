@@ -208,6 +208,22 @@ export type MerchantPricingRule = components['schemas']['MerchantPricingRule']
 /** A merchant domain verification record for x402 URL gating. */
 export type MerchantDomainVerification = components['schemas']['MerchantDomainVerification']
 
+/** Request body for authenticating as a buyer using a named API key + secret. */
+export type AuthLoginBuyerApiKeyRequest = components['schemas']['AuthLoginBuyerApiKeyRequest']
+
+/** A buyer API key record (secret is never included after creation). */
+export type UserApiKey = components['schemas']['UserApiKey']
+
+/** Request body for creating a new buyer API key. */
+export type UserApiKeyCreateRequest = components['schemas']['UserApiKeyCreateRequest']
+
+/**
+ * Response returned once when a buyer API key is created.
+ * The `secret` is shown exactly once and cannot be retrieved again.
+ * Store it immediately in a secrets manager.
+ */
+export type UserApiKeyCreateResponse = components['schemas']['UserApiKeyCreateResponse']
+
 /**
  * Pagination parameters accepted by paginated list endpoints.
  *

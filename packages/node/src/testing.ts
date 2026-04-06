@@ -133,6 +133,7 @@ export function createMockClient(
       signup: stub(),
       loginWithEmail: stub(),
       loginWithGoogle: stub(),
+      loginWithBuyerApiKey: stub(),
       loginWithApiKey: stub(),
     },
     merchant: {
@@ -197,6 +198,13 @@ export function createMockClient(
     },
     checkout: {
       state: stub(),
+    },
+    user: {
+      apiKeys: {
+        list: stub(),
+        create: stub(),
+        revoke: stub(),
+      },
     },
     config: {
       getPublic: stub(),

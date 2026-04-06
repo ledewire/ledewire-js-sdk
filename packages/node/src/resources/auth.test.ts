@@ -181,3 +181,47 @@ describe('auth.loginWithApiKey', () => {
     await expect(makeClient().auth.loginWithApiKey({ key: 'bad-key' })).rejects.toThrow(AuthError)
   })
 })
+
+// ---------------------------------------------------------------------------
+// auth.loginWithBuyerApiKey
+// ---------------------------------------------------------------------------
+
+describe('auth.loginWithBuyerApiKey', () => {
+  it('returns the token response', async () => {
+    const fixture = authTokenFixture()
+    server.use(http.post(`${BASE}/v1/auth/login/buyer-api-key`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().auth.loginWithBuyerApiKey({
+      key: 'bktst_abc123',
+      secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    })
+
+    expect(result).toEqual(fixture)
+  })
+
+  it('stores tokens automatically after successful authentication', async () => {
+    const fixture = authTokenFixture({ access_token: 'buyer-key-access-token' })
+    server.use(http.post(`${BASE}/v1/auth/login/buyer-api-key`, () => HttpResponse.json(fixture)))
+
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
+    await client.auth.loginWithBuyerApiKey({
+      key: 'bktst_abc123',
+      secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    })
+
+    expect(storage.getTokens()?.accessToken).toBe('buyer-key-access-token')
+  })
+
+  it('throws AuthError on 401 (invalid key or secret)', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/login/buyer-api-key`, () =>
+        HttpResponse.json(errorResponseFixture(1003, 'Invalid key or secret'), { status: 401 }),
+      ),
+    )
+
+    await expect(
+      makeClient().auth.loginWithBuyerApiKey({ key: 'bad', secret: 'bad' }),
+    ).rejects.toThrow(AuthError)
+  })
+})

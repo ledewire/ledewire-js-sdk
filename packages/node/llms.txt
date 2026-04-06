@@ -93,14 +93,20 @@ client.config.getPublic() → Promise<PublicConfigResponse>
 ### client.auth (buyer auth)
 
 ```ts
-client.auth.signup(body)                         → Promise<AuthenticationResponse>
-client.auth.loginWithEmail({ email, password })  → Promise<AuthenticationResponse>
-client.auth.loginWithGoogle({ id_token })        → Promise<AuthenticationResponse>
-client.auth.logout()                             → Promise<void>
-client.auth.refreshToken()                       → Promise<AuthenticationResponse>
-client.auth.requestPasswordReset({ email })      → Promise<void>
-client.auth.resetPassword({ token, password })   → Promise<void>
+client.auth.signup(body)                                             → Promise<AuthenticationResponse>
+client.auth.loginWithEmail({ email, password })                      → Promise<AuthenticationResponse>
+client.auth.loginWithGoogle({ id_token })                            → Promise<AuthenticationResponse>
+client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise<AuthenticationResponse>
+client.auth.loginWithApiKey({ key, secret? })                        → Promise<AuthenticationResponse>
+client.auth.logout()                                                 → Promise<void>
+client.auth.refreshToken()                                           → Promise<AuthenticationResponse>
+client.auth.requestPasswordReset({ email })                          → Promise<void>
+client.auth.resetPassword({ email, reset_code, password })           → Promise<void>
 ```
+
+`loginWithBuyerApiKey` is intended for agents and buyer-facing dashboards that
+authenticate headlessly using a named API key. The token is stored automatically.
+See `client.user.apiKeys.create()` to generate a key.
 
 ### client.merchant.auth
 
@@ -269,6 +275,76 @@ client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessRe
 ```ts
 client.checkout.state(contentId)                  → Promise<CheckoutStateResponse>
 ```
+
+### client.user
+
+Manage buyer API keys. Keys are used with `auth.loginWithBuyerApiKey()` for
+agent authentication. The secret is shown **once** at creation — store it
+immediately in a secrets manager.
+
+```ts
+client.user.apiKeys.list()                         → Promise<UserApiKey[]>
+client.user.apiKeys.create(body)                   → Promise<UserApiKeyCreateResponse>
+client.user.apiKeys.revoke(keyId)                  → Promise<void>
+```
+
+```ts
+// body for create:
+interface UserApiKeyCreateRequest {
+  name: string                     // human-readable label e.g. 'my-rag-agent'
+  spending_limit_cents?: number    // optional per-period cap in cents
+}
+
+// list response item (no secret):
+interface UserApiKey {
+  id: string
+  name: string
+  key: string                      // e.g. 'bktst_abc123' — share with agent
+  last_used_at: string | null
+  spending_limit_cents: number | null
+  created_at: string
+}
+
+// create response (secret visible once only):
+interface UserApiKeyCreateResponse extends UserApiKey {
+  secret: string  // 64-char hex — STORE IMMEDIATELY, never shown again
+}
+```
+
+## createAgentClient()
+
+A convenience factory for autonomous (headless) agents. Wraps `createClient()`
+and exposes only the buyer-relevant namespaces: `auth`, `wallet`, `purchases`,
+`content`, `checkout`, `user`.
+
+```ts
+import { createAgentClient } from '@ledewire/node'
+import type { AgentClientConfig, AgentClient } from '@ledewire/node'
+
+const agent = createAgentClient({
+  key: process.env.LEDEWIRE_BUYER_KEY,    // 'bktst_...' from user.apiKeys.create()
+  secret: process.env.LEDEWIRE_BUYER_SECRET,  // 64-char hex, shown once
+  // storage: myRedisAdapter,  // required for serverless — default is MemoryTokenStorage
+})
+
+// Step 1: authenticate
+await agent.auth.loginWithBuyerApiKey({
+  key: process.env.LEDEWIRE_BUYER_KEY,
+  secret: process.env.LEDEWIRE_BUYER_SECRET,
+})
+
+// Step 2: use wallet, purchases, content, checkout normally
+const balance = await agent.wallet.balance()
+const purchase = await agent.purchases.create({ content_id: 'abc123' })
+const article  = await agent.content.getWithAccess(purchase.content_id)
+```
+
+`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user'>`.
+The `merchant`, `seller`, and `config` namespaces are intentionally absent.
+
+**Serverless warning:** `MemoryTokenStorage` (default) resets on every cold start.
+In serverless or edge environments always provide a persistent `storage` adapter
+so the agent doesn't re-authenticate on every invocation.
 
 ## Paginated responses
 
