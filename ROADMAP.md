@@ -141,11 +141,92 @@ Each phase is designed to fit in a single focused session.
 
 ## Session log
 
-| Session | Date       | Phases completed                                                                                                                                                                                                                            |
-| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1       | 2026-03-09 | Phase 1 ✅                                                                                                                                                                                                                                  |
-| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅                                                                                                                                                                                                          |
-| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅                                                                                                                                                                                                                      |
-| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅, Phase 8 ✅                                                                                                                                                                                                          |
-| 5       | 2026-03-13 | SDK feedback triage: bundled types fix (v0.2.2), discriminated `Content` union, `loginWithEmailAndListStores`, `@ledewire/node/testing` subpath, JSDoc/README improvements (v0.2.3)                                                         |
-| 6       | 2026-03-15 | API spec update: regenerated `api.gen.ts`, pagination on all list endpoints → `v0.3.0`, `merchant.users.update()` for `author_fee_bps`, `MerchantLoginStore` embedded in login response (single HTTP call), fixture + test + README updates |
+| Session | Date       | Phases completed                                                                                                                                                                                                                                                                   |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1       | 2026-03-09 | Phase 1 ✅                                                                                                                                                                                                                                                                         |
+| 2       | 2026-03-09 | Phase 1 ✅, Phase 2 ✅, Phase 3 ✅                                                                                                                                                                                                                                                 |
+| 3       | 2026-03-09 | Phase 4 ✅, Phase 5 ✅                                                                                                                                                                                                                                                             |
+| 4       | 2026-03-09 | Phase 6 ✅, Phase 7 ✅, Phase 8 ✅                                                                                                                                                                                                                                                 |
+| 5       | 2026-03-13 | SDK feedback triage: bundled types fix (v0.2.2), discriminated `Content` union, `loginWithEmailAndListStores`, `@ledewire/node/testing` subpath, JSDoc/README improvements (v0.2.3)                                                                                                |
+| 6       | 2026-03-15 | API spec update: regenerated `api.gen.ts`, pagination on all list endpoints → `v0.3.0`, `merchant.users.update()` for `author_fee_bps`, `MerchantLoginStore` embedded in login response (single HTTP call), fixture + test + README updates                                        |
+| 7       | 2026-04-05 | x402 pricing rules + domain verification (merchant namespace), full security pass (`encodeURIComponent` on all path segments, `pnpm.overrides` for audit), buyer API + agent work: `auth.loginWithBuyerApiKey`, `user.apiKeys.{list,create,revoke}`, `createAgentClient()` factory |
+
+---
+
+## Buyer portal gaps
+
+Gaps identified during buyer portal readiness review (2026-04-06).
+Split into **API server prerequisites** (require spec + server changes) and **SDK work** (can be done in this repo once unblocked).
+
+### API server prerequisites
+
+These gaps require new endpoints before the SDK can be written.
+
+#### GAP-1 — Public content catalog endpoint
+
+**Blocker for:** buyer portal home/browse page and any content listing UI.
+
+There is no buyer-facing endpoint to list purchasable content for a store. `content.getWithAccess(id)` requires a known content ID. A portal that needs to let buyers browse available titles cannot do so.
+
+**Proposed spec addition:**
+
+```
+GET /v1/stores/:store_key/catalog?page=&per_page=
+```
+
+Returns `PaginatedContentList` filtered to `visibility: public`. No auth required.
+The `store_key` param (rather than `store_id`) avoids exposing internal UUIDs in public URLs.
+
+**SDK work once spec is added:** new `catalog.list(storeKey, params?)` namespace in both `@ledewire/node` and `@ledewire/browser`, exported type aliases, tests.
+
+---
+
+#### GAP-2 — Buyer profile endpoint (read + update)
+
+**Blocker for:** buyer portal "Account settings" page — display name, change email/password while logged in.
+
+The `User` schema exists in `ledewire.yml` (fields: `id`, `name`, `email`, `role`) but there is no corresponding endpoint.
+
+**Proposed spec addition:**
+
+```
+GET  /v1/user/profile              → User
+PATCH /v1/user/profile             → User   (body: { name?, email? })
+POST /v1/user/profile/change-password  → void  (body: { current_password, new_password })
+```
+
+**SDK work once spec is added:** `user.profile.get()`, `user.profile.update(body)`, `user.profile.changePassword(body)` added to the existing `UserNamespace` in both packages.
+
+---
+
+#### GAP-3 — Server-side token revocation (logout)
+
+**Security gap.** `auth.logout()` only clears local token storage. There is no `DELETE /v1/auth/token` endpoint to invalidate the refresh token server-side, meaning a stolen refresh token remains valid until it expires naturally.
+
+**Proposed spec addition:**
+
+```
+DELETE /v1/auth/token    (sends current refresh_token in body; invalidates it server-side)
+```
+
+**SDK work once spec is added:** update `auth.logout()` in both packages to call the endpoint before clearing local storage. Fall back to local clear if the request fails (e.g. already expired).
+
+---
+
+### SDK work (can be done in this repo)
+
+These gaps are fixable without new server endpoints.
+
+#### GAP-4 — `wallet.transactions` and `purchases.list` missing pagination
+
+Both endpoints return plain arrays in the current spec. At scale (a buyer with hundreds of purchases) this will be slow and memory-heavy for the server.
+
+**Action:** raise with the API team to add `page`/`per_page` query params and return `{ data, pagination }` envelopes, consistent with all other list endpoints. Once spec is updated, the SDK methods accept `params?: PaginationParams` and return paginated envelopes.
+
+---
+
+#### GAP-5 — No Next.js SSR token storage guide or adapter
+
+Next.js App Router Server Components and Route Handlers require tokens in cookies (via `next/headers` `cookies()`) rather than localStorage or in-memory. The `TokenStorage` interface is implementable by portal builders, but there is no documented pattern or built-in adapter.
+
+**Action:** add a `cookieStorageAdapter(getCookie, setCookie, clearCookie)` factory to `@ledewire/node` (or publish a `@ledewire/next` helper package), plus a guide in `docs/` covering token persistence in Next.js SSR, middleware-based refresh, and the `onAuthExpired` redirect pattern.
