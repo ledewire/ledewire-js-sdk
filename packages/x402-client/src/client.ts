@@ -68,7 +68,7 @@ export function createLedewireFetch(config: LedewireFetchConfig): typeof globalT
     }
 
     // Parse and validate the PAYMENT-REQUIRED header
-    const { accepted, extension } = parsePaymentRequired(paymentRequiredHeader)
+    const { paymentRequired, accepted, extension } = parsePaymentRequired(paymentRequiredHeader)
 
     // Validate nonce has not expired (expiresAt is Unix seconds)
     if (Date.now() / 1000 > accepted.extra.expiresAt) {
@@ -83,6 +83,9 @@ export function createLedewireFetch(config: LedewireFetchConfig): typeof globalT
     // Obtain a valid buyer JWT
     const token = await auth.getAccessToken()
 
+    // Detect whether the server advertises payment-identifier (idempotency) support
+    const supportsPaymentIdentifier = paymentRequired.extensions?.['payment-identifier'] != null
+
     // Build the PaymentPayload
     const paymentPayload: LedewirePaymentPayload = {
       x402Version: 2,
@@ -92,6 +95,12 @@ export function createLedewireFetch(config: LedewireFetchConfig): typeof globalT
         token,
         contentId: extension.contentId,
       },
+      // Include a stable UUID so the server can deduplicate settlement on network
+      // retries without double-charging. Generated once per ledewireFetch() call
+      // so the internal 402→retry loop uses the same ID.
+      ...(supportsPaymentIdentifier
+        ? { extensions: { 'payment-identifier': crypto.randomUUID() } }
+        : undefined),
     }
 
     const paymentSignature = btoa(JSON.stringify(paymentPayload))

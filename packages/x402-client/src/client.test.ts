@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { createLedewireFetch } from './client.js'
+import type { LedewirePaymentPayload } from './types.js'
 import {
   NonceExpiredError,
   InsufficientFundsError,
@@ -266,6 +267,72 @@ describe('createLedewireFetch', () => {
     })
     const res = await fetchFn(ORIGIN_URL)
     expect(res.status).toBe(402)
+  })
+
+  it('includes payment-identifier in PAYMENT-SIGNATURE when server advertises support', async () => {
+    const capturedPayloads: LedewirePaymentPayload[] = []
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        const sig = request.headers.get('PAYMENT-SIGNATURE')
+        if (!sig) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: {
+              'PAYMENT-REQUIRED': btoa(
+                JSON.stringify({
+                  ...PAYMENT_REQUIRED_PAYLOAD,
+                  extensions: {
+                    ...PAYMENT_REQUIRED_PAYLOAD.extensions,
+                    'payment-identifier': { supported: true },
+                  },
+                }),
+              ),
+            },
+          })
+        }
+        capturedPayloads.push(JSON.parse(atob(sig)) as LedewirePaymentPayload)
+        return HttpResponse.json(CONTENT_RESPONSE)
+      }),
+    )
+    const fetchFn = createLedewireFetch({
+      key: 'bk_key',
+      secret: 'secret',
+      apiBase: API_BASE,
+      fetch: globalThis.fetch,
+    })
+    await fetchFn(ORIGIN_URL)
+    expect(capturedPayloads).toHaveLength(1)
+    const paymentId = capturedPayloads[0]?.extensions?.['payment-identifier']
+    expect(typeof paymentId).toBe('string')
+    // UUID v4 format
+    expect(paymentId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    )
+  })
+
+  it('omits extensions from PAYMENT-SIGNATURE when server does not advertise payment-identifier', async () => {
+    const capturedPayloads: LedewirePaymentPayload[] = []
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        const sig = request.headers.get('PAYMENT-SIGNATURE')
+        if (!sig) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': btoa(JSON.stringify(PAYMENT_REQUIRED_PAYLOAD)) },
+          })
+        }
+        capturedPayloads.push(JSON.parse(atob(sig)) as LedewirePaymentPayload)
+        return HttpResponse.json(CONTENT_RESPONSE)
+      }),
+    )
+    const fetchFn = createLedewireFetch({
+      key: 'bk_key',
+      secret: 'secret',
+      apiBase: API_BASE,
+      fetch: globalThis.fetch,
+    })
+    await fetchFn(ORIGIN_URL)
+    expect(capturedPayloads[0]?.extensions).toBeUndefined()
   })
 
   it('uses apiBase from extensions.ledewire-wallet when present', async () => {
