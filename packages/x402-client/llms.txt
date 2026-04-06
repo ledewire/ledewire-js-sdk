@@ -1,0 +1,119 @@
+# @ledewire/x402-client
+
+> Runtime-agnostic x402 fetch wrapper for the Ledewire ledewire-wallet payment scheme.
+> npm install @ledewire/x402-client
+> Source: https://github.com/ledewire/ledewire-js-sdk
+> API docs: https://ledewire.github.io/ledewire-js-sdk/api/
+
+## Install
+
+```bash
+npm install @ledewire/x402-client
+```
+
+## Quick start
+
+```ts
+import { createLedewireFetch } from '@ledewire/x402-client'
+
+const fetch = createLedewireFetch({
+  key: process.env.LEDEWIRE_BUYER_KEY,
+  secret: process.env.LEDEWIRE_BUYER_SECRET,
+})
+
+// Payment is handled automatically — this is all the agent author writes
+const res = await fetch('https://blog.example.com/posts/great-article')
+const article = await res.json()
+```
+
+## createLedewireFetch() configuration
+
+```ts
+const fetch = createLedewireFetch({
+  key: string,       // Buyer API key (e.g. bktst_abc123)
+  secret: string,    // 64-char hex secret, shown once at creation
+  apiBase?: string,  // defaults to https://api.ledewire.com; overridden by server extension block
+  fetch?: typeof globalThis.fetch,  // custom fetch for proxies or testing
+})
+```
+
+The apiBase is self-configuring: the server's PAYMENT-REQUIRED response includes
+extensions.ledewire-wallet.apiBase which takes precedence — same client works for
+staging and production without configuration changes.
+
+## x402 payment flow (transparent to caller)
+
+1. First request → 402 + PAYMENT-REQUIRED header (base64 JSON)
+2. Client authenticates with buyer API key → buyer JWT (cached, auto-refreshed)
+3. Client reads extensions.ledewire-wallet.contentId and accepts[0].extra.nonce
+4. Constructs PAYMENT-SIGNATURE: base64(JSON({ x402Version:2, resource:{url}, accepted, payload:{token,contentId} }))
+5. Retries original request with PAYMENT-SIGNATURE header → 200 + content
+
+## Error types
+
+```ts
+import {
+  InsufficientFundsError,   // 422 — wallet balance too low
+  NonceExpiredError,         // 402 — nonce expired, retry the fetch
+  UnsupportedSchemeError,    // 402 — not a ledewire-wallet challenge
+  MalformedPaymentRequiredError, // 402 — bad PAYMENT-REQUIRED structure
+} from '@ledewire/x402-client'
+import { AuthError, LedewireError } from '@ledewire/x402-client'
+```
+
+All errors extend LedewireError. Check .statusCode and .message.
+
+## LedewireAuthManager
+
+```ts
+import { LedewireAuthManager } from '@ledewire/x402-client'
+
+// Used internally by createLedewireFetch — also exported for advanced use
+const auth = new LedewireAuthManager(key, secret, apiBase?, fetchFn?)
+const token = await auth.getAccessToken() // re-authenticates when < 60s from expiry
+auth.apiBase = 'https://api-staging.ledewire.com' // mutable — updated from extension block
+```
+
+## Wire format reference
+
+PAYMENT-REQUIRED header (base64 JSON emitted by server on 402):
+```json
+{
+  "x402Version": 2,
+  "resource": { "url": "https://origin/post" },
+  "accepts": [{
+    "scheme": "ledewire-wallet", "network": "ledewire:v1",
+    "amount": "100", "asset": "USD", "payTo": "store:<uuid>",
+    "maxTimeoutSeconds": 60,
+    "extra": { "nonce": "<single-use>", "expiresAt": 1234567890, "contentId": "<uuid>" }
+  }],
+  "extensions": {
+    "ledewire-wallet": {
+      "apiBase": "https://api.ledewire.com",
+      "authEndpoint": "/v1/auth/login/buyer-api-key",
+      "schemeVersion": "ledewire:v1",
+      "contentId": "<uuid>"
+    }
+  }
+}
+```
+
+PAYMENT-SIGNATURE header (base64 JSON sent by client on retry):
+```json
+{
+  "x402Version": 2,
+  "resource": { "url": "https://origin/post" },
+  "accepted": { "scheme": "ledewire-wallet", "network": "ledewire:v1", "..." },
+  "payload": { "token": "<buyer-JWT>", "contentId": "<uuid>" }
+}
+```
+
+## Runtime compatibility
+
+Web-standard APIs only (fetch, atob, btoa, Response, Headers, URL).
+No Node.js-specific imports. Runs on Node 18+, Deno, Cloudflare Workers, Vercel Edge.
+
+## Related packages
+
+- @ledewire/node — full Ledewire Node.js client (buyer auth, wallet, merchant)
+- @ledewire/browser — Ledewire browser SDK
