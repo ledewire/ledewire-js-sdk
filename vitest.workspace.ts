@@ -7,4 +7,9 @@ import { defineWorkspace } from 'vitest/config'
  * - @ledewire/browser → jsdom (simulates browser APIs)
  * - @ledewire/core → node environment
  */
-export default defineWorkspace(['packages/core', 'packages/node', 'packages/browser'])
+export default defineWorkspace([
+  'packages/core',
+  'packages/node',
+  'packages/browser',
+  'packages/x402-client',
+])
