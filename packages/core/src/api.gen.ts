@@ -3403,7 +3403,7 @@ export interface paths {
         /** @description Payment required. PAYMENT-REQUIRED header contains the x402 v2 PaymentRequired JSON (Base64-encoded). */
         402: {
           headers: {
-            /** @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, nonce, and a `extensions.ledewire-wallet` discovery block. The extension contains `apiBase` (request-derived, environment-aware), `authEndpoint` (`/v1/auth/login/buyer-api-key`), `signupUrl` (configurable via `LEDEWIRE_SIGNUP_URL` env var), and `schemeVersion` (`ledewire:v1`). Clients such as `@ledewire/x402-client` use this to self-configure without hardcoding the Ledewire API location. */
+            /** @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, and payment parameters. The `accepts[0].extra` object contains `nonce` (single-use token), `expiresAt` (Unix timestamp), and `contentId` (UUID of the content being purchased). The `extensions.ledewire-wallet` discovery block contains `apiBase` (request-derived, environment-aware), `authEndpoint` (`/v1/auth/login/buyer-api-key`), `signupUrl` (configurable via `LEDEWIRE_SIGNUP_URL` env var), `schemeVersion` (`ledewire:v1`), and `contentId` (UUID of the Ledewire content record). Clients such as `@ledewire/x402-client` use this block to self-configure without hardcoding the Ledewire API location. `contentId` is essential for the Worker gate case where the origin URL carries no Ledewire identifier — the client must read it from here to construct the `PAYMENT-SIGNATURE` payload. */
             'PAYMENT-REQUIRED'?: string
             [name: string]: unknown
           }
