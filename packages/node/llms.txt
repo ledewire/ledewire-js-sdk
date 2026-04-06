@@ -196,6 +196,28 @@ client.merchant.config.get(storeId)            → Promise<StoreConfig>
 client.merchant.config.update(storeId, body)   → Promise<StoreConfig>
 ```
 
+### client.merchant.pricingRules
+
+Manage x402 URL-based pricing rules. The domain in `url_pattern` must be verified
+via `client.merchant.domains` before a rule can be created.
+
+```ts
+client.merchant.pricingRules.list(storeId)              → Promise<MerchantPricingRule[]>
+client.merchant.pricingRules.create(storeId, body)      → Promise<MerchantPricingRule>
+client.merchant.pricingRules.deactivate(storeId, ruleId) → Promise<MerchantPricingRule>
+```
+
+### client.merchant.domains
+
+Verify domain ownership required for x402 pricing rules. Add a domain to receive
+DNS TXT record instructions; the platform verifies asynchronously.
+
+```ts
+client.merchant.domains.list(storeId)               → Promise<MerchantDomainVerification[]>
+client.merchant.domains.add(storeId, body)          → Promise<MerchantDomainVerification>
+client.merchant.domains.remove(storeId, domainId)   → Promise<void>
+```
+
 ### client.merchant.content
 
 ```ts

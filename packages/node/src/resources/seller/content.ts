@@ -59,7 +59,10 @@ export class SellerContentNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedContentList> {
-    const res = await this.http.get<PaginatedContentList>(`/v1/merchant/${storeId}/content`, params)
+    const res = await this.http.get<PaginatedContentList>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/content`,
+      params,
+    )
     return { ...res, data: res.data.map(decodeContentFields) }
   }
 
@@ -89,7 +92,7 @@ export class SellerContentNamespace {
    */
   async create(storeId: string, body: Content): Promise<ContentResponse> {
     const res = await this.http.post<ContentResponse>(
-      `/v1/merchant/${storeId}/content`,
+      `/v1/merchant/${encodeURIComponent(storeId)}/content`,
       encodeContentFields(body),
     )
     return decodeContentFields(res)
@@ -124,7 +127,7 @@ export class SellerContentNamespace {
     params?: PaginationParams,
   ): Promise<PaginatedContentList> {
     const res = await this.http.post<PaginatedContentList>(
-      `/v1/merchant/${storeId}/content/search`,
+      `/v1/merchant/${encodeURIComponent(storeId)}/content/search`,
       body,
       params,
     )
@@ -144,7 +147,9 @@ export class SellerContentNamespace {
    * ```
    */
   async get(storeId: string, id: string): Promise<ContentResponse> {
-    const res = await this.http.get<ContentResponse>(`/v1/merchant/${storeId}/content/${id}`)
+    const res = await this.http.get<ContentResponse>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/content/${encodeURIComponent(id)}`,
+    )
     return decodeContentFields(res)
   }
 
@@ -166,7 +171,7 @@ export class SellerContentNamespace {
    */
   async update(storeId: string, id: string, body: ContentUpdateRequest): Promise<ContentResponse> {
     const res = await this.http.patch<ContentResponse>(
-      `/v1/merchant/${storeId}/content/${id}`,
+      `/v1/merchant/${encodeURIComponent(storeId)}/content/${encodeURIComponent(id)}`,
       encodeContentFields(body),
     )
     return decodeContentFields(res)
@@ -184,6 +189,8 @@ export class SellerContentNamespace {
    * ```
    */
   async delete(storeId: string, id: string): Promise<void> {
-    return this.http.delete(`/v1/merchant/${storeId}/content/${id}`)
+    return this.http.delete(
+      `/v1/merchant/${encodeURIComponent(storeId)}/content/${encodeURIComponent(id)}`,
+    )
   }
 }

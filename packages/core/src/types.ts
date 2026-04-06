@@ -202,6 +202,12 @@ export type SalesStatisticsItem = components['schemas']['SalesStatisticsItem']
 /** Buyer statistics item for a merchant store. */
 export type BuyerStatisticsItem = components['schemas']['BuyerStatisticsItem']
 
+/** A merchant x402 URL pricing rule. */
+export type MerchantPricingRule = components['schemas']['MerchantPricingRule']
+
+/** A merchant domain verification record for x402 URL gating. */
+export type MerchantDomainVerification = components['schemas']['MerchantDomainVerification']
+
 /**
  * Pagination parameters accepted by paginated list endpoints.
  *

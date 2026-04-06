@@ -208,6 +208,190 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/auth/login/buyer-api-key': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Exchange a buyer API key + secret for a JWT
+     * @description Authenticate as a buyer using a named API key and secret. Returns the same token shape as `POST /v1/auth/login/email`. Rate-limited to 60 requests per minute per IP.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['AuthLoginBuyerApiKeyRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Invalid key or secret */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/user/api-keys': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List buyer API keys for the authenticated user */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description List of API keys (secret never included) */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['UserApiKey'][]
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /** Create a new buyer API key */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['UserApiKeyCreateRequest']
+        }
+      }
+      responses: {
+        /** @description Key and secret (secret shown once only — store immediately) */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['UserApiKeyCreateResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/user/api-keys/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Revoke a buyer API key */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Key revoked */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Key not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/auth/login/api-key': {
     parameters: {
       query?: never
@@ -1336,7 +1520,16 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Get sales summary */
+    /**
+     * Get sales summary
+     * @description Returns aggregated sales totals and monthly breakdowns.
+     *
+     *     **Scoping by role:**
+     *     - `owner` or API key — summary across all store content.
+     *     - `is_author` (non-owner) — summary scoped to content attributed to that author.
+     *
+     *     **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
+     */
     get: {
       parameters: {
         query?: never
@@ -1397,6 +1590,12 @@ export interface paths {
     /**
      * Get content sales statistics
      * @description Returns a paginated list of sales statistics, one row per content item. Results are ordered by content title.
+     *
+     *     **Scoping by role:**
+     *     - `owner` or API key — all content in the store.
+     *     - `is_author` (non-owner) — only content attributed to that author.
+     *
+     *     **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
      */
     get: {
       parameters: {
@@ -1463,7 +1662,15 @@ export interface paths {
     }
     /**
      * Get sale detail with fee breakdown
-     * @description Returns the full detail of a single sale including the platform fee split (platform_fee_cents, store_net_cents, author_net_cents). Owner access only. The buyer-facing GET /v1/purchases/:id intentionally omits the fees object.
+     * @description Returns the full detail of a single sale including the platform fee split (platform_fee_cents, store_net_cents, author_net_cents). The buyer-facing GET /v1/purchases/:id intentionally omits the fees object.
+     *
+     *     **Scoping by role:**
+     *     - `owner` or API key — any sale in the store.
+     *     - `is_author` (non-owner) — only sales for content attributed to that author;
+     *       attempting to access another author's sale returns `404 Not Found`.
+     *
+     *
+     *     **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
      */
     get: {
       parameters: {
@@ -1495,7 +1702,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden — not the store owner, or store mismatch */
+        /** @description Forbidden — insufficient permissions or store mismatch */
         403: {
           headers: {
             [name: string]: unknown
@@ -1504,7 +1711,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Sale not found or belongs to a different store */
+        /** @description Sale not found, belongs to a different store, or is outside the author's attributed content */
         404: {
           headers: {
             [name: string]: unknown
@@ -1534,7 +1741,13 @@ export interface paths {
     }
     /**
      * Get buyer statistics
-     * @description Returns paginated, aggregated, anonymised buyer statistics for the store. Results are ordered by total spend descending.
+     * @description Returns paginated, aggregated, anonymised buyer statistics. Results are ordered by total spend descending.
+     *
+     *     **Scoping by role:**
+     *     - `owner` or API key — all buyers across the entire store.
+     *     - `is_author` (non-owner) — only buyers who purchased content attributed to that author.
+     *
+     *     **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
      *
      *     **Note:** Pagination slices the pre-aggregated result set in memory. For stores with a very large number of unique buyers, consider filtering by date range in a future API revision.
      */
@@ -3128,6 +3341,745 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/x402/contents/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Fetch content via x402 payment protocol
+     * @description Implements the x402 v2 payment protocol using the `ledewire-wallet` scheme. On the first request (no `PAYMENT-SIGNATURE` header) the server responds with `402 Payment Required` and a `PAYMENT-REQUIRED` header describing the price and a single-use nonce. The client retries with a `PAYMENT-SIGNATURE` header containing the buyer JWT and nonce. On success the server responds with `200`, a `PAYMENT-RESPONSE` header with the settlement result, and the content body.
+     *     **Short-circuits (no 402 round-trip):** - Free content (`price_cents: 0`) — returns `200` immediately. - Returning purchaser — if `Authorization` header is present and the resolved
+     *       buyer already has a completed purchase, returns `200` directly.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: {
+          /** @description Base64-encoded x402 v2 PaymentPayload JSON. Required for paid content (unless returning purchaser short-circuit applies). The optional `extensions.payment-identifier` field accepts a stable UUID; if the server has already settled a payment for that identifier it returns the original PAYMENT-RESPONSE from cache without re-charging — safe to retry on network errors. */
+          'PAYMENT-SIGNATURE'?: string
+          /** @description Optional Bearer JWT. If present and the buyer has already purchased this content, returns 200 directly without a 402 round-trip. */
+          Authorization?: string
+        }
+        path: {
+          /** @description Content UUID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Payment settled; content delivered. */
+        200: {
+          headers: {
+            /** @description Base64-encoded x402 v2 SettlementResponse JSON. Omitted for free content and when the returning-purchaser short-circuit applies (no new settlement). The decoded JSON includes `accessToken` — a short-lived RS256-signed JWT (default 24h TTL) that third-party proxies and CMS plugins can verify offline against `/.well-known/x402-jwks.json`. */
+            'PAYMENT-RESPONSE'?: string
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['X402ContentResponse']
+          }
+        }
+        /** @description Malformed PAYMENT-SIGNATURE (invalid Base64 or JSON), unsupported x402Version, mismatched scheme/network, or contentId mismatch. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Invalid JWT in PAYMENT-SIGNATURE payload. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Payment required. PAYMENT-REQUIRED header contains the x402 v2 PaymentRequired JSON (Base64-encoded). */
+        402: {
+          headers: {
+            /** @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, nonce, and a `extensions.ledewire-wallet` discovery block. The extension contains `apiBase` (request-derived, environment-aware), `authEndpoint` (`/v1/auth/login/buyer-api-key`), `signupUrl` (configurable via `LEDEWIRE_SIGNUP_URL` env var), and `schemeVersion` (`ledewire:v1`). Clients such as `@ledewire/x402-client` use this to self-configure without hardcoding the Ledewire API location. */
+            'PAYMENT-REQUIRED'?: string
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description JWT in PAYMENT-SIGNATURE belongs to a non-buyer role (merchant or store-manager). */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Content not found or not publicly visible. */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Insufficient wallet balance. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Rate limit exceeded (30 requests per minute per IP). */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/x402/verify-origin': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Verify that a URL is a registered Ledewire content item
+     * @description Unauthenticated endpoint used by the browser extension, JS snippet, and proxy to confirm that a URL is legitimately registered as a Ledewire content item before showing any payment UI. Returns `verified: false` silently for unknown URLs to prevent enumeration and to avoid misleading users.
+     *     Responses are HTTP-cached for the configured TTL (default 1 hour). New content registrations propagate within that window.
+     */
+    get: {
+      parameters: {
+        query: {
+          /** @description Absolute URL of the page to verify (e.g. https://theirsite.com/articles/slug) */
+          url: string
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Always returns 200. `verified: true` means the URL is registered; `verified: false` means it is not (or the URL was invalid). */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json':
+              | components['schemas']['VerifyOriginVerified']
+              | components['schemas']['VerifyOriginUnverified']
+          }
+        }
+        /** @description Rate limit exceeded. */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/.well-known/x402-jwks.json': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * JSON Web Key Set for x402 accessToken verification
+     * @description Publishes the RS256 public key used to sign `accessToken` values included in `PAYMENT-RESPONSE`. Third-party proxies and CMS plugins fetch this once (and cache it for 24 hours) to verify access tokens offline without calling Ledewire on every request.
+     *     Standard JWKS format (RFC 7517). The `kid` claim in the access token matches the `kid` in the JWKS entry.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description JWKS document */
+        200: {
+          headers: {
+            /** @description max-age=86400, public */
+            'Cache-Control'?: string
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['JwksResponse']
+          }
+        }
+        /** @description Key material unavailable (credentials not configured). */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/pricing_rules': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Store UUID. The authenticated user must have an owner StoreUser record for this store. */
+        store_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * List active pricing rules
+     * @description Returns all active `ContentPricingRule` records for the store, ordered by creation date descending.
+     *
+     *     **Authorization:** merchant JWT (any store member) or API key with `view` or `full` permission.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store UUID. The authenticated user must have an owner StoreUser record for this store. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Array of active pricing rules */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantPricingRule'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a pricing rule
+     * @description Creates a new active `ContentPricingRule` for the store. The domain in `url_pattern` must have a verified `StoreDomainVerification` record for this store before a rule can be created.
+     *
+     *     Wildcards: `*` matches any path segment; `**` matches across path separators. Example: `https://example.com/articles/*` gates all article pages.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store UUID. The authenticated user must have an owner StoreUser record for this store. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /**
+             * @description Glob URL pattern. Must begin with http:// or https://. Supports * and ** wildcards only.
+             * @example https://example.com/articles/*
+             */
+            url_pattern: string
+            /**
+             * @description Price in cents to charge for access to matching URLs.
+             * @example 150
+             */
+            price_cents: number
+          }
+        }
+      }
+      responses: {
+        /** @description Pricing rule created */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantPricingRule']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden — non-owner attempting write operation */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unprocessable — domain not verified, invalid pattern, or negative price */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/pricing_rules/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+        /** @description UUID of the pricing rule. */
+        id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Deactivate a pricing rule
+     * @description Soft-deletes the rule by setting `active: false`. The record is retained for audit purposes (existing lazily-registered `Content` records reference the rule ID in `metadata.paywall.rule_id`). The rule is immediately excluded from URL matching.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          /** @description UUID of the pricing rule. */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Rule deactivated — returns the updated rule with active: false */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantPricingRule']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Rule not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/domains': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Store UUID. */
+        store_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * List domain verifications
+     * @description Returns all `StoreDomainVerification` records for the store, ordered by creation date descending. Each record includes the DNS TXT record name and value the store owner must publish to complete verification.
+     *
+     *     **Authorization:** merchant JWT (any store member) or API key with `view` or `full` permission.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store UUID. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Array of domain verification records */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantDomainVerification'][]
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Add a domain for verification
+     * @description Creates a new `StoreDomainVerification` record in `pending` status and returns the DNS TXT record details the store owner must publish. `www.` is stripped automatically — adding `www.example.com` stores `example.com`. A store may add multiple domains.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Store UUID. */
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /**
+             * @description Domain to verify (www. prefix is stripped automatically).
+             * @example example.com
+             */
+            domain: string
+          }
+        }
+      }
+      responses: {
+        /** @description Domain verification record created */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantDomainVerification']
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unprocessable — domain already added for this store */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/domains/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+        /** @description UUID of the domain verification record. */
+        id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Remove a domain verification
+     * @description Hard-deletes the `StoreDomainVerification` record. Any pricing rules whose `url_pattern` host matches this domain become inert — the `MatchUrl` service re-checks domain verification status at match time and will not fire for them.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+          /** @description UUID of the domain verification record. */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Domain verification deleted */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Domain verification not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/merchant/{store_id}/domains/verify': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        store_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Trigger DNS verification check
+     * @description Enqueues `DomainVerifyJob` to perform an asynchronous DNS TXT record check for the given domain. Returns `202 Accepted` immediately; poll `GET /v1/merchant/{store_id}/domains` to observe the resulting `status` change.
+     *
+     *     This endpoint accepts the **domain string** rather than a record ID because the dashboard UI is stateless and does not retain the `StoreDomainVerification` UUID between the "Add domain" and "Verify" steps.
+     *
+     *     **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          store_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /**
+             * @description Domain to check (www. prefix is stripped automatically).
+             * @example example.com
+             */
+            domain: string
+          }
+        }
+      }
+      responses: {
+        /** @description Verification job enqueued */
+        202: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              /** @example true */
+              queued: boolean
+              /** @example example.com */
+              domain: string
+              /**
+               * @description Current status at time of enqueueing (not the final result).
+               * @enum {string}
+               */
+              status: 'pending' | 'verified' | 'failed'
+            }
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Domain has not been added for this store */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -3240,6 +4192,40 @@ export interface components {
     AuthLoginApiKeyRequest: {
       key: string
       secret?: string
+    }
+    AuthLoginBuyerApiKeyRequest: {
+      /** @description Structured buyer API key (e.g. bktst_abc123) */
+      key: string
+      /** @description 64-char hex secret, shown once at creation */
+      secret: string
+    }
+    UserApiKey: {
+      /** Format: uuid */
+      id: string
+      name: string
+      /** @description Structured public identifier (e.g. bktst_abc123) */
+      key: string
+      /** Format: date-time */
+      last_used_at?: string | null
+      /** @description Maximum cumulative spend in cents. null = no limit. */
+      spending_limit_cents?: number | null
+      /** Format: date-time */
+      created_at: string
+    }
+    UserApiKeyCreateRequest: {
+      /** @description Human-readable label for the key */
+      name: string
+      /** @description Optional spend ceiling in cents */
+      spending_limit_cents?: number | null
+    }
+    /** @description Returned once only at creation. The secret is not stored and cannot be retrieved again. */
+    UserApiKeyCreateResponse: {
+      /** Format: uuid */
+      id: string
+      /** @description Structured public identifier (e.g. bktst_abc123) */
+      key: string
+      /** @description 64-char hex authentication secret. Store immediately — shown once only. */
+      secret: string
     }
     AuthTokenRefreshRequest: {
       refresh_token?: string
@@ -3691,6 +4677,8 @@ export interface components {
        * @example vimeo:123456789
        */
       external_identifier?: string | null
+      /** @description Canonical URL of this content on its origin site. Used by the x402 verify-origin endpoint to bind a third-party page to a Ledewire content record. */
+      resource_url?: string | null
       /**
        * Format: byte
        * @description Article teaser, base64 encoded. Must be base64-decoded before rendering (e.g. `atob(content.teaser ?? '')`).
@@ -3800,6 +4788,8 @@ export interface components {
       content_uri: string | null
       /** @description Namespaced platform ID for `external_ref` content. Null for other types. */
       external_identifier?: string | null
+      /** @description Canonical URL of this content on its origin site. Used by the x402 verify-origin endpoint. */
+      resource_url?: string | null
     }
     /**
      * @description Full content detail plus real-time access and wallet context for a specific user. Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
@@ -3923,6 +4913,126 @@ export interface components {
           [key: string]: number
         }
       }
+    }
+    /** @description Response body returned by the x402 content endpoint on a successful `200`. Delivers the purchased content directly in the settlement response. `content_body` is present when `content_type` is `markdown`; `content_uri` is present when `content_type` is `external_ref`. `purchase_id` is the UUID of the settled Purchase record (null for free content). */
+    X402ContentResponse: {
+      id: string
+      /** @enum {string} */
+      content_type: 'markdown' | 'external_ref'
+      title: string
+      price_cents: number
+      /** Format: byte */
+      teaser: string
+      /** @enum {string} */
+      visibility: 'public' | 'unlisted' | 'private'
+      metadata?: {
+        [key: string]: unknown
+      }
+      external_identifier?: string | null
+      /** @description UUID of the settled Purchase record. Null for free content. */
+      purchase_id?: string | null
+      /** @description Canonical URL of this content on its origin site. Set when content was registered via a pricing rule or manual resource_url assignment. */
+      resource_url?: string | null
+      /**
+       * Format: byte
+       * @description Full article body in markdown. Present when content_type is markdown.
+       */
+      content_body?: string | null
+      /** @description URI of the external resource. Present when content_type is external_ref. */
+      content_uri?: string | null
+    }
+    /** @description Returned when the URL matches a registered Ledewire content item. */
+    VerifyOriginVerified: {
+      /** @enum {boolean} */
+      verified: true
+      /** @description UUID of the matching Content record. */
+      content_id: string
+      /** @description UUID of the store that owns this content. */
+      store_id: string
+      /** @description Price in cents as a string (e.g. "10" = $0.10). */
+      amount: string
+      /** @description Content title. */
+      title: string
+    }
+    /** @description Returned when the URL is not registered or the URL is invalid. */
+    VerifyOriginUnverified: {
+      /** @enum {boolean} */
+      verified: false
+    }
+    /** @description JSON Web Key Set (RFC 7517) containing the RS256 public key for x402 accessToken verification. */
+    JwksResponse: {
+      keys: {
+        /** @enum {string} */
+        kty: 'RSA'
+        /** @enum {string} */
+        use: 'sig'
+        /** @enum {string} */
+        alg: 'RS256'
+        /** @description Key ID. Matches the `kid` header claim in minted access tokens. */
+        kid: string
+        /** @description RSA modulus (Base64url-encoded). */
+        n: string
+        /** @description RSA public exponent (Base64url-encoded). */
+        e: string
+      }[]
+    }
+    /** @description x402 v2 settlement result. Base64-encoded JSON returned in the `PAYMENT-RESPONSE` header on a successful `200`. `accessToken` is present when an RS256 signing key is configured; omitted in environments without credentials. */
+    SettlementResponse: {
+      /** @enum {boolean} */
+      success: true
+      /** @description UUID of the settled Purchase record. */
+      transaction: string
+      /** @enum {string} */
+      network: 'ledewire:v1'
+      /** @description UUID of the buying user. */
+      payer: string
+      /** @description Short-lived RS256-signed JWT for offline entitlement verification. Verifiable via `/.well-known/x402-jwks.json`. Omitted if signing key is not configured. */
+      accessToken?: string | null
+    }
+    MerchantPricingRule: {
+      /** @description UUID of the pricing rule. */
+      id: string
+      /** @description UUID of the owning store. */
+      store_id: string
+      /** @description Glob URL pattern (supports * and ** wildcards). Must start with http:// or https://. */
+      url_pattern: string
+      /** @description Price in cents applied to content matching this pattern. */
+      price_cents: number
+      /** @description Whether the rule is currently active. Inactive rules are ignored during URL matching. */
+      active: boolean
+      /** Format: date-time */
+      created_at: string
+      /** Format: date-time */
+      updated_at: string
+    }
+    MerchantDomainVerification: {
+      /** @description UUID of the domain verification record. */
+      id: string
+      /** @description UUID of the owning store. */
+      store_id: string
+      /** @description The verified domain (www. prefix is stripped on creation). */
+      domain: string
+      /**
+       * @description Verification status updated by DomainVerifyJob.
+       * @enum {string}
+       */
+      status: 'pending' | 'verified' | 'failed'
+      /** @description DNS TXT record name the merchant must add (e.g. _ledewire-verify.example.com). */
+      txt_record_name: string
+      /** @description DNS TXT record value the merchant must set. */
+      txt_record_value: string
+      /**
+       * Format: date-time
+       * @description Timestamp of successful verification. Null until verified.
+       */
+      verified_at?: string | null
+      /**
+       * Format: date-time
+       * @description Timestamp of the most recent verification check (success or failure).
+       */
+      checked_at?: string | null
+      /** Format: date-time */
+      created_at: string
     }
   }
   responses: never

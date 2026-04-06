@@ -20,6 +20,6 @@ export class MerchantConfigNamespace {
    * @returns The store configuration object.
    */
   async get(storeId: string): Promise<StoreConfig> {
-    return this.http.get<StoreConfig>(`/v1/merchant/${storeId}/config`)
+    return this.http.get<StoreConfig>(`/v1/merchant/${encodeURIComponent(storeId)}/config`)
   }
 }

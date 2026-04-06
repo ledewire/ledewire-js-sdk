@@ -45,7 +45,10 @@ export class MerchantUsersNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedUsersList> {
-    return this.http.get<PaginatedUsersList>(`/v1/merchant/${storeId}/users`, params)
+    return this.http.get<PaginatedUsersList>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/users`,
+      params,
+    )
   }
 
   /**
@@ -103,7 +106,10 @@ export class MerchantUsersNamespace {
     userId: string,
     body: MerchantUserUpdateRequest,
   ): Promise<MerchantUser> {
-    return this.http.patch<MerchantUser>(`/v1/merchant/${storeId}/users/${userId}`, body)
+    return this.http.patch<MerchantUser>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/users/${encodeURIComponent(userId)}`,
+      body,
+    )
   }
 
   /**
@@ -120,6 +126,8 @@ export class MerchantUsersNamespace {
    * ```
    */
   async remove(storeId: string, userId: string): Promise<void> {
-    return this.http.delete(`/v1/merchant/${storeId}/users/${userId}`)
+    return this.http.delete(
+      `/v1/merchant/${encodeURIComponent(storeId)}/users/${encodeURIComponent(userId)}`,
+    )
   }
 }

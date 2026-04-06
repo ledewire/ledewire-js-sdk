@@ -36,7 +36,9 @@ export class BrowserContentNamespace {
    * ```
    */
   async getWithAccess(id: string): Promise<ContentWithAccessResponse> {
-    const res = await this.http.get<ContentWithAccessResponse>(`/v1/content/${id}/with-access`)
+    const res = await this.http.get<ContentWithAccessResponse>(
+      `/v1/content/${encodeURIComponent(id)}/with-access`,
+    )
     return decodeContentFields(res)
   }
 }

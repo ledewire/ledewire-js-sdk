@@ -27,6 +27,9 @@ export class MerchantBuyersNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedBuyersList> {
-    return this.http.get<PaginatedBuyersList>(`/v1/merchant/${storeId}/buyers`, params)
+    return this.http.get<PaginatedBuyersList>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/buyers`,
+      params,
+    )
   }
 }

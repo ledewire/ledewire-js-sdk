@@ -160,6 +160,16 @@ export function createMockClient(
       config: {
         get: stub(),
       },
+      pricingRules: {
+        list: stub(),
+        create: stub(),
+        deactivate: stub(),
+      },
+      domains: {
+        list: stub(),
+        add: stub(),
+        remove: stub(),
+      },
     },
     seller: {
       content: {

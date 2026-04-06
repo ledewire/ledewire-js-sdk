@@ -238,6 +238,66 @@ components:
         secret:
           type: string
 
+    AuthLoginBuyerApiKeyRequest:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          type: string
+          description: Structured buyer API key (e.g. bktst_abc123)
+        secret:
+          type: string
+          description: 64-char hex secret, shown once at creation
+
+    UserApiKey:
+      type: object
+      required: [id, name, key, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          description: Structured public identifier (e.g. bktst_abc123)
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+        spending_limit_cents:
+          type: [integer, 'null']
+          description: Maximum cumulative spend in cents. null = no limit.
+        created_at:
+          type: string
+          format: date-time
+
+    UserApiKeyCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Human-readable label for the key
+        spending_limit_cents:
+          type: integer
+          nullable: true
+          description: Optional spend ceiling in cents
+
+    UserApiKeyCreateResponse:
+      type: object
+      required: [id, key, secret]
+      description: Returned once only at creation. The secret is not stored and cannot be retrieved again.
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          description: Structured public identifier (e.g. bktst_abc123)
+        secret:
+          type: string
+          description: 64-char hex authentication secret. Store immediately — shown once only.
+
     AuthTokenRefreshRequest:
       type: object
       properties:
@@ -851,6 +911,9 @@ components:
           type: [string, 'null']
           description: Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` content.
           example: vimeo:123456789
+        resource_url:
+          type: [string, 'null']
+          description: Canonical URL of this content on its origin site. Used by the x402 verify-origin endpoint to bind a third-party page to a Ledewire content record.
         teaser:
           type: string
           format: byte
@@ -1007,6 +1070,9 @@ components:
         external_identifier:
           type: [string, 'null']
           description: Namespaced platform ID for `external_ref` content. Null for other types.
+        resource_url:
+          type: [string, 'null']
+          description: Canonical URL of this content on its origin site. Used by the x402 verify-origin endpoint.
 
     ContentWithAccessResponse:
       description: >
@@ -1266,6 +1332,195 @@ components:
               type: integer
               description: Number of sales for a specific month
 
+    X402ContentResponse:
+      type: object
+      description: >
+        Response body returned by the x402 content endpoint on a successful `200`.
+        Delivers the purchased content directly in the settlement response.
+        `content_body` is present when `content_type` is `markdown`;
+        `content_uri` is present when `content_type` is `external_ref`.
+        `purchase_id` is the UUID of the settled Purchase record (null for free content).
+      required: [id, content_type, title, price_cents, teaser, visibility]
+      properties:
+        id:
+          type: string
+        content_type:
+          type: string
+          enum: [markdown, external_ref]
+        title:
+          type: string
+        price_cents:
+          type: integer
+        teaser:
+          type: string
+          format: byte
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+        metadata:
+          type: object
+          additionalProperties: true
+        external_identifier:
+          type: [string, 'null']
+        purchase_id:
+          type: [string, 'null']
+          description: UUID of the settled Purchase record. Null for free content.
+        resource_url:
+          type: [string, 'null']
+          description: Canonical URL of this content on its origin site. Set when content was registered via a pricing rule or manual resource_url assignment.
+        content_body:
+          type: [string, 'null']
+          format: byte
+          description: Full article body in markdown. Present when content_type is markdown.
+        content_uri:
+          type: [string, 'null']
+          description: URI of the external resource. Present when content_type is external_ref.
+
+    VerifyOriginVerified:
+      type: object
+      description: Returned when the URL matches a registered Ledewire content item.
+      required: [verified, content_id, store_id, amount, title]
+      properties:
+        verified:
+          type: boolean
+          enum: [true]
+        content_id:
+          type: string
+          description: UUID of the matching Content record.
+        store_id:
+          type: string
+          description: UUID of the store that owns this content.
+        amount:
+          type: string
+          description: Price in cents as a string (e.g. "10" = $0.10).
+        title:
+          type: string
+          description: Content title.
+
+    VerifyOriginUnverified:
+      type: object
+      description: Returned when the URL is not registered or the URL is invalid.
+      required: [verified]
+      properties:
+        verified:
+          type: boolean
+          enum: [false]
+
+    JwksResponse:
+      type: object
+      description: JSON Web Key Set (RFC 7517) containing the RS256 public key for x402 accessToken verification.
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            required: [kty, use, alg, kid, n, e]
+            properties:
+              kty:
+                type: string
+                enum: [RSA]
+              use:
+                type: string
+                enum: [sig]
+              alg:
+                type: string
+                enum: [RS256]
+              kid:
+                type: string
+                description: Key ID. Matches the `kid` header claim in minted access tokens.
+              n:
+                type: string
+                description: RSA modulus (Base64url-encoded).
+              e:
+                type: string
+                description: RSA public exponent (Base64url-encoded).
+
+    SettlementResponse:
+      type: object
+      description: >
+        x402 v2 settlement result. Base64-encoded JSON returned in the `PAYMENT-RESPONSE` header
+        on a successful `200`. `accessToken` is present when an RS256 signing key is configured;
+        omitted in environments without credentials.
+      required: [success, transaction, network, payer]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        transaction:
+          type: string
+          description: UUID of the settled Purchase record.
+        network:
+          type: string
+          enum: ['ledewire:v1']
+        payer:
+          type: string
+          description: UUID of the buying user.
+        accessToken:
+          type: [string, 'null']
+          description: Short-lived RS256-signed JWT for offline entitlement verification. Verifiable via `/.well-known/x402-jwks.json`. Omitted if signing key is not configured.
+
+    MerchantPricingRule:
+      type: object
+      required: [id, store_id, url_pattern, price_cents, active, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          description: UUID of the pricing rule.
+        store_id:
+          type: string
+          description: UUID of the owning store.
+        url_pattern:
+          type: string
+          description: Glob URL pattern (supports * and ** wildcards). Must start with http:// or https://.
+        price_cents:
+          type: integer
+          description: Price in cents applied to content matching this pattern.
+        active:
+          type: boolean
+          description: Whether the rule is currently active. Inactive rules are ignored during URL matching.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MerchantDomainVerification:
+      type: object
+      required: [id, store_id, domain, status, txt_record_name, txt_record_value, created_at]
+      properties:
+        id:
+          type: string
+          description: UUID of the domain verification record.
+        store_id:
+          type: string
+          description: UUID of the owning store.
+        domain:
+          type: string
+          description: The verified domain (www. prefix is stripped on creation).
+        status:
+          type: string
+          enum: [pending, verified, failed]
+          description: Verification status updated by DomainVerifyJob.
+        txt_record_name:
+          type: string
+          description: DNS TXT record name the merchant must add (e.g. _ledewire-verify.example.com).
+        txt_record_value:
+          type: string
+          description: DNS TXT record value the merchant must set.
+        verified_at:
+          type: [string, 'null']
+          format: date-time
+          description: Timestamp of successful verification. Null until verified.
+        checked_at:
+          type: [string, 'null']
+          format: date-time
+          description: Timestamp of the most recent verification check (success or failure).
+        created_at:
+          type: string
+          format: date-time
+
 security:
   - BearerAuth: []
 
@@ -1433,6 +1688,113 @@ paths:
                   summary: Google OAuth service unavailable
                   value:
                     error: 'Unable to verify token'
+
+  /v1/auth/login/buyer-api-key:
+    post:
+      summary: Exchange a buyer API key + secret for a JWT
+      tags:
+        - Authentication
+      description: >
+        Authenticate as a buyer using a named API key and secret.
+        Returns the same token shape as `POST /v1/auth/login/email`.
+        Rate-limited to 60 requests per minute per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginBuyerApiKeyRequest'
+      responses:
+        '200':
+          description: Token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          description: Invalid key or secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/user/api-keys:
+    get:
+      summary: List buyer API keys for the authenticated user
+      tags:
+        - Buyer API Keys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of API keys (secret never included)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserApiKey'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new buyer API key
+      tags:
+        - Buyer API Keys
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserApiKeyCreateRequest'
+      responses:
+        '201':
+          description: Key and secret (secret shown once only — store immediately)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserApiKeyCreateResponse'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/user/api-keys/{id}:
+    delete:
+      summary: Revoke a buyer API key
+      tags:
+        - Buyer API Keys
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Key revoked
+        '404':
+          description: Key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /v1/auth/login/api-key:
     post:
@@ -2492,6 +2854,18 @@ paths:
           type: string
     get:
       summary: Get sales summary
+      description: >
+        Returns aggregated sales totals and monthly breakdowns.
+
+
+        **Scoping by role:**
+
+        - `owner` or API key — summary across all store content.
+
+        - `is_author` (non-owner) — summary scoped to content attributed to that author.
+
+
+        **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
       tags:
         - Merchant
       security:
@@ -2528,6 +2902,16 @@ paths:
       description: >
         Returns a paginated list of sales statistics, one row per content item.
         Results are ordered by content title.
+
+
+        **Scoping by role:**
+
+        - `owner` or API key — all content in the store.
+
+        - `is_author` (non-owner) — only content attributed to that author.
+
+
+        **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
       tags:
         - Merchant
       security:
@@ -2586,8 +2970,19 @@ paths:
       summary: Get sale detail with fee breakdown
       description: >
         Returns the full detail of a single sale including the platform fee split
-        (platform_fee_cents, store_net_cents, author_net_cents). Owner access only.
+        (platform_fee_cents, store_net_cents, author_net_cents).
         The buyer-facing GET /v1/purchases/:id intentionally omits the fees object.
+
+
+        **Scoping by role:**
+
+        - `owner` or API key — any sale in the store.
+
+        - `is_author` (non-owner) — only sales for content attributed to that author;
+          attempting to access another author's sale returns `404 Not Found`.
+
+
+        **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
       tags:
         - Merchant
       security:
@@ -2606,13 +3001,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden — not the store owner, or store mismatch
+          description: Forbidden — insufficient permissions or store mismatch
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Sale not found or belongs to a different store
+          description: Sale not found, belongs to a different store, or is outside the author's attributed content
           content:
             application/json:
               schema:
@@ -2628,8 +3023,18 @@ paths:
     get:
       summary: Get buyer statistics
       description: >
-        Returns paginated, aggregated, anonymised buyer statistics for the store.
+        Returns paginated, aggregated, anonymised buyer statistics.
         Results are ordered by total spend descending.
+
+
+        **Scoping by role:**
+
+        - `owner` or API key — all buyers across the entire store.
+
+        - `is_author` (non-owner) — only buyers who purchased content attributed to that author.
+
+
+        **Authorization:** `owner` role, `is_author: true`, or API key. Users with neither receive `403 Forbidden`.
 
 
         **Note:** Pagination slices the pre-aggregated result set in memory.
@@ -4266,3 +4671,562 @@ paths:
                   summary: Invalid visit data
                   value:
                     error: 'Visit token is required'
+
+  /v1/x402/contents/{id}:
+    get:
+      summary: Fetch content via x402 payment protocol
+      description: >
+        Implements the x402 v2 payment protocol using the `ledewire-wallet` scheme.
+        On the first request (no `PAYMENT-SIGNATURE` header) the server responds with
+        `402 Payment Required` and a `PAYMENT-REQUIRED` header describing the price and
+        a single-use nonce. The client retries with a `PAYMENT-SIGNATURE` header
+        containing the buyer JWT and nonce. On success the server responds with `200`,
+        a `PAYMENT-RESPONSE` header with the settlement result, and the content body.
+
+        **Short-circuits (no 402 round-trip):**
+        - Free content (`price_cents: 0`) — returns `200` immediately.
+        - Returning purchaser — if `Authorization` header is present and the resolved
+          buyer already has a completed purchase, returns `200` directly.
+      tags:
+        - x402
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Content UUID
+        - in: header
+          name: PAYMENT-SIGNATURE
+          required: false
+          schema:
+            type: string
+          description: >-
+            Base64-encoded x402 v2 PaymentPayload JSON. Required for paid content
+            (unless returning purchaser short-circuit applies). The optional
+            `extensions.payment-identifier` field accepts a stable UUID; if the
+            server has already settled a payment for that identifier it returns the
+            original PAYMENT-RESPONSE from cache without re-charging — safe to retry
+            on network errors.
+        - in: header
+          name: Authorization
+          required: false
+          schema:
+            type: string
+          description: Optional Bearer JWT. If present and the buyer has already purchased this content, returns 200 directly without a 402 round-trip.
+      responses:
+        '200':
+          description: Payment settled; content delivered.
+          headers:
+            PAYMENT-RESPONSE:
+              schema:
+                type: string
+              description: >
+                Base64-encoded x402 v2 SettlementResponse JSON. Omitted for free content and
+                when the returning-purchaser short-circuit applies (no new settlement).
+                The decoded JSON includes `accessToken` — a short-lived RS256-signed JWT
+                (default 24h TTL) that third-party proxies and CMS plugins can verify offline
+                against `/.well-known/x402-jwks.json`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X402ContentResponse'
+        '402':
+          description: Payment required. PAYMENT-REQUIRED header contains the x402 v2 PaymentRequired JSON (Base64-encoded).
+          headers:
+            PAYMENT-REQUIRED:
+              schema:
+                type: string
+              description: >
+                Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, nonce,
+                and a `extensions.ledewire-wallet` discovery block. The extension contains `apiBase`
+                (request-derived, environment-aware), `authEndpoint` (`/v1/auth/login/buyer-api-key`),
+                `signupUrl` (configurable via `LEDEWIRE_SIGNUP_URL` env var), and `schemeVersion`
+                (`ledewire:v1`). Clients such as `@ledewire/x402-client` use this to self-configure
+                without hardcoding the Ledewire API location.
+        '400':
+          description: Malformed PAYMENT-SIGNATURE (invalid Base64 or JSON), unsupported x402Version, mismatched scheme/network, or contentId mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid JWT in PAYMENT-SIGNATURE payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: JWT in PAYMENT-SIGNATURE belongs to a non-buyer role (merchant or store-manager).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Content not found or not publicly visible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Insufficient wallet balance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded (30 requests per minute per IP).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/x402/verify-origin:
+    get:
+      summary: Verify that a URL is a registered Ledewire content item
+      description: >
+        Unauthenticated endpoint used by the browser extension, JS snippet, and proxy
+        to confirm that a URL is legitimately registered as a Ledewire content item
+        before showing any payment UI. Returns `verified: false` silently for unknown
+        URLs to prevent enumeration and to avoid misleading users.
+
+        Responses are HTTP-cached for the configured TTL (default 1 hour).
+        New content registrations propagate within that window.
+      tags:
+        - x402
+      security: []
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Absolute URL of the page to verify (e.g. https://theirsite.com/articles/slug)
+      responses:
+        '200':
+          description: >
+            Always returns 200. `verified: true` means the URL is registered;
+            `verified: false` means it is not (or the URL was invalid).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/VerifyOriginVerified'
+                  - $ref: '#/components/schemas/VerifyOriginUnverified'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /.well-known/x402-jwks.json:
+    get:
+      summary: JSON Web Key Set for x402 accessToken verification
+      description: >
+        Publishes the RS256 public key used to sign `accessToken` values included in
+        `PAYMENT-RESPONSE`. Third-party proxies and CMS plugins fetch this once (and
+        cache it for 24 hours) to verify access tokens offline without calling Ledewire
+        on every request.
+
+        Standard JWKS format (RFC 7517). The `kid` claim in the access token matches
+        the `kid` in the JWKS entry.
+      tags:
+        - x402
+      security: []
+      responses:
+        '200':
+          description: JWKS document
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: max-age=86400, public
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksResponse'
+        '503':
+          description: Key material unavailable (credentials not configured).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/merchant/{store_id}/pricing_rules:
+    parameters:
+      - name: store_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Store UUID. The authenticated user must have an owner StoreUser record for this store.
+    get:
+      summary: List active pricing rules
+      description: >
+        Returns all active `ContentPricingRule` records for the store, ordered by creation date descending.
+
+
+        **Authorization:** merchant JWT (any store member) or API key with `view` or `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Array of active pricing rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MerchantPricingRule'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a pricing rule
+      description: >
+        Creates a new active `ContentPricingRule` for the store.
+        The domain in `url_pattern` must have a verified `StoreDomainVerification` record
+        for this store before a rule can be created.
+
+
+        Wildcards: `*` matches any path segment; `**` matches across path separators.
+        Example: `https://example.com/articles/*` gates all article pages.
+
+
+        **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url_pattern, price_cents]
+              properties:
+                url_pattern:
+                  type: string
+                  description: Glob URL pattern. Must begin with http:// or https://. Supports * and ** wildcards only.
+                  example: 'https://example.com/articles/*'
+                price_cents:
+                  type: integer
+                  minimum: 0
+                  description: Price in cents to charge for access to matching URLs.
+                  example: 150
+      responses:
+        '201':
+          description: Pricing rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantPricingRule'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — non-owner attempting write operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable — domain not verified, invalid pattern, or negative price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/merchant/{store_id}/pricing_rules/{id}:
+    parameters:
+      - name: store_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: UUID of the pricing rule.
+    delete:
+      summary: Deactivate a pricing rule
+      description: >
+        Soft-deletes the rule by setting `active: false`. The record is retained for
+        audit purposes (existing lazily-registered `Content` records reference the rule
+        ID in `metadata.paywall.rule_id`). The rule is immediately excluded from URL
+        matching.
+
+
+        **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: "Rule deactivated \u2014 returns the updated rule with active: false"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantPricingRule'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/merchant/{store_id}/domains:
+    parameters:
+      - name: store_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Store UUID.
+    get:
+      summary: List domain verifications
+      description: >
+        Returns all `StoreDomainVerification` records for the store, ordered by creation
+        date descending. Each record includes the DNS TXT record name and value the
+        store owner must publish to complete verification.
+
+
+        **Authorization:** merchant JWT (any store member) or API key with `view` or `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Array of domain verification records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MerchantDomainVerification'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Add a domain for verification
+      description: >
+        Creates a new `StoreDomainVerification` record in `pending` status and returns
+        the DNS TXT record details the store owner must publish.
+        `www.` is stripped automatically — adding `www.example.com` stores `example.com`.
+        A store may add multiple domains.
+
+
+        **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                  description: Domain to verify (www. prefix is stripped automatically).
+                  example: 'example.com'
+      responses:
+        '201':
+          description: Domain verification record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantDomainVerification'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable — domain already added for this store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/merchant/{store_id}/domains/{id}:
+    parameters:
+      - name: store_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: UUID of the domain verification record.
+    delete:
+      summary: Remove a domain verification
+      description: >
+        Hard-deletes the `StoreDomainVerification` record. Any pricing rules whose
+        `url_pattern` host matches this domain become inert — the `MatchUrl` service
+        re-checks domain verification status at match time and will not fire for them.
+
+
+        **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Domain verification deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Domain verification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/merchant/{store_id}/domains/verify:
+    parameters:
+      - name: store_id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Trigger DNS verification check
+      description: >
+        Enqueues `DomainVerifyJob` to perform an asynchronous DNS TXT record check for
+        the given domain. Returns `202 Accepted` immediately; poll
+        `GET /v1/merchant/{store_id}/domains` to observe the resulting `status` change.
+
+
+        This endpoint accepts the **domain string** rather than a record ID because the
+        dashboard UI is stateless and does not retain the `StoreDomainVerification` UUID
+        between the "Add domain" and "Verify" steps.
+
+
+        **Authorization:** `owner` role (merchant JWT) or API key with `full` permission.
+      tags:
+        - Merchant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                  description: Domain to check (www. prefix is stripped automatically).
+                  example: 'example.com'
+      responses:
+        '202':
+          description: Verification job enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued, domain, status]
+                properties:
+                  queued:
+                    type: boolean
+                    example: true
+                  domain:
+                    type: string
+                    example: 'example.com'
+                  status:
+                    type: string
+                    enum: [pending, verified, failed]
+                    description: Current status at time of enqueueing (not the final result).
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Domain has not been added for this store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

@@ -39,6 +39,6 @@ export class PurchasesNamespace {
    * @returns The purchase record.
    */
   async get(id: string): Promise<PurchaseResponse> {
-    return this.http.get<PurchaseResponse>(`/v1/purchases/${id}`)
+    return this.http.get<PurchaseResponse>(`/v1/purchases/${encodeURIComponent(id)}`)
   }
 }

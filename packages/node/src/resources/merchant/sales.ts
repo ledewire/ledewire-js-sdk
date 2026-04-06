@@ -27,7 +27,9 @@ export class MerchantSalesNamespace {
    * @returns Sales summary with totals and monthly breakdowns.
    */
   async summary(storeId: string): Promise<SalesSummaryResponse> {
-    return this.http.get<SalesSummaryResponse>(`/v1/merchant/${storeId}/sales/summary`)
+    return this.http.get<SalesSummaryResponse>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/sales/summary`,
+    )
   }
 
   /**
@@ -43,7 +45,10 @@ export class MerchantSalesNamespace {
    * ```
    */
   async list(storeId: string, params?: PaginationParams): Promise<PaginatedSalesList> {
-    return this.http.get<PaginatedSalesList>(`/v1/merchant/${storeId}/sales`, params)
+    return this.http.get<PaginatedSalesList>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/sales`,
+      params,
+    )
   }
 
   /**
@@ -54,6 +59,8 @@ export class MerchantSalesNamespace {
    * @returns The sale detail with fee split.
    */
   async get(storeId: string, id: string): Promise<MerchantSaleResponse> {
-    return this.http.get<MerchantSaleResponse>(`/v1/merchant/${storeId}/sales/${id}`)
+    return this.http.get<MerchantSaleResponse>(
+      `/v1/merchant/${encodeURIComponent(storeId)}/sales/${encodeURIComponent(id)}`,
+    )
   }
 }

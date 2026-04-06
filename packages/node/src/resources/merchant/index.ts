@@ -7,12 +7,14 @@ import type { HttpClient, TokenManager } from '@ledewire/core'
 import { MerchantAuthNamespace } from './auth.js'
 import { MerchantBuyersNamespace } from './buyers.js'
 import { MerchantConfigNamespace } from './config.js'
+import { MerchantDomainsNamespace } from './domains.js'
+import { MerchantPricingRulesNamespace } from './pricing-rules.js'
 import { MerchantSalesNamespace } from './sales.js'
 import { MerchantUsersNamespace } from './users.js'
 
 /**
  * Merchant store operations: authentication, team management, content,
- * sales, buyers, and store configuration.
+ * sales, buyers, store configuration, and x402 URL gating.
  *
  * Obtain via `client.merchant` — do not construct directly.
  */
@@ -42,6 +44,17 @@ export class MerchantNamespace {
    */
   readonly config: MerchantConfigNamespace
 
+  /**
+   * x402 URL pricing rules: create and manage URL-pattern-based content gating.
+   * Domains must be verified via `domains` before rules can be created.
+   */
+  readonly pricingRules: MerchantPricingRulesNamespace
+
+  /**
+   * x402 domain verification: add and verify ownership of domains used in pricing rules.
+   */
+  readonly domains: MerchantDomainsNamespace
+
   /** @internal */
   constructor(http: HttpClient, tokenManager: TokenManager) {
     this.auth = new MerchantAuthNamespace(http, tokenManager)
@@ -49,5 +62,7 @@ export class MerchantNamespace {
     this.sales = new MerchantSalesNamespace(http)
     this.buyers = new MerchantBuyersNamespace(http)
     this.config = new MerchantConfigNamespace(http)
+    this.pricingRules = new MerchantPricingRulesNamespace(http)
+    this.domains = new MerchantDomainsNamespace(http)
   }
 }

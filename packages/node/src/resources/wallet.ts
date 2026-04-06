@@ -56,6 +56,8 @@ export class WalletNamespace {
    * @returns The current payment status.
    */
   async getPaymentStatus(sessionId: string): Promise<WalletPaymentStatusResponse> {
-    return this.http.get<WalletPaymentStatusResponse>(`/v1/wallet/payment-status/${sessionId}`)
+    return this.http.get<WalletPaymentStatusResponse>(
+      `/v1/wallet/payment-status/${encodeURIComponent(sessionId)}`,
+    )
   }
 }

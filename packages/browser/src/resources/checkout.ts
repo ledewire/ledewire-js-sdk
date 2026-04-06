@@ -28,6 +28,8 @@ export class CheckoutNamespace {
    * @returns The checkout state, including what action is required next.
    */
   async state(contentId: string): Promise<CheckoutStateResponse> {
-    return this.http.get<CheckoutStateResponse>(`/v1/checkout/state/${contentId}`)
+    return this.http.get<CheckoutStateResponse>(
+      `/v1/checkout/state/${encodeURIComponent(contentId)}`,
+    )
   }
 }

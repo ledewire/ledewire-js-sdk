@@ -70,6 +70,22 @@ describe('createMockClient', () => {
     expect(typeof client.merchant.users.remove).toBe('function')
   })
 
+  it('stubs all merchant pricingRules methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.merchant.pricingRules.list).toBe('function')
+    expect(typeof client.merchant.pricingRules.create).toBe('function')
+    expect(typeof client.merchant.pricingRules.deactivate).toBe('function')
+  })
+
+  it('stubs all merchant domains methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.merchant.domains.list).toBe('function')
+    expect(typeof client.merchant.domains.add).toBe('function')
+    expect(typeof client.merchant.domains.remove).toBe('function')
+  })
+
   it('stubs all wallet methods', () => {
     const client = createMockClient(vi.fn)
 

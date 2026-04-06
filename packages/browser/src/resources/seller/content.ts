@@ -104,7 +104,7 @@ export class BrowserSellerContentNamespace {
    * ```
    */
   async get(id: string): Promise<ContentResponse> {
-    const res = await this.http.get<ContentResponse>(`/v1/seller/content/${id}`)
+    const res = await this.http.get<ContentResponse>(`/v1/seller/content/${encodeURIComponent(id)}`)
     return decodeContentFields(res)
   }
 }

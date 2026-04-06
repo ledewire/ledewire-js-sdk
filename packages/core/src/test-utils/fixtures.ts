@@ -26,6 +26,8 @@ type SalesStatisticsSchema = components['schemas']['SalesStatisticsItem']
 type MerchantSaleSchema = components['schemas']['MerchantSaleResponse']
 type BuyerStatisticsSchema = components['schemas']['BuyerStatisticsItem']
 type PublicConfigSchema = components['schemas']['PublicConfigResponse']
+type MerchantPricingRuleSchema = components['schemas']['MerchantPricingRule']
+type MerchantDomainVerificationSchema = components['schemas']['MerchantDomainVerification']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 /**
@@ -411,6 +413,44 @@ export function buyerStatisticsItemFixture(
 export function publicConfigFixture(overrides?: Partial<PublicConfigSchema>): PublicConfigSchema {
   return {
     google_client_id: 'google-client-id-test',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a merchant pricing rule fixture (x402 URL gating).
+ */
+export function merchantPricingRuleFixture(
+  overrides?: Partial<MerchantPricingRuleSchema>,
+): MerchantPricingRuleSchema {
+  return {
+    id: 'rule-id-1',
+    store_id: 'store-id-1',
+    url_pattern: 'https://example.com/articles/*',
+    price_cents: 150,
+    active: true,
+    created_at: '2099-01-01T00:00:00Z',
+    updated_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a merchant domain verification fixture (x402 domain management).
+ */
+export function merchantDomainVerificationFixture(
+  overrides?: Partial<MerchantDomainVerificationSchema>,
+): MerchantDomainVerificationSchema {
+  return {
+    id: 'domain-id-1',
+    store_id: 'store-id-1',
+    domain: 'example.com',
+    status: 'pending',
+    txt_record_name: '_ledewire-verify.example.com',
+    txt_record_value: 'ledewire-verify=abc123',
+    verified_at: null,
+    checked_at: null,
+    created_at: '2099-01-01T00:00:00Z',
     ...overrides,
   }
 }
