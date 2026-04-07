@@ -198,7 +198,7 @@ import {
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/x402-client'
+import { AuthError, LedewireError } from '@ledewire/core'
 
 const fetch = createLedewireFetch({ key, secret })
 

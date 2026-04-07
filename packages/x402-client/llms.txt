@@ -58,7 +58,7 @@ import {
   UnsupportedSchemeError,    // 402 — not a ledewire-wallet challenge
   MalformedPaymentRequiredError, // 402 — bad PAYMENT-REQUIRED structure
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/x402-client'
+import { AuthError, LedewireError } from '@ledewire/core'
 ```
 
 All errors extend LedewireError. Check .statusCode and .message.
