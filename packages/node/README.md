@@ -30,20 +30,27 @@ const stores = await client.merchant.auth.listStores()
 
 ## Client Namespaces
 
-| Namespace                | Description                                                      |
-| ------------------------ | ---------------------------------------------------------------- |
-| `client.config`          | Platform-level public config (no auth required)                  |
-| `client.auth`            | Buyer signup, email/password login, Google OAuth                 |
-| `client.wallet`          | Buyer wallet balance and payment sessions                        |
-| `client.purchases`       | Buyer purchase history and create purchases                      |
-| `client.content`         | Fetch content with buyer access info                             |
-| `client.checkout`        | Checkout state — what action is required next                    |
-| `client.merchant.auth`   | Merchant login (email / Google), store discovery, password reset |
-| `client.merchant.users`  | Merchant user management                                         |
-| `client.merchant.buyers` | Buyer management within a store                                  |
-| `client.merchant.sales`  | Sales reporting                                                  |
-| `client.merchant.config` | Store configuration                                              |
-| `client.seller.content`  | Seller content management (list, create, update)                 |
+| Namespace                      | Description                                                      |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `client.config`                | Platform-level public config (no auth required)                  |
+| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset |
+| `client.wallet`                | Buyer wallet balance and payment sessions                        |
+| `client.purchases`             | Buyer purchase history, create purchases, verify ownership       |
+| `client.content`               | Fetch content with buyer access info                             |
+| `client.checkout`              | Checkout state — what action is required next                    |
+| `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                      |
+| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset |
+| `client.merchant.users`        | Merchant user management (invite, list, update, remove)          |
+| `client.merchant.content`      | Merchant content CRUD + search (merchant JWT auth)               |
+| `client.merchant.buyers`       | Buyer statistics within a store                                  |
+| `client.merchant.sales`        | Sales reporting and revenue statistics                           |
+| `client.merchant.config`       | Store configuration                                              |
+| `client.merchant.domains`      | x402 domain verification for URL-based content gating            |
+| `client.merchant.pricingRules` | x402 URL pattern-based pricing rules                             |
+| `client.seller.content`        | Seller content CRUD + search (API key auth)                      |
+| `client.seller.sales`          | Seller sales statistics and revenue reporting                    |
+| `client.seller.buyers`         | Anonymized buyer statistics (API key auth)                       |
+| `client.seller.config`         | Store configuration (API key auth)                               |
 
 ## Configuration
 

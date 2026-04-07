@@ -7,6 +7,7 @@ import type { HttpClient, TokenManager } from '@ledewire/core'
 import { MerchantAuthNamespace } from './auth.js'
 import { MerchantBuyersNamespace } from './buyers.js'
 import { MerchantConfigNamespace } from './config.js'
+import { MerchantContentNamespace } from './content.js'
 import { MerchantDomainsNamespace } from './domains.js'
 import { MerchantPricingRulesNamespace } from './pricing-rules.js'
 import { MerchantSalesNamespace } from './sales.js'
@@ -28,6 +29,11 @@ export class MerchantNamespace {
    * Merchant store team management: list, invite, and remove members.
    */
   readonly users: MerchantUsersNamespace
+
+  /**
+   * Merchant content management: CRUD operations for store content using merchant JWT auth.
+   */
+  readonly content: MerchantContentNamespace
 
   /**
    * Merchant sales reporting: summary statistics, per-title rollup, and sale detail.
@@ -59,6 +65,7 @@ export class MerchantNamespace {
   constructor(http: HttpClient, tokenManager: TokenManager) {
     this.auth = new MerchantAuthNamespace(http, tokenManager)
     this.users = new MerchantUsersNamespace(http)
+    this.content = new MerchantContentNamespace(http)
     this.sales = new MerchantSalesNamespace(http)
     this.buyers = new MerchantBuyersNamespace(http)
     this.config = new MerchantConfigNamespace(http)

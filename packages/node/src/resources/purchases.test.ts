@@ -144,3 +144,65 @@ describe('purchases.get', () => {
     await expect(makeClient().purchases.get('any-id')).rejects.toThrow(AuthError)
   })
 })
+
+// ---------------------------------------------------------------------------
+// purchases.verify
+// ---------------------------------------------------------------------------
+
+describe('purchases.verify', () => {
+  it('returns purchased: true when the user has purchased the content', async () => {
+    const fixture = { purchased: true }
+    server.use(
+      http.get(`${BASE}/v1/purchase/verify`, ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get('content_id')).toBe('content-123')
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    const result = await makeClient().purchases.verify('content-123')
+
+    expect(result).toEqual({ purchased: true })
+  })
+
+  it('returns purchased: false when the user has not purchased the content', async () => {
+    const fixture = { purchased: false }
+    server.use(http.get(`${BASE}/v1/purchase/verify`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().purchases.verify('content-456')
+
+    expect(result).toEqual({ purchased: false })
+  })
+
+  it('URL-encodes the content_id parameter', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchase/verify`, ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get('content_id')).toBe('content/with/slashes')
+        return HttpResponse.json({ purchased: false })
+      }),
+    )
+
+    await makeClient().purchases.verify('content/with/slashes')
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchase/verify`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Authentication required'), { status: 401 }),
+      ),
+    )
+
+    await expect(makeClient().purchases.verify('content-id')).rejects.toThrow(AuthError)
+  })
+
+  it('throws NotFoundError on 404 (content not found)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchase/verify`, () =>
+        HttpResponse.json(errorResponseFixture(1004, 'Content not found'), { status: 404 }),
+      ),
+    )
+
+    await expect(makeClient().purchases.verify('missing-content')).rejects.toThrow(NotFoundError)
+  })
+})

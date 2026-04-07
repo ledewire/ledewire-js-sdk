@@ -1,5 +1,57 @@
 # @ledewire/node
 
+## Unreleased
+
+### Minor Changes
+
+- **Added missing API endpoints** — Complete SDK coverage of all LedeWire API endpoints:
+
+  #### Buyer password reset
+
+  ```ts
+  await client.auth.requestPasswordReset({ email: 'buyer@example.com' })
+  await client.auth.resetPassword({ email, reset_code: '123456', password: 'new-pass' })
+  ```
+
+  #### Purchase verification
+
+  ```ts
+  const { purchased } = await client.purchases.verify('content-id')
+  ```
+
+  #### Merchant domain verification trigger
+
+  ```ts
+  await client.merchant.domains.verify(storeId, { domain: 'example.com' })
+  ```
+
+  #### Merchant content namespace (merchant JWT auth)
+
+  Full CRUD operations identical to `seller.content` but using merchant JWT instead of API key:
+
+  ```ts
+  await client.merchant.content.list(storeId)
+  await client.merchant.content.create(storeId, { ... })
+  await client.merchant.content.search(storeId, { title: 'intro' })
+  await client.merchant.content.get(storeId, contentId)
+  await client.merchant.content.update(storeId, contentId, { ... })
+  await client.merchant.content.delete(storeId, contentId)
+  ```
+
+  #### Seller sales, buyers, and config namespaces (API key auth)
+
+  ```ts
+  // Sales reporting
+  const summary = await client.seller.sales.summary()
+  const sales = await client.seller.sales.list()
+
+  // Anonymized buyer statistics
+  const buyers = await client.seller.buyers.list()
+
+  // Store configuration
+  const config = await client.seller.config.get()
+  ```
+
 ## 0.8.0
 
 ### Minor Changes

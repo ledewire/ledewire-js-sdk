@@ -35,17 +35,25 @@ See `OVERVIEW.md` for the full design rationale and build order.
 ### Node client (`createClient()`)
 
 ```
-client.config.*            platform public config (no auth required)
-client.auth.*              buyer auth (email, google, api-key, refresh, password reset)
-client.merchant.auth.*     merchant auth (email, google) + store listing + password reset
-client.merchant.users.*    team management (invite, list, remove, update)
-client.merchant.content.*  content CRUD + search
-client.merchant.sales.*    sales list, summary, buyer list, store config
-client.seller.content.*    seller content (CRUD, search)
-client.seller.sales.*      seller sales + summary
-client.wallet.*            balance, payment sessions, transactions
-client.purchases.*         create, list, verify purchases
-client.content.*           public content with access info
+client.config.*                 platform public config (no auth required)
+client.auth.*                   buyer auth (email, google, api-key, password reset)
+client.user.apiKeys.*           buyer API key management (list, create, revoke)
+client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
+client.merchant.users.*         team management (invite, list, remove, update)
+client.merchant.content.*       content CRUD + search (merchant JWT auth)
+client.merchant.sales.*         sales list, summary, sale detail
+client.merchant.buyers.*        anonymized buyer statistics
+client.merchant.config.*        store configuration
+client.merchant.pricingRules.*  x402 URL-based pricing rules (list, create, deactivate)
+client.merchant.domains.*       x402 domain verification (list, add, verify, remove)
+client.seller.content.*         seller content CRUD + search (API key auth)
+client.seller.sales.*           seller sales summary + per-content statistics
+client.seller.buyers.*          anonymized buyer statistics (API key auth)
+client.seller.config.*          store configuration (API key auth)
+client.wallet.*                 balance, payment sessions, transactions
+client.purchases.*              create, list, get, verify purchases
+client.content.*                public content with buyer access info
+client.checkout.*               checkout state machine
 ```
 
 ### Testing utilities (`@ledewire/node/testing`)

@@ -225,3 +225,112 @@ describe('auth.loginWithBuyerApiKey', () => {
     ).rejects.toThrow(AuthError)
   })
 })
+
+// ---------------------------------------------------------------------------
+// auth.requestPasswordReset
+// ---------------------------------------------------------------------------
+
+describe('auth.requestPasswordReset', () => {
+  it('returns confirmation message', async () => {
+    const fixture = {
+      data: { message: 'If an account with this email exists, a reset code has been sent.' },
+    }
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeClient().auth.requestPasswordReset({ email: 'user@example.com' })
+
+    expect(result).toEqual(fixture)
+    expect(result.data?.message).toContain('reset code')
+  })
+
+  it('sends the email in the request body', async () => {
+    let capturedEmail = ''
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, async ({ request }) => {
+        const body = await request.json()
+        capturedEmail = (body as { email: string }).email
+        return HttpResponse.json({ data: { message: 'ok' } })
+      }),
+    )
+
+    await makeClient().auth.requestPasswordReset({ email: 'test@example.com' })
+
+    expect(capturedEmail).toBe('test@example.com')
+  })
+
+  it('does not store tokens (password reset does not authenticate)', async () => {
+    const fixture = { data: { message: 'ok' } }
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset-request`, () => HttpResponse.json(fixture)),
+    )
+
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
+    await client.auth.requestPasswordReset({ email: 'user@example.com' })
+
+    expect(storage.getTokens()).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// auth.resetPassword
+// ---------------------------------------------------------------------------
+
+describe('auth.resetPassword', () => {
+  it('returns confirmation message', async () => {
+    const fixture = { data: { message: 'Password has been successfully reset.' } }
+    server.use(http.post(`${BASE}/v1/auth/password/reset`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().auth.resetPassword({
+      email: 'user@example.com',
+      reset_code: '123456',
+      password: 'new-password',
+    })
+
+    expect(result).toEqual(fixture)
+    expect(result.data?.message).toContain('successfully reset')
+  })
+
+  it('sends all required fields in the request body', async () => {
+    let capturedBody: { email: string; reset_code: string; password: string } | null = null
+    server.use(
+      http.post(`${BASE}/v1/auth/password/reset`, async ({ request }) => {
+        capturedBody = (await request.json()) as {
+          email: string
+          reset_code: string
+          password: string
+        }
+        return HttpResponse.json({ data: { message: 'ok' } })
+      }),
+    )
+
+    await makeClient().auth.resetPassword({
+      email: 'test@example.com',
+      reset_code: '654321',
+      password: 'new-secure-password',
+    })
+
+    expect(capturedBody).toEqual({
+      email: 'test@example.com',
+      reset_code: '654321',
+      password: 'new-secure-password',
+    })
+  })
+
+  it('does not store tokens (password reset does not authenticate)', async () => {
+    const fixture = { data: { message: 'ok' } }
+    server.use(http.post(`${BASE}/v1/auth/password/reset`, () => HttpResponse.json(fixture)))
+
+    const storage = new MemoryTokenStorage()
+    const client = createClient({ storage })
+    await client.auth.resetPassword({
+      email: 'user@example.com',
+      reset_code: '123456',
+      password: 'new-password',
+    })
+
+    expect(storage.getTokens()).toBeNull()
+  })
+})

@@ -1,5 +1,9 @@
 import type { HttpClient } from '@ledewire/core'
-import type { PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
+import type {
+  PurchaseCreateRequest,
+  PurchaseResponse,
+  PurchaseVerifyResponse,
+} from '@ledewire/core'
 
 /**
  * Buyer purchases namespace — create and retrieve content purchases.
@@ -40,5 +44,25 @@ export class PurchasesNamespace {
    */
   async get(id: string): Promise<PurchaseResponse> {
     return this.http.get<PurchaseResponse>(`/v1/purchases/${encodeURIComponent(id)}`)
+  }
+
+  /**
+   * Verifies whether the authenticated buyer has purchased the specified content.
+   *
+   * @param contentId - The content ID to check.
+   * @returns An object with `purchased: boolean`.
+   *
+   * @example
+   * ```ts
+   * const result = await client.purchases.verify('content-123')
+   * if (result.purchased) {
+   *   console.log('User has purchased this content')
+   * }
+   * ```
+   */
+  async verify(contentId: string): Promise<PurchaseVerifyResponse> {
+    return this.http.get<PurchaseVerifyResponse>(
+      `/v1/purchase/verify?content_id=${encodeURIComponent(contentId)}`,
+    )
   }
 }

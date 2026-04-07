@@ -178,3 +178,68 @@ describe('merchant.domains.remove', () => {
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// merchant.domains.verify
+// ---------------------------------------------------------------------------
+
+describe('merchant.domains.verify', () => {
+  it('returns verification job status', async () => {
+    const fixture = { queued: true, domain: 'example.com', status: 'pending' as const }
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE_ID}/domains/verify`, async ({ request }) => {
+        const body = await request.json()
+        expect((body as { domain: string }).domain).toBe('example.com')
+        return HttpResponse.json(fixture, { status: 202 })
+      }),
+    )
+
+    const result = await makeClient().merchant.domains.verify(STORE_ID, { domain: 'example.com' })
+
+    expect(result).toEqual(fixture)
+    expect(result.queued).toBe(true)
+    expect(result.status).toBe('pending')
+  })
+
+  it('sends the domain in the request body', async () => {
+    let capturedDomain = ''
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE_ID}/domains/verify`, async ({ request }) => {
+        const body = await request.json()
+        capturedDomain = (body as { domain: string }).domain
+        return HttpResponse.json(
+          { queued: true, domain: 'test.com', status: 'pending' },
+          { status: 202 },
+        )
+      }),
+    )
+
+    await makeClient().merchant.domains.verify(STORE_ID, { domain: 'test.com' })
+
+    expect(capturedDomain).toBe('test.com')
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE_ID}/domains/verify`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Unauthorized'), { status: 401 }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.domains.verify(STORE_ID, { domain: 'example.com' }),
+    ).rejects.toThrow(AuthError)
+  })
+
+  it('throws ForbiddenError on 403', async () => {
+    server.use(
+      http.post(`${BASE}/v1/merchant/${STORE_ID}/domains/verify`, () =>
+        HttpResponse.json(errorResponseFixture(1002, 'Forbidden'), { status: 403 }),
+      ),
+    )
+
+    await expect(
+      makeClient().merchant.domains.verify(STORE_ID, { domain: 'example.com' }),
+    ).rejects.toThrow(ForbiddenError)
+  })
+})

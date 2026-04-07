@@ -80,10 +80,16 @@ export {
   parseExpiresAt,
 } from '@ledewire/core'
 
-// Merchant users namespace types
+// Namespace-specific request/response types
 export type { MerchantUserUpdateRequest } from './resources/merchant/users.js'
-// Seller content namespace types
+export type {
+  MerchantDomainAddRequest,
+  MerchantDomainVerifyRequest,
+  MerchantDomainVerifyResponse,
+} from './resources/merchant/domains.js'
+export type { MerchantContentSearchRequest } from './resources/merchant/content.js'
 export type { ContentSearchRequest } from './resources/seller/content.js'
+
 // Package exports (implementations added in build step 4)
 export { createClient, createAgentClient } from './client.js'
 export type { NodeClientConfig, AgentClientConfig, AgentClient } from './client.js'

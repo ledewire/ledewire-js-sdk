@@ -135,6 +135,8 @@ export function createMockClient(
       loginWithGoogle: stub(),
       loginWithBuyerApiKey: stub(),
       loginWithApiKey: stub(),
+      requestPasswordReset: stub(),
+      resetPassword: stub(),
     },
     merchant: {
       auth: {
@@ -143,12 +145,22 @@ export function createMockClient(
         listStores: stub(),
         loginWithEmailAndListStores: stub(),
         loginWithGoogleAndListStores: stub(),
+        requestPasswordReset: stub(),
+        resetPassword: stub(),
       },
       users: {
         list: stub(),
         invite: stub(),
         update: stub(),
         remove: stub(),
+      },
+      content: {
+        list: stub(),
+        create: stub(),
+        search: stub(),
+        get: stub(),
+        update: stub(),
+        delete: stub(),
       },
       sales: {
         summary: stub(),
@@ -170,6 +182,7 @@ export function createMockClient(
         list: stub(),
         add: stub(),
         remove: stub(),
+        verify: stub(),
       },
     },
     seller: {
@@ -180,6 +193,16 @@ export function createMockClient(
         get: stub(),
         update: stub(),
         delete: stub(),
+      },
+      sales: {
+        summary: stub(),
+        list: stub(),
+      },
+      buyers: {
+        list: stub(),
+      },
+      config: {
+        get: stub(),
       },
     },
     wallet: {
@@ -192,6 +215,7 @@ export function createMockClient(
       create: stub(),
       list: stub(),
       get: stub(),
+      verify: stub(),
     },
     content: {
       getWithAccess: stub(),

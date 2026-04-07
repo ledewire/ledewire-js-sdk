@@ -86,6 +86,57 @@ describe('createMockClient', () => {
     expect(typeof client.merchant.domains.list).toBe('function')
     expect(typeof client.merchant.domains.add).toBe('function')
     expect(typeof client.merchant.domains.remove).toBe('function')
+    expect(typeof client.merchant.domains.verify).toBe('function')
+  })
+
+  it('stubs all merchant content methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.merchant.content.list).toBe('function')
+    expect(typeof client.merchant.content.create).toBe('function')
+    expect(typeof client.merchant.content.search).toBe('function')
+    expect(typeof client.merchant.content.get).toBe('function')
+    expect(typeof client.merchant.content.update).toBe('function')
+    expect(typeof client.merchant.content.delete).toBe('function')
+  })
+
+  it('stubs all seller sales methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.seller.sales.summary).toBe('function')
+    expect(typeof client.seller.sales.list).toBe('function')
+  })
+
+  it('stubs all seller buyers methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.seller.buyers.list).toBe('function')
+  })
+
+  it('stubs all seller config methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.seller.config.get).toBe('function')
+  })
+
+  it('stubs all auth password reset methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.auth.requestPasswordReset).toBe('function')
+    expect(typeof client.auth.resetPassword).toBe('function')
+  })
+
+  it('stubs all merchant auth password reset methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.merchant.auth.requestPasswordReset).toBe('function')
+    expect(typeof client.merchant.auth.resetPassword).toBe('function')
+  })
+
+  it('stubs purchases.verify method', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.purchases.verify).toBe('function')
   })
 
   it('stubs all user.apiKeys methods', () => {
