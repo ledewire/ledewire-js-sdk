@@ -213,3 +213,30 @@ describe('HttpClient non-JSON error body fallback', () => {
     expect((err as LedewireError).statusCode).toBe(500)
   })
 })
+
+describe('HttpClient defaults', () => {
+  it('uses DEFAULT_BASE_URL when no baseUrl is configured', async () => {
+    server.use(http.get('https://api.ledewire.com/v1/test', () => HttpResponse.json({ ok: true })))
+    const client = new HttpClient()
+    const result = await client.get<{ ok: boolean }>('/v1/test')
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('throws AuthError on 401 when no onUnauthorized handler is configured', async () => {
+    server.use(http.get(`${BASE}/v1/test`, () => HttpResponse.json({}, { status: 401 })))
+    // No onUnauthorized provided — default () => null returns null, throws AuthError
+    await expect(makeClient().get('/v1/test')).rejects.toThrow(AuthError)
+  })
+
+  it('omits the query string entirely when all param values are undefined', async () => {
+    let receivedUrl = ''
+    server.use(
+      http.get(`${BASE}/v1/test`, ({ request }) => {
+        receivedUrl = request.url
+        return HttpResponse.json({})
+      }),
+    )
+    await makeClient().get('/v1/test', { only: undefined })
+    expect(receivedUrl).toBe(`${BASE}/v1/test`)
+  })
+})
