@@ -162,4 +162,48 @@ describe('wrapAxiosWithPayment', () => {
     const instance = wrapAxiosWithPayment(axios.create(), makeClient())
     await expect(instance.get(ORIGIN_URL)).rejects.toMatchObject({ response: { status: 404 } })
   })
+
+  it('passes through 402 with no payment-required header unchanged', async () => {
+    server.use(http.get(ORIGIN_URL, () => new HttpResponse(null, { status: 402 })))
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+    // Without a payment-required header the interceptor rejects with the original error
+    await expect(instance.get(ORIGIN_URL)).rejects.toMatchObject({ response: { status: 402 } })
+  })
+
+  it('uses a fallback message when retry error body has no string error field', async () => {
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('payment-signature')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'payment-required': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        // Body has no `error` string key — exercises false branch of `typeof raw === 'string'`
+        return HttpResponse.json({ code: 42 }, { status: 422 })
+      }),
+    )
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+    const err = await instance.get(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InsufficientFundsError)
+    expect((err as InsufficientFundsError).message).toContain('422')
+  })
+
+  it('uses a fallback message when retry error has no response data', async () => {
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('payment-signature')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'payment-required': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        // No body at all — exercises `errorData?.['error']` when errorData is undefined
+        return new HttpResponse(null, { status: 422 })
+      }),
+    )
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+    const err = await instance.get(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InsufficientFundsError)
+  })
 })

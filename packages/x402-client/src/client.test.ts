@@ -378,4 +378,12 @@ describe('createLedewireFetch', () => {
     await fetchFn(ORIGIN_URL)
     expect(capturedUrls[0]).toContain(stagingBase)
   })
+
+  it('uses globalThis.fetch when no custom fetch is provided in config', async () => {
+    server.use(http.get(ORIGIN_URL, () => HttpResponse.json({ ok: true })))
+    // Do NOT pass `fetch:` — exercises the `config.fetch ?? globalThis.fetch` branch
+    const fetchFn = createLedewireFetch({ key: 'bk_key', secret: 'secret', apiBase: API_BASE })
+    const res = await fetchFn(ORIGIN_URL)
+    expect(res.status).toBe(200)
+  })
 })

@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { LedewirePaymentClient } from './payment-client.js'
+import { LedewirePaymentClient, throwPaymentError } from './payment-client.js'
 import type { LedewirePaymentPayload } from './types.js'
 import {
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
+  InsufficientFundsError,
 } from './errors.js'
+import { AuthError, LedewireError } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const ORIGIN_URL = 'https://blog.example.com/posts/article'
@@ -166,6 +168,15 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
     )
   })
 
+  it('uses the default production apiBase when none is provided in config', async () => {
+    // Exercises `config.apiBase ?? 'https://api.ledewire.com'` default branch.
+    // The extension block overrides apiBase to API_BASE before the auth call.
+    const client = new LedewirePaymentClient({ key: 'bk', secret: 's' })
+    const sig = await client.buildPaymentSignature(makePaymentRequired(), ORIGIN_URL)
+    const payload = JSON.parse(atob(sig)) as LedewirePaymentPayload
+    expect(payload.x402Version).toBe(2)
+  })
+
   it('overrides apiBase from the extension block', async () => {
     const stagingBase = 'http://api-staging.test'
     const stagingUrls: string[] = []
@@ -188,5 +199,59 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
     const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
     await client.buildPaymentSignature(header, ORIGIN_URL)
     expect(stagingUrls[0]).toContain(stagingBase)
+  })
+
+  it('uses default apiBase when none provided in config', async () => {
+    server.use(
+      http.post('https://api.ledewire.com/v1/auth/login/buyer-api-key', () =>
+        HttpResponse.json(AUTH_RESPONSE),
+      ),
+    )
+    // No apiBase provided — exercises the `?? 'https://api.ledewire.com'` branch
+    const client = new LedewirePaymentClient({ key: 'bk', secret: 's' })
+    const header = makePaymentRequired({
+      extensions: {
+        'ledewire-wallet': {
+          apiBase: 'https://api.ledewire.com',
+          authEndpoint: '/v1/auth/login/buyer-api-key',
+          schemeVersion: 'ledewire:v1',
+          contentId: CONTENT_ID,
+        },
+      },
+    })
+    const sig = await client.buildPaymentSignature(header, ORIGIN_URL)
+    expect(sig).toBeDefined()
+  })
+})
+
+describe('throwPaymentError', () => {
+  it('throws InsufficientFundsError on 422', () => {
+    expect(() => throwPaymentError(422, 'Insufficient balance')).toThrow(InsufficientFundsError)
+  })
+
+  it('throws AuthError on 401', () => {
+    expect(() => throwPaymentError(401, 'Unauthorized')).toThrow(AuthError)
+  })
+
+  it('throws LedewireError for other statuses', () => {
+    expect(() => throwPaymentError(400, 'Bad request')).toThrow(LedewireError)
+    expect(() => throwPaymentError(403, 'Forbidden')).toThrow(LedewireError)
+    expect(() => throwPaymentError(500, 'Server error')).toThrow(LedewireError)
+  })
+})
+
+describe('throwPaymentError', () => {
+  it('throws InsufficientFundsError on 422', () => {
+    expect(() => throwPaymentError(422, 'low balance')).toThrow(InsufficientFundsError)
+  })
+
+  it('throws AuthError on 401', () => {
+    expect(() => throwPaymentError(401, 'bad creds')).toThrow(AuthError)
+  })
+
+  it('throws LedewireError for any other status', () => {
+    // Exercises the final `throw new LedewireError` — false branch of `status === 401`
+    expect(() => throwPaymentError(500, 'internal')).toThrow(LedewireError)
+    expect(() => throwPaymentError(403, 'forbidden')).toThrow(LedewireError)
   })
 })

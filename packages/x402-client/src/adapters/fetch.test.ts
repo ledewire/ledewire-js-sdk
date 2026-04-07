@@ -155,4 +155,37 @@ describe('wrapFetchWithPayment', () => {
     const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
     await expect(fetch(ORIGIN_URL)).rejects.toThrow(LedewireError)
   })
+
+  it('accepts a URL object as input', async () => {
+    server.use(http.get(ORIGIN_URL, () => HttpResponse.json({ ok: true })))
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+    const res = await fetch(new URL(ORIGIN_URL))
+    expect(res.status).toBe(200)
+  })
+
+  it('accepts a Request object as input', async () => {
+    server.use(http.get(ORIGIN_URL, () => HttpResponse.json({ ok: true })))
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+    const res = await fetch(new Request(ORIGIN_URL))
+    expect(res.status).toBe(200)
+  })
+
+  it('uses a fallback message when retry error body has no string error field', async () => {
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        // Body has no `error` string — exercises the false branch of `typeof raw === 'string'`
+        return HttpResponse.json({ code: 42 }, { status: 422 })
+      }),
+    )
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+    const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InsufficientFundsError)
+    expect((err as InsufficientFundsError).message).toContain('422')
+  })
 })
