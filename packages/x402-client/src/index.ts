@@ -23,6 +23,8 @@
  */
 export { createLedewireFetch } from './client.js'
 export { LedewireAuthManager } from './auth.js'
+export { LedewirePaymentClient } from './payment-client.js'
+export { wrapFetchWithPayment } from './adapters/fetch.js'
 export {
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
@@ -30,6 +32,7 @@ export {
   InsufficientFundsError,
 } from './errors.js'
 export type {
+  PaymentSigner,
   LedewireFetchConfig,
   LedewirePaymentRequired,
   LedewirePaymentRequirements,

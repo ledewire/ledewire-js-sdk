@@ -1,4 +1,17 @@
 /**
+ * Minimal interface required by the fetch and Axios adapters.
+ * `LedewirePaymentClient` satisfies this structurally; you can also pass any
+ * object that implements `buildPaymentSignature` for testing or custom flows.
+ */
+export interface PaymentSigner {
+  /**
+   * Parses a `PAYMENT-REQUIRED` header, authenticates, and returns a
+   * base64-encoded `PAYMENT-SIGNATURE` string.
+   */
+  buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string>
+}
+
+/**
  * Configuration for `createLedewireFetch`.
  */
 export interface LedewireFetchConfig {

@@ -13,6 +13,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./axios": {
+      "import": {
+        "types": "./dist/adapters/axios.d.ts",
+        "default": "./dist/adapters/axios.js"
+      },
+      "require": {
+        "types": "./dist/adapters/axios.d.cts",
+        "default": "./dist/adapters/axios.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -44,16 +54,21 @@
     "@ledewire/core": "workspace:*",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^3.0.0",
+    "axios": "^1.14.0",
     "msw": "^2.7.0",
     "tsup": "^8.3.0",
     "typescript": "*",
     "vitest": "^3.0.0"
   },
   "peerDependencies": {
-    "@x402/core": ">=0.4.0"
+    "@x402/core": ">=0.4.0",
+    "axios": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
+      "optional": true
+    },
+    "axios": {
       "optional": true
     }
   }
