@@ -63,15 +63,87 @@ import { AuthError, LedewireError } from '@ledewire/x402-client'
 
 All errors extend LedewireError. Check .statusCode and .message.
 
-## LedewireAuthManager
+## Transport adapters
+
+The package exposes three layers — use the one that fits your HTTP client:
+
+| Export | From | Use case |
+|---|---|---|
+| `createLedewireFetch({ key, secret })` | main export | Drop-in fetch replacement |
+| `wrapFetchWithPayment(fetchFn, client)` | main export | Wrap a specific fetch instance |
+| `wrapAxiosWithPayment(instance, client)` | `@ledewire/x402-client/axios` | Add interceptor to Axios |
+| `client.buildPaymentSignature(header, url)` | `LedewirePaymentClient` | Any other HTTP client |
+
+### Fetch (explicit)
 
 ```ts
-import { LedewireAuthManager } from '@ledewire/x402-client'
+import { LedewirePaymentClient, wrapFetchWithPayment } from '@ledewire/x402-client'
 
-// Used internally by createLedewireFetch — also exported for advanced use
-const auth = new LedewireAuthManager(key, secret, apiBase?, fetchFn?)
-const token = await auth.getAccessToken() // re-authenticates when < 60s from expiry
-auth.apiBase = 'https://api-staging.ledewire.com' // mutable — updated from extension block
+const client = new LedewirePaymentClient({ key, secret })
+const fetch = wrapFetchWithPayment(globalThis.fetch, client)
+
+const res = await fetch('https://blog.example.com/posts/article')
+```
+
+### Axios
+
+```ts
+import axios from 'axios'
+import { LedewirePaymentClient } from '@ledewire/x402-client'
+import { wrapAxiosWithPayment } from '@ledewire/x402-client/axios'
+
+const client = new LedewirePaymentClient({ key, secret })
+const api = wrapAxiosWithPayment(axios.create(), client)
+
+const res = await api.get('https://blog.example.com/posts/article')
+```
+
+Requires `axios` peer dependency (`npm install axios`).
+
+### Custom transport (ky, got, undici, etc.)
+
+```ts
+import { LedewirePaymentClient } from '@ledewire/x402-client'
+
+const client = new LedewirePaymentClient({ key, secret })
+
+// Inside your interceptor / hook:
+const sig = await client.buildPaymentSignature(
+  response.headers.get('payment-required'), // raw PAYMENT-REQUIRED header value
+  request.url,                              // absolute URL of the resource
+)
+// Set header on retry: 'PAYMENT-SIGNATURE': sig
+```
+
+## LedewirePaymentClient
+
+```ts
+import { LedewirePaymentClient } from '@ledewire/x402-client'
+
+const client = new LedewirePaymentClient({
+  key: string,       // Buyer API key
+  secret: string,    // 64-char hex secret
+  apiBase?: string,  // defaults to https://api.ledewire.com
+  fetch?: typeof globalThis.fetch,  // custom fetch for auth calls only
+})
+
+// Returns base64-encoded PAYMENT-SIGNATURE string
+const sig = await client.buildPaymentSignature(paymentRequiredHeader, url)
+
+// Internal auth manager — also exported separately
+client.auth.apiBase  // mutable, updated from server extension block
+```
+
+## PaymentSigner interface
+
+```ts
+import type { PaymentSigner } from '@ledewire/x402-client'
+
+// Both wrapFetchWithPayment and wrapAxiosWithPayment accept any PaymentSigner —
+// useful for testing with a plain object mock:
+const mock: PaymentSigner = {
+  buildPaymentSignature: async (_header, _url) => btoa(JSON.stringify({ ... }))
+}
 ```
 
 ## Wire format reference

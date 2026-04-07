@@ -74,6 +74,101 @@ The `apiBase` is self-configuring: when the `PAYMENT-REQUIRED` response includes
 value takes precedence over any configured `apiBase`. This means the same client works
 for staging and production content without any configuration changes.
 
+## Transport adapters
+
+Under the hood, `createLedewireFetch` is a one-liner built on two primitives that
+you can use directly when you need a different HTTP client:
+
+| Export                  | Source                        | Purpose                                       |
+| ----------------------- | ----------------------------- | --------------------------------------------- |
+| `LedewirePaymentClient` | `@ledewire/x402-client`       | Holds credentials, builds `PAYMENT-SIGNATURE` |
+| `wrapFetchWithPayment`  | `@ledewire/x402-client`       | Wraps any `fetch`-compatible function         |
+| `wrapAxiosWithPayment`  | `@ledewire/x402-client/axios` | Adds an Axios response interceptor            |
+
+This mirrors the `@x402/fetch` / `@x402/axios` pattern from the x402 ecosystem — the
+client is separate from the transport.
+
+### Native fetch (default)
+
+`createLedewireFetch` is the shorthand for this:
+
+```ts
+import { LedewirePaymentClient, wrapFetchWithPayment } from '@ledewire/x402-client'
+
+const client = new LedewirePaymentClient({ key, secret })
+const fetch = wrapFetchWithPayment(globalThis.fetch, client)
+
+const res = await fetch('https://blog.example.com/posts/article')
+```
+
+### Axios
+
+Install `axios` then import from the subpath:
+
+```bash
+npm install axios
+```
+
+```ts
+import axios from 'axios'
+import { LedewirePaymentClient } from '@ledewire/x402-client'
+import { wrapAxiosWithPayment } from '@ledewire/x402-client/axios'
+
+const client = new LedewirePaymentClient({ key, secret })
+const api = wrapAxiosWithPayment(axios.create(), client)
+
+// Payment is handled transparently — same as fetch
+const res = await api.get('https://blog.example.com/posts/article')
+console.log(res.data)
+```
+
+The axios adapter attaches a response interceptor that catches `402` responses,
+calls `client.buildPaymentSignature()`, sets the `PAYMENT-SIGNATURE` header,
+and retries the original request.
+
+### Custom transports (ky, got, undici, …)
+
+For any other HTTP client, call `buildPaymentSignature` directly inside your
+client's interceptor, hook, or middleware:
+
+```ts
+import { LedewirePaymentClient } from '@ledewire/x402-client'
+import ky from 'ky'
+
+const client = new LedewirePaymentClient({ key, secret })
+
+const api = ky.create({
+  hooks: {
+    afterResponse: [
+      async (request, _options, response) => {
+        if (response.status !== 402) return response
+
+        const header = response.headers.get('payment-required')
+        if (!header) return response
+
+        const sig = await client.buildPaymentSignature(header, request.url)
+        return ky(request.url, {
+          headers: { 'PAYMENT-SIGNATURE': sig },
+        })
+      },
+    ],
+  },
+})
+```
+
+The `PaymentSigner` interface is what both built-in adapters depend on —
+you can also pass any object with a `buildPaymentSignature` method:
+
+```ts
+import type { PaymentSigner } from '@ledewire/x402-client'
+
+const signer: PaymentSigner = {
+  async buildPaymentSignature(header, url) {
+    // custom implementation
+  },
+}
+```
+
 ## Getting a buyer API key
 
 Create a key from a buyer account:
