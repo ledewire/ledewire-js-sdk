@@ -1,6 +1,6 @@
 {
   "name": "@ledewire/x402-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "x402 fetch wrapper for Ledewire — handles ledewire-wallet scheme, buyer auth, and payment-signature construction",
   "type": "module",
   "exports": {
