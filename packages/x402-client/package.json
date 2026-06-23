@@ -62,7 +62,7 @@
   },
   "peerDependencies": {
     "@x402/core": ">=0.4.0",
-    "axios": ">=1.0.0"
+    "axios": ">=1.16.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
