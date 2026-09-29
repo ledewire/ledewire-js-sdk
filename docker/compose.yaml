@@ -28,4 +28,7 @@ services:
       # Turbo keeps a linked worktree's cache in the primary checkout, which is not
       # mounted here. Keep it in this worktree instead (relative to the repo root).
       TURBO_CACHE_DIR: .turbo/cache
+      # bin/dexec execs as the host uid, which has no passwd entry here, so docker
+      # would otherwise set HOME=/.
+      HOME: /home/node
       LEDEWIRE_BASE_URL: ${LEDEWIRE_BASE_URL:-https://api-staging.ledewire.com}
