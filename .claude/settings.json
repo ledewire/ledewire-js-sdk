@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "EnterWorktree",
+      "ExitWorktree",
+      "Bash(bin/worktree *)",
+      "Bash(bin/dexec *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(docker system *)",
+      "Bash(git status *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-tree *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(gh api *)",
+      "Bash(gh auth *)",
+      "Bash(gh issue *)",
+      "Bash(gh label *)",
+      "Bash(gh pr *)",
+      "Bash(gh repo *)",
+      "Bash(gh run *)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "EnterWorktree with a `path` under /Users/jasonvanderhoof/code/ledewire/sdks/ledewire-js-sdk-worktrees/ (or any sibling `<repo>-worktrees/` directory next to a ledewire repo checkout), when that path is already registered in `git worktree list` for the current repository — this is the project's documented bin/worktree workflow (see CLAUDE.md), not a model-chosen relocation to an arbitrary or untrusted path"
+    ]
+  }
+}
