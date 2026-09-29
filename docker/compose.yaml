@@ -1,0 +1,31 @@
+name: ${COMPOSE_PROJECT_NAME:-ledewire-js-sdk}
+
+# One Node container per worktree. There is no database or server to isolate —
+# what a stack buys here is a node_modules and toolchain that belong to this
+# worktree alone, built from this worktree's lockfile.
+#
+# The worktree is mounted at its host path (WORKSPACE_DIR) rather than a fixed
+# /workspace, alongside the repo's shared .git dir (GIT_COMMON_DIR), because a
+# linked worktree's `.git` is a file naming that directory by absolute host path.
+# Mirroring both paths is what lets git — and so lint-staged in the pre-commit
+# hook — run inside the container. bin/worktree writes both into .env; the
+# primary checkout falls back to /workspace, where .git is an ordinary directory.
+services:
+  sdk:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ..:${WORKSPACE_DIR:-/workspace}:cached
+      - ${GIT_COMMON_DIR:-../.git}:${GIT_COMMON_DIR:-/workspace/.git}
+    working_dir: ${WORKSPACE_DIR:-/workspace}
+    command: sleep infinity
+    environment:
+      # Files arrive owned by the host user, which git otherwise refuses to touch.
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: '*'
+      # Turbo keeps a linked worktree's cache in the primary checkout, which is not
+      # mounted here. Keep it in this worktree instead (relative to the repo root).
+      TURBO_CACHE_DIR: .turbo/cache
+      LEDEWIRE_BASE_URL: ${LEDEWIRE_BASE_URL:-https://api-staging.ledewire.com}

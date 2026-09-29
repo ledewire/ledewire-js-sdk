@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Runs a command inside this worktree's sdk container.
+# Reads COMPOSE_PROJECT_NAME/WORKSPACE_DIR/GIT_COMMON_DIR from .env in the repo root.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+tty_flag="-T"
+if [ -t 0 ] && [ -t 1 ]; then
+  tty_flag=""
+fi
+exec docker compose -f docker/compose.yaml exec $tty_flag sdk "$@"

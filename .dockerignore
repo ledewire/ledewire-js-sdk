@@ -1,0 +1,7 @@
+# docker/Dockerfile only needs what `pnpm fetch` reads. The source tree reaches
+# the container through the bind mount in docker/compose.yaml, not the image, so
+# everything else (node_modules especially) stays out of the build context.
+*
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc

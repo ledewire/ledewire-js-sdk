@@ -39,3 +39,6 @@ docs/.docusaurus/
 docs/build/
 
 .agentkanban/
+
+# Claude Code local settings
+.claude/settings.local.json
