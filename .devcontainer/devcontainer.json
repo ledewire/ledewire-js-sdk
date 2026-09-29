@@ -29,7 +29,7 @@
         "typescript.enablePromptUseWorkspaceTsdk": true,
         "eslint.useFlatConfig": true,
         "vitest.enable": true,
-        "vitest.workspaceConfig": "vitest.workspace.ts",
+        "vitest.rootConfig": "vitest.config.ts",
         "search.exclude": {
           "**/node_modules": true,
           "**/dist": true,
