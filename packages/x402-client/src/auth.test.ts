@@ -10,14 +10,14 @@ const mockTokenResponse = {
 }
 
 function makeFetch(status: number, body: object): typeof fetch {
-  return vi.fn(() =>
+  return vi.fn<typeof fetch>(() =>
     Promise.resolve(
       new Response(JSON.stringify(body), {
         status,
         headers: { 'Content-Type': 'application/json' },
       }),
     ),
-  ) as ReturnType<typeof vi.fn>
+  )
 }
 
 describe('loginWithBuyerApiKey', () => {

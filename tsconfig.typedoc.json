@@ -4,6 +4,7 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "types": ["node"],
     "noEmit": true
   },
   "include": ["packages/browser/src", "packages/node/src", "packages/core/src"]
