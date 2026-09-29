@@ -1,0 +1,759 @@
+#!/usr/bin/env bash
+# Manage isolated per-branch dev environments: a git worktree paired with its
+# own Docker Compose stack (own container, node_modules, and toolchain).
+#
+# Ported from ledewire/api's bin/worktree. This repo has no database or server,
+# so there are no ports to allocate; what isolation buys here is a node_modules
+# built from each worktree's own lockfile, and a runtime that never has to be
+# installed on the host.
+#
+# This script runs on the host, so it intentionally avoids depending on Node or
+# pnpm (the runtime lives in Docker, not on the host) and on bash 4+ features
+# (macOS ships bash 3.2).
+set -eo pipefail
+shopt -s nullglob
+
+# The repo only has one long-lived branch. Issues may still name another base
+# (a feature branch, say) with a Base branch field — see base_branch_from_body.
+DEFAULT_BASE="main"
+
+slugify() { printf '%s' "$1" | tr -c 'A-Za-z0-9_-' '-'; }
+
+# The image a teardown must never remove: the primary checkout's own stack, which
+# an empty COMPOSE_PROJECT_NAME resolves to. remove_project_image only ever names
+# "<project>-sdk", so it cannot spell the shared node base image whatever the
+# project is called. Space-delimited to stay bash 3.2 clean.
+PROTECTED_IMAGES="ledewire-js-sdk-sdk"
+
+# Replace non-ASCII bytes in a caller-supplied branch name, preserving the name's
+# own shape (case, slashes, dots, and punctuation like '+') otherwise. Only
+# non-ASCII triggers GitHub's hidden-character warning on a PR's head ref, which
+# cannot be renamed after the fact.
+#
+# Used for `worktree new`, where the name is typed by hand; `worktree issue`
+# derives its name from the issue title instead — see branch_name_for_issue.
+ascii_branch() {
+  printf '%s' "$1" | LC_ALL=C tr -c '!-~' '-' | LC_ALL=C tr -s '-'
+}
+
+# Build an ASCII-only branch name from an issue number and title. Left to itself,
+# `gh issue develop` derives the branch name from the title, non-ASCII and all.
+# Multi-byte characters collapse to a single dash here rather than one per byte.
+branch_name_for_issue() {
+  local number="$1" title="$2" slug
+  slug="$(printf '%s' "$title" \
+    | LC_ALL=C tr 'A-Z' 'a-z' \
+    | LC_ALL=C tr -c 'a-z0-9' '-' \
+    | LC_ALL=C tr -s '-' \
+    | cut -c1-60 \
+    | sed -e 's/^-*//' -e 's/-*$//')"
+  if [ -z "$slug" ]; then
+    printf '%s' "$number"
+  else
+    printf '%s-%s' "$number" "$slug"
+  fi
+}
+
+# Resolve an issue's Base branch from its body, printing the bare branch name
+# (or nothing when the field is absent or blank). Accepts the same forms as the
+# api repo:
+#
+#   **Base branch:** main         hand-written
+#
+#   ## Base branch                a heading (any level from 2 down) followed by
+#   main                          the value, as GitHub renders issue-form fields
+#
+# The bold form wins when a body somehow carries both.
+base_branch_from_body() {
+  local body="$1" value
+
+  value="$(printf '%s\n' "$body" | tr -d '\r' | sed -n 's/^\*\*Base branch:\*\*[[:space:]]*//p' \
+    | sed -n '/[^[:space:]]/p' | head -n1)"
+
+  if [ -z "$value" ]; then
+    # Take the first non-blank line after the heading. Stop at another heading
+    # or at GitHub's placeholder for an unanswered field, so an empty field
+    # never silently resolves to the next section's content.
+    value="$(printf '%s\n' "$body" | tr -d '\r' | awk '
+      capture {
+        if ($0 ~ /^[[:space:]]*$/) next
+        if ($0 ~ /^#/ || $0 == "_No response_") exit
+        print; exit
+      }
+      /^##+[[:space:]]+Base branch[[:space:]]*$/ { capture = 1 }
+    ')"
+  fi
+
+  value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  value="${value#\`}"
+  value="${value%\`}"
+
+  # The value is written unquoted into a worktree's .env, which is sourced on the
+  # host (`. ./.env`). Issue bodies are writable by anyone who can file an issue,
+  # so anything that is not plainly a branch name is dropped here rather than
+  # trusted downstream.
+  case "$value" in
+    ''|-*|*[!A-Za-z0-9._/-]*) value="" ;;
+  esac
+
+  printf '%s' "$value"
+}
+
+# --- Pickup notes -----------------------------------------------------------
+#
+# Warnings raised while grabbing an issue print immediately and are *also*
+# accumulated here so they can be replayed in the closing summary — the docker
+# build and pnpm install that follow bury anything printed earlier, and callers
+# often only read the tail of the output.
+PICKUP_NOTES=""
+
+# How many detail lines (commits, PRs) a single replayed note may carry. The
+# early emission is unabridged; the replay is a reminder, not a second copy.
+PICKUP_NOTE_DETAIL_LINES=2
+
+record_pickup_note() {
+  local note="$1"
+  if [ -z "$note" ]; then
+    return 0
+  fi
+  if [ -n "$PICKUP_NOTES" ]; then
+    PICKUP_NOTES="$PICKUP_NOTES
+"
+  fi
+  PICKUP_NOTES="$PICKUP_NOTES$note"
+}
+
+pickup_note_detail() {
+  printf '%s\n' "$1" | awk -v n="$PICKUP_NOTE_DETAIL_LINES" 'NR <= n { print "     " $0 }'
+}
+
+pickup_note_elision() {
+  if [ "$1" -gt "$PICKUP_NOTE_DETAIL_LINES" ]; then
+    printf ' (%s of %s shown)' "$PICKUP_NOTE_DETAIL_LINES" "$1"
+  fi
+}
+
+print_pickup_notes() {
+  if [ -z "$PICKUP_NOTES" ]; then
+    return 0
+  fi
+  echo
+  echo "-- Repeated from the start of this run (informational, not blockers) --"
+  printf '%s\n' "$PICKUP_NOTES"
+}
+
+# List open PRs already targeting this issue's base, so overlapping work shows up
+# before it is written rather than at merge time.
+#
+# Informational, never fatal. Every failure path returns silently: being offline,
+# rate-limited or unauthenticated must not stop an issue being picked up.
+warn_if_concurrent_prs() {
+  local base="$1" number="$2" prs count headlines note
+
+  # Dependabot and the changesets release PR are excluded: they arrive in a steady
+  # trickle, and listing them on every pickup trains the reader to skip the warning.
+  prs="$(gh pr list --state open --base "$base" --limit 30 \
+           --json number,title,headRefName \
+           --jq '.[]
+                 | select(.headRefName | startswith("dependabot/") | not)
+                 | select(.headRefName | startswith("changeset-release/") | not)
+                 | select(.headRefName | startswith("'"$number"'-") | not)
+                 | "  #\(.number)  \(.title)\n       \(.headRefName)"' \
+         2>/dev/null || true)"
+
+  if [ -z "$prs" ]; then
+    return 0
+  fi
+
+  count="$(printf '%s\n' "$prs" | grep -c '^  #' || true)"
+  echo
+  echo "!! $count open PR(s) already targeting '$base':"
+  printf '%s\n' "$prs" | head -n 20 | sed 's/^/   /'
+  if [ "$count" -gt 10 ]; then
+    echo "   ... and $((count - 10)) more"
+  fi
+  echo
+  echo "   Worktree isolation holds while you work, not at merge time. Before starting, check"
+  echo "   whether any of these touch the files you are about to:"
+  echo
+  echo "     gh pr diff <number> --name-only"
+  echo
+
+  headlines="$(printf '%s\n' "$prs" | sed -n 's/^  \(#.*\)/\1/p')"
+  note="!! $count open PR(s) already targeting '$base'$(pickup_note_elision "$count"):
+$(pickup_note_detail "$headlines")"
+  record_pickup_note "$note
+   Check overlap before starting: gh pr diff <number> --name-only"
+}
+
+# --- Branch / base distance --------------------------------------------------
+#
+# One line for the closing summary naming the branch, its base, and the distance
+# between them — stated every time, including "level with", so the absence of
+# drift is reported too.
+BRANCH_SUMMARY_LINE=""
+
+# The same measurement as digits, for `worktree sync`. Empty whenever the line
+# could not be built, so a caller can tell "level" from "unmeasurable".
+BRANCH_BEHIND_COUNT=""
+BRANCH_AHEAD_COUNT=""
+
+record_branch_summary() {
+  local branch="$1" base="$2" behind ahead distance
+
+  BRANCH_SUMMARY_LINE=""
+  BRANCH_BEHIND_COUNT=""
+  BRANCH_AHEAD_COUNT=""
+  if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+    return 0
+  fi
+  if ! git rev-parse --verify --quiet "origin/$base" >/dev/null; then
+    BRANCH_SUMMARY_LINE="$branch (base $base, no origin/$base to measure against)"
+    return 0
+  fi
+
+  behind="$(git rev-list --count "refs/heads/$branch..origin/$base")"
+  ahead="$(git rev-list --count "origin/$base..refs/heads/$branch")"
+  BRANCH_BEHIND_COUNT="$behind"
+  BRANCH_AHEAD_COUNT="$ahead"
+
+  if [ "$behind" -eq 0 ] && [ "$ahead" -eq 0 ]; then
+    distance="level with origin/$base"
+  elif [ "$behind" -eq 0 ]; then
+    distance="$ahead commit(s) of its own"
+  elif [ "$ahead" -eq 0 ]; then
+    distance="$behind commit(s) behind"
+  else
+    distance="$behind commit(s) behind, $ahead of its own"
+  fi
+
+  BRANCH_SUMMARY_LINE="$branch (base $base, $distance)"
+}
+
+# Decide what an issue's worktree should be cut from, given a branch that may
+# already exist on origin. Sets WORKTREE_START_REF.
+#
+#   no commits of its own — nothing to lose, so the worktree is cut from
+#     origin/$base. Only the local branch moves; origin/$branch is an ancestor of
+#     the new tip, so the eventual push fast-forwards.
+#
+#   commits of its own — nothing is rewritten and nothing is guessed at. The
+#     distance is reported and the operator reconciles it from inside the worktree.
+#
+# Never interactive and never fatal: this runs unattended from agents.
+WORKTREE_START_REF=""
+sync_linked_branch() {
+  local branch="$1" base="$2" behind ahead
+
+  WORKTREE_START_REF="origin/$branch"
+
+  if ! git rev-parse --verify --quiet "origin/$branch" >/dev/null; then
+    return 0
+  fi
+  if ! git rev-parse --verify --quiet "origin/$base" >/dev/null; then
+    return 0
+  fi
+
+  behind="$(git rev-list --count "origin/$branch..origin/$base")"
+  if [ "$behind" -eq 0 ]; then
+    return 0
+  fi
+  ahead="$(git rev-list --count "origin/$base..origin/$branch")"
+
+  if [ "$ahead" -eq 0 ]; then
+    WORKTREE_START_REF="origin/$base"
+    echo
+    echo "!! Linked branch '$branch' is $behind commit(s) behind '$base' and carries none of its own."
+    echo "   Cutting the worktree from origin/$base instead, so the work starts on the current base."
+    echo "   Only the local branch moves; origin/$branch is an ancestor, so the first push fast-forwards."
+    echo
+    record_pickup_note "!! '$branch' was $behind behind '$base' with none of its own — cut from origin/$base instead"
+    return 0
+  fi
+
+  echo
+  echo "!! Linked branch '$branch' is $behind commit(s) behind '$base' and carries $ahead of its own."
+  echo "   It is used as-is: bin/worktree never rewrites a branch that carries commits. Bring it"
+  echo "   up to date yourself, from inside the worktree, before starting:"
+  echo
+  echo "     bin/worktree sync"
+  echo
+  record_pickup_note "!! '$branch' is $behind behind '$base', $ahead of its own — catch up: bin/worktree sync"
+}
+
+# --- sync --------------------------------------------------------------------
+#
+# Bring the branch checked out here up to date with the base recorded in this
+# worktree's .env. A worktree is correct at the moment it is created and starts
+# drifting immediately; nothing else in the flow closes that distance.
+#
+# It syncs from BASE_BRANCH and from nothing else, so a branch cut from a feature
+# branch never picks up unrelated commits from main.
+#
+# Rebase, not merge: PRs are squash-merged, so a linear issue branch loses
+# nothing, and no merge commit authored by someone else enters the branch. The
+# cost is that rewritten commits already on origin need a force-push, which is
+# reported here and made by hand.
+#
+# Never stashes, never discards, never resolves or aborts a conflict.
+sync_worktree() {
+  local root base branch dirty behind ahead
+
+  root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -z "$root" ]; then
+    echo "bin/worktree sync: not inside a git working tree." >&2
+    echo "Run it from inside a worktree created by 'bin/worktree issue <number>' or" >&2
+    echo "'bin/worktree new <branch> [base]'." >&2
+    return 1
+  fi
+  cd "$root" || return 1
+
+  if [ ! -f .env ]; then
+    echo "bin/worktree sync: no .env in $root, so nothing records a base to sync from." >&2
+    echo "sync only runs inside a worktree created by 'bin/worktree issue <number>' or" >&2
+    echo "'bin/worktree new <branch> [base]' — those write BASE_BRANCH into the worktree's .env." >&2
+    return 1
+  fi
+
+  base="$(sed -n 's/^BASE_BRANCH=//p' .env | head -n1)"
+  if [ -z "$base" ]; then
+    echo "bin/worktree sync: $root/.env records no BASE_BRANCH." >&2
+    echo "Add BASE_BRANCH=<branch> to .env, or re-create the worktree with bin/worktree." >&2
+    return 1
+  fi
+
+  branch="$(git branch --show-current)"
+  if [ -z "$branch" ]; then
+    echo "bin/worktree sync: not on a branch (detached HEAD) — nothing to sync." >&2
+    return 1
+  fi
+
+  # Tracked changes only. Git itself refuses to overwrite an untracked file during
+  # a rebase, and a worktree accumulates untracked scratch that has no bearing on
+  # whether the branch can move.
+  dirty="$(git status --porcelain --untracked-files=no)"
+  if [ -n "$dirty" ]; then
+    echo "bin/worktree sync: uncommitted changes in $root:" >&2
+    printf '%s\n' "$dirty" | sed 's/^/  /' >&2
+    echo "Commit them, or stash them yourself, and run sync again. sync does neither for you:" >&2
+    echo "work it stashed would be work it could lose." >&2
+    return 1
+  fi
+
+  echo "== Fetching $base from origin =="
+  if ! git fetch origin "$base"; then
+    echo "bin/worktree sync: could not fetch '$base' from origin — nothing was changed." >&2
+    return 1
+  fi
+
+  record_branch_summary "$branch" "$base"
+  if [ -z "$BRANCH_BEHIND_COUNT" ]; then
+    echo "bin/worktree sync: no origin/$base to sync from, even after fetching it." >&2
+    return 1
+  fi
+  behind="$BRANCH_BEHIND_COUNT"
+  ahead="$BRANCH_AHEAD_COUNT"
+  echo "   $BRANCH_SUMMARY_LINE"
+
+  if [ "$behind" -eq 0 ]; then
+    echo "== Already up to date with origin/$base — nothing to do =="
+    return 0
+  fi
+
+  echo "== Rebasing $branch onto origin/$base ($behind to catch up, $ahead of its own) =="
+  if ! git rebase "origin/$base"; then
+    echo >&2
+    echo "bin/worktree sync: the rebase stopped on a conflict. The worktree is exactly as git" >&2
+    echo "left it — nothing was resolved, reset, or aborted for you. From $root:" >&2
+    echo "  resolve the files, then:  git add <files> && git rebase --continue" >&2
+    echo "  drop the offending commit: git rebase --skip" >&2
+    echo "  put the branch back:       git rebase --abort" >&2
+    return 1
+  fi
+
+  echo
+  echo "Synced $branch with origin/$base"
+  echo "  caught up: $behind commit(s) from $base"
+  echo "  HEAD:      $(git log -1 --format='%h %s')"
+
+  # A lockfile change means the container's node_modules no longer matches.
+  echo "  If pnpm-lock.yaml changed, re-link dependencies: bin/dexec pnpm install --frozen-lockfile"
+
+  # Only when the rebase actually rewrote history origin already has — warning
+  # otherwise would train the reader to force-push out of habit.
+  if git rev-parse --verify --quiet "origin/$branch" >/dev/null \
+     && ! git merge-base --is-ancestor "origin/$branch" HEAD; then
+    echo
+    echo "  origin/$branch holds commits this rebase rewrote. Push with:"
+    echo "    git push --force-with-lease origin HEAD:$branch"
+    echo "  (Bot sessions push to the tokenized URL instead — see CLAUDE.md.)"
+  fi
+}
+
+repo_common_git_dir() { (cd "$(git rev-parse --git-common-dir)" && pwd); }
+
+main_worktree_root() {
+  (cd "$(repo_common_git_dir)/.." && pwd)
+}
+
+worktrees_base() {
+  local root; root="$(main_worktree_root)"
+  echo "$(cd "$root/.." && pwd)/$(basename "$root")-worktrees"
+}
+
+# Creates the worktree dir at $wt_path for $branch, checked out from $start_ref
+# (a ref like "origin/main").
+#
+# A local branch of that name is reconciled with $start_ref rather than silently
+# preferred over it:
+#
+#   identical      nothing to do
+#   behind         fast-forwarded to $start_ref; no history is lost by definition
+#   ahead          kept — those commits exist nowhere else
+#   diverged       abort, naming both SHAs; this script has no way to decide which
+#                  wins and no way to ask, since it runs unattended
+add_worktree() {
+  local wt_path="$1" branch="$2" start_ref="$3" local_sha ref_sha
+  echo "== Creating git worktree at $wt_path =="
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    local_sha="$(git rev-parse "refs/heads/$branch")"
+    ref_sha="$(git rev-parse --verify --quiet "$start_ref" || true)"
+
+    if [ -n "$ref_sha" ] && [ "$ref_sha" != "$local_sha" ]; then
+      if git merge-base --is-ancestor "$local_sha" "$ref_sha"; then
+        echo "   Local '$branch' is behind $start_ref — fast-forwarding $local_sha -> $ref_sha"
+        if ! git branch --force "$branch" "$ref_sha"; then
+          echo "Could not fast-forward '$branch' to $start_ref." >&2
+          echo "It is probably checked out in another worktree — see 'git worktree list'." >&2
+          exit 1
+        fi
+      elif git merge-base --is-ancestor "$ref_sha" "$local_sha"; then
+        echo "   Local '$branch' is ahead of $start_ref ($local_sha vs $ref_sha) — keeping the local commits"
+      else
+        echo "Local branch '$branch' has diverged from $start_ref:" >&2
+        echo "  refs/heads/$branch   $local_sha" >&2
+        echo "  $start_ref   $ref_sha" >&2
+        echo "Reconcile them before grabbing this branch — bin/worktree will not guess which wins." >&2
+        exit 1
+      fi
+    fi
+
+    git worktree add "$wt_path" "$branch"
+  else
+    git worktree add "$wt_path" -b "$branch" "$start_ref"
+  fi
+
+  # `git worktree add -b` takes the upstream from its start point, which would
+  # leave the branch tracking its base. The branch's own remote ref is the right
+  # upstream — and it is what `git branch -d` consults in `bin/worktree rm`.
+  if git rev-parse --verify --quiet "origin/$branch" >/dev/null; then
+    git branch --set-upstream-to "origin/$branch" "$branch" >/dev/null
+  fi
+}
+
+# Delete the local branch a teardown has just finished with. `git branch -d`
+# refuses when the branch holds commits reachable from nowhere else — a refusal
+# reported, never a failure, since the stack is already down by now.
+delete_local_branch() {
+  local branch="$1"
+
+  if ! git show-ref --verify --quiet "refs/heads/$branch"; then
+    echo "== No local branch '$branch' to delete =="
+    return 0
+  fi
+
+  if git branch -d "$branch" >/dev/null 2>&1; then
+    echo "== Deleted local branch $branch =="
+  else
+    echo "== Kept local branch $branch: it holds commits not merged into its upstream =="
+    echo "   Push them, or delete it deliberately with: git branch -D $branch"
+  fi
+}
+
+# Remove the image Compose built for a torn-down worktree's project;
+# `docker compose down -v` leaves it behind. Absent and in-use are reported
+# rather than raised, for the same reason as delete_local_branch.
+remove_project_image() {
+  local project="$1" image error
+
+  # docker/compose.yaml opens with `name: ${COMPOSE_PROJECT_NAME:-ledewire-js-sdk}`,
+  # so an empty project name resolves to the primary checkout's stack.
+  if [ -z "$project" ]; then
+    echo "== Refusing to remove an image for an empty project name =="
+    echo "   That would name the primary checkout's own stack. Check the worktree's .env."
+    return 0
+  fi
+
+  image="${project}-sdk"
+
+  case " $PROTECTED_IMAGES " in
+    *" $image "*)
+      echo "== Refusing to remove shared image $image =="
+      echo "   It belongs to the primary checkout, not to this worktree."
+      return 0
+      ;;
+  esac
+
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    echo "== No image $image to remove =="
+    return 0
+  fi
+
+  if error="$(docker rmi "$image" 2>&1)"; then
+    echo "== Removed image $image =="
+  else
+    echo "== Kept image $image: docker would not remove it =="
+    echo "   ${error}"
+    echo "   Remove it later with: docker rmi $image"
+  fi
+}
+
+# Finishes setting up a worktree already created by add_worktree: .env (with
+# optional issue metadata), container, dependencies. Prints the exact
+# EnterWorktree invocation to paste as the last line.
+setup_worktree() {
+  local wt_path="$1" slug="$2" issue_number="$3" base_branch="$4"
+  local project_name="ledewire-js-sdk-$slug"
+
+  echo "== Writing .env (project=$project_name) =="
+  {
+    echo "COMPOSE_PROJECT_NAME=$project_name"
+    echo "WORKSPACE_DIR=$wt_path"
+    echo "GIT_COMMON_DIR=$(repo_common_git_dir)"
+    [ -n "$base_branch" ] && echo "BASE_BRANCH=$base_branch"
+    [ -n "$issue_number" ] && echo "ISSUE_NUMBER=$issue_number"
+  } > "$wt_path/.env"
+
+  (
+    cd "$wt_path"
+    set -a
+    . ./.env
+    set +a
+    echo "== Building and starting container =="
+    docker compose -f docker/compose.yaml up -d --build
+    echo "== Installing dependencies inside the container =="
+    docker compose -f docker/compose.yaml exec -T sdk pnpm install --frozen-lockfile --prefer-offline
+  )
+
+  print_worktree_summary "$wt_path"
+}
+
+# The closing summary — the one part of a run that is reliably read, because
+# everything above it is docker build output. Replayed warnings sit between the
+# "ready" block and the EnterWorktree line, so EnterWorktree stays last.
+print_worktree_summary() {
+  local wt_path="$1"
+
+  echo
+  echo "Worktree ready at $wt_path"
+  if [ -n "$BRANCH_SUMMARY_LINE" ]; then
+    echo "  branch: $BRANCH_SUMMARY_LINE"
+  fi
+  echo "  run commands with: (cd $wt_path && bin/dexec <cmd>)"
+
+  print_pickup_notes
+
+  echo
+  echo "Paste this to switch into it:"
+  echo "EnterWorktree path=$wt_path"
+}
+
+# Sourcing this script defines its functions without running any subcommand.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+  return 0
+fi
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  new)
+    branch="${1:?Usage: bin/worktree new <branch> [base]}"
+    base="${2:-$DEFAULT_BASE}"
+
+    sanitized="$(ascii_branch "$branch")"
+    if [ "$sanitized" != "$branch" ]; then
+      echo "Note: branch name contains characters GitHub flags as hidden on a PR's" >&2
+      echo "      head ref — using '$sanitized' instead of '$branch'" >&2
+      branch="$sanitized"
+    fi
+
+    slug="$(slugify "$branch")"
+    wt_base="$(worktrees_base)"
+    wt_path="$wt_base/$slug"
+    if [ -e "$wt_path" ]; then
+      echo "$wt_path already exists" >&2
+      exit 1
+    fi
+
+    mkdir -p "$wt_base"
+
+    echo "== Fetching $base from origin =="
+    git fetch origin "$base"
+
+    add_worktree "$wt_path" "$branch" "origin/$base"
+    record_branch_summary "$branch" "$base"
+    setup_worktree "$wt_path" "$slug" "" "$base"
+    ;;
+
+  issue)
+    number="${1:?Usage: bin/worktree issue <number>}"
+
+    echo "== Reading issue #$number =="
+    body="$(gh issue view "$number" --json body --jq .body)"
+    title="$(gh issue view "$number" --json title --jq .title)"
+    issue_base="$(base_branch_from_body "$body")"
+    if [ -z "$issue_base" ]; then
+      issue_base="$DEFAULT_BASE"
+      echo "   Issue states no Base branch — using $DEFAULT_BASE"
+    fi
+
+    echo "== Fetching $issue_base from origin =="
+    git fetch origin "$issue_base"
+
+    warn_if_concurrent_prs "$issue_base" "$number"
+
+    echo "== Linking issue #$number to a branch =="
+    branch="$(gh issue develop --list "$number" | head -n1 | cut -f1)"
+    if [ -n "$branch" ]; then
+      echo "   Reusing already-linked branch: $branch"
+    else
+      desired="$(branch_name_for_issue "$number" "$title")"
+      echo "   Creating branch: $desired"
+      gh issue develop "$number" --base "$issue_base" --name "$desired" >/dev/null
+      branch="$(gh issue develop --list "$number" | head -n1 | cut -f1)"
+    fi
+    if [ -z "$branch" ]; then
+      echo "Could not determine the branch gh issue develop created for #$number" >&2
+      exit 1
+    fi
+
+    slug="$(slugify "$branch")"
+    wt_base="$(worktrees_base)"
+    wt_path="$wt_base/$slug"
+    if [ -e "$wt_path" ]; then
+      echo "$wt_path already exists" >&2
+      exit 1
+    fi
+
+    mkdir -p "$wt_base"
+
+    echo "== Fetching $branch from origin =="
+    git fetch origin "$branch"
+
+    sync_linked_branch "$branch" "$issue_base"
+    add_worktree "$wt_path" "$branch" "$WORKTREE_START_REF"
+    record_branch_summary "$branch" "$issue_base"
+    setup_worktree "$wt_path" "$slug" "$number" "$issue_base"
+    ;;
+
+  sync)
+    # An argument here is almost always someone naming the base they want to sync
+    # from, which is the one thing this command exists to refuse.
+    if [ "$#" -gt 0 ]; then
+      echo "bin/worktree sync: takes no arguments (got '$1')." >&2
+      echo "The base is the one recorded in this worktree's .env, and only that one." >&2
+      exit 2
+    fi
+    sync_worktree
+    ;;
+
+  rm)
+    branch="${1:?Usage: bin/worktree rm <branch>}"
+    slug="$(slugify "$branch")"
+    wt_path="$(worktrees_base)/$slug"
+    if [ ! -e "$wt_path" ]; then
+      echo "$wt_path does not exist" >&2
+      exit 1
+    fi
+
+    (
+      cd "$wt_path"
+      set -a
+      . ./.env
+      set +a
+      echo "== Tearing down container and volumes =="
+      docker compose -f docker/compose.yaml down -v
+
+      # After `down -v`, not before: the image is in use while the container
+      # still exists, and docker would refuse to remove it.
+      remove_project_image "${COMPOSE_PROJECT_NAME:-}"
+    )
+
+    echo "== Removing git worktree =="
+    git worktree remove "$wt_path"
+
+    delete_local_branch "$branch"
+    ;;
+
+  # Print the worktree directory holding a given issue. Deliberately does not
+  # touch docker. Exit 1 with empty stdout means "no worktree for that issue" —
+  # an ordinary answer, not an error.
+  path)
+    number="$1"
+    case "$number" in
+      ''|*[!0-9]*)
+        echo "Usage: bin/worktree path <number>" >&2
+        exit 2
+        ;;
+    esac
+
+    base="$(worktrees_base)"
+    [ -d "$base" ] || exit 1
+    for wt_path in "$base"/*/; do
+      wt_path="${wt_path%/}"
+      [ -f "$wt_path/.env" ] || continue
+      # -x anchors the whole line so issue 5 does not match ISSUE_NUMBER=51.
+      if grep -qxF "ISSUE_NUMBER=$number" "$wt_path/.env"; then
+        echo "$wt_path"
+        exit 0
+      fi
+    done
+    exit 1
+    ;;
+
+  list)
+    base="$(worktrees_base)"
+    if [ ! -d "$base" ] || [ -z "$(ls -A "$base" 2>/dev/null)" ]; then
+      echo "No worktrees under $base"
+      exit 0
+    fi
+    for wt_path in "$base"/*/; do
+      wt_path="${wt_path%/}"
+      [ -f "$wt_path/.env" ] || continue
+      # shellcheck disable=SC1090
+      . "$wt_path/.env"
+      running=$(docker ps --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --format '{{.Names}}')
+      if [ -z "$running" ]; then
+        status="stopped"
+      else
+        status="running ($running)"
+      fi
+      extra=" base=${BASE_BRANCH:-?}"
+      [ -n "${ISSUE_NUMBER:-}" ] && extra=" issue=#$ISSUE_NUMBER$extra"
+      echo "$(basename "$wt_path"): $status$extra"
+      unset COMPOSE_PROJECT_NAME WORKSPACE_DIR GIT_COMMON_DIR BASE_BRANCH ISSUE_NUMBER
+    done
+    ;;
+
+  *)
+    cat >&2 <<USAGE
+Usage: bin/worktree <command> [args]
+
+Commands:
+  issue <number>       Grab an issue: reads its Base branch (default: $DEFAULT_BASE), links a
+                       branch via 'gh issue develop', and builds the worktree + container
+  new <branch> [base]  Create a git worktree + isolated Docker Compose stack for <branch>,
+                       cut from a freshly fetched origin/<base> (default: $DEFAULT_BASE)
+  sync                 Run inside a worktree: fetch the BASE_BRANCH recorded in its .env
+                       and rebase this branch onto it. Takes no arguments, refuses to run
+                       with uncommitted changes, and leaves a conflict for you to resolve
+  rm <branch>          Tear down the stack, remove the worktree, and delete the local
+                       branch unless it holds unmerged commits
+  list                 Show all managed worktrees and their status
+  path <number>        Print the worktree directory for an issue; exit 1 if there is none
+USAGE
+    # Exit 2, not 1: 'path' reserves exit 1 for "no worktree for that issue".
+    exit 2
+    ;;
+esac

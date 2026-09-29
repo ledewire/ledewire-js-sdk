@@ -23,7 +23,7 @@
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm lint-staged"
+    "pre-commit": "if command -v pnpm >/dev/null 2>&1; then pnpm lint-staged; else bin/dexec pnpm lint-staged; fi"
   },
   "lint-staged": {
     "*.{ts,tsx,js,json,md,yaml,yml}": "prettier --write",
