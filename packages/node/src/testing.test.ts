@@ -15,6 +15,9 @@ describe('createMockClient', () => {
     expect(client).toHaveProperty('checkout')
     expect(client).toHaveProperty('config')
     expect(client).toHaveProperty('user')
+    expect(client).toHaveProperty('publications')
+    expect(client).toHaveProperty('acquisitions')
+    expect(client).toHaveProperty('x402')
   })
 
   it('stubs config.getPublic', () => {
@@ -145,6 +148,39 @@ describe('createMockClient', () => {
     expect(typeof client.user.apiKeys.list).toBe('function')
     expect(typeof client.user.apiKeys.create).toBe('function')
     expect(typeof client.user.apiKeys.revoke).toBe('function')
+  })
+
+  it('stubs all user.spendCap and user.mcpKeys methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.user.spendCap.get).toBe('function')
+    expect(typeof client.user.spendCap.update).toBe('function')
+    expect(typeof client.user.mcpKeys.list).toBe('function')
+    expect(typeof client.user.mcpKeys.create).toBe('function')
+    expect(typeof client.user.mcpKeys.revoke).toBe('function')
+  })
+
+  it('stubs all publications, acquisitions, and x402 methods', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.publications.list).toBe('function')
+    expect(typeof client.publications.listWorks).toBe('function')
+    for (const method of [
+      'create',
+      'get',
+      'requote',
+      'acknowledgeExclusions',
+      'authorize',
+      'listWorks',
+      'getCorpus',
+      'buildCorpus',
+      'downloadCorpus',
+      'getManifest',
+      'signingKeyHistory',
+    ] as const) {
+      expect(typeof client.acquisitions[method]).toBe('function')
+    }
+    expect(typeof client.x402.discoverResources).toBe('function')
   })
 
   it('stubs all wallet methods', () => {

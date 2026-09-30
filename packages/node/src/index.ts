@@ -69,6 +69,28 @@ export type {
   UserApiKey,
   UserApiKeyCreateRequest,
   UserApiKeyCreateResponse,
+  ErrorType,
+  UserSpendCap,
+  UserSpendCapUpdateRequest,
+  McpApiKey,
+  McpApiKeyCreateRequest,
+  McpApiKeyCreateResponse,
+  DailySpendCapReachedErrorBody,
+  Publication,
+  PublicationListResponse,
+  PublicationWork,
+  PublicationWorkListResponse,
+  PublicationWorksParams,
+  AcquisitionResponse,
+  AcquisitionQuote,
+  AcquisitionWork,
+  PaginatedAcquisitionWorkList,
+  CorpusResponse,
+  CorpusManifestResponse,
+  SigningKeyHistoryResponse,
+  X402BazaarDiscoveryResponse,
+  X402BazaarResource,
+  X402DiscoveryParams,
 } from '@ledewire/core'
 export {
   AuthError,
@@ -77,6 +99,7 @@ export {
   MemoryTokenStorage,
   NotFoundError,
   PurchaseError,
+  SpendCapReachedError,
   parseExpiresAt,
 } from '@ledewire/core'
 
@@ -89,6 +112,7 @@ export type {
 } from './resources/merchant/domains.js'
 export type { MerchantContentSearchRequest } from './resources/merchant/content.js'
 export type { ContentSearchRequest } from './resources/seller/content.js'
+export type { AcquisitionCreateRequest, CorpusDownloadResult } from './resources/acquisitions.js'
 
 // Package exports (implementations added in build step 4)
 export { createClient, createAgentClient } from './client.js'

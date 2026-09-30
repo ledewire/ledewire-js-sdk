@@ -52,7 +52,10 @@ describe('content.getWithAccess', () => {
   it('returns external_ref content with content_uri when buyer has purchased', async () => {
     const fixture = contentWithAccessFixture({
       ...externalRefContentResponseFixture(),
-      access_info: contentAccessInfoFixture({ has_purchased: true, next_required_action: 'none' }),
+      access_info: contentAccessInfoFixture({
+        has_purchased: true,
+        next_required_action: 'purchase',
+      }),
     })
     server.use(
       http.get(`${BASE}/v1/content/content-id-ext-1/with-access`, () => HttpResponse.json(fixture)),

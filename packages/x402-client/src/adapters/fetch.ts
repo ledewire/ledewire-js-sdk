@@ -1,12 +1,23 @@
 import type { PaymentSigner } from '../types.js'
-import { throwPaymentError } from '../payment-client.js'
+import { throwLegacyPaymentError, throwPaymentRefusal } from '../payment-client.js'
+import { parsePaymentRefusal } from '../parse.js'
 
 /**
  * Wraps a `fetch` function with automatic Ledewire x402 payment handling.
  *
  * On a `402 Payment Required` response with a `PAYMENT-REQUIRED` header,
  * builds a `PAYMENT-SIGNATURE` and retries the original request transparently.
- * All other responses pass through unchanged.
+ * All other responses — including any `402` on the FIRST (unpaid) request
+ * that carries no `PAYMENT-REQUIRED` header — pass through unchanged; the API
+ * never refuses that first request (see ledewire/api#1066).
+ *
+ * **Security note — the spend-cap numbers on {@link SpendCapReachedError} are
+ * untrusted.** This wrapper fetches arbitrary third-party URLs, so a
+ * `daily_spend_cap_reached` refusal can come from *any* server the caller
+ * points it at, not only LedeWire's API — nothing here verifies it. Never
+ * change a buyer's LedeWire spend cap based on the fields of an error caught
+ * from this wrapper; confirm the real cap and spend first, against the
+ * LedeWire API itself, via `user.spendCap.get()`.
  *
  * @example
  * ```ts
@@ -21,9 +32,17 @@ import { throwPaymentError } from '../payment-client.js'
  * @throws {UnsupportedSchemeError} When the `402` is not a `ledewire-wallet` challenge.
  * @throws {MalformedPaymentRequiredError} When the server's `PAYMENT-REQUIRED` is malformed.
  * @throws {NonceExpiredError} When the payment nonce is already expired.
- * @throws {InsufficientFundsError} When the buyer wallet has insufficient funds.
- * @throws {AuthError} When buyer API key authentication fails.
- * @throws {LedewireError} For other Ledewire API error responses.
+ * @throws {InsufficientFundsError} PAID request refused with `insufficient_funds`
+ *   (spec form), or a legacy `422` (pre-api#1066).
+ * @throws {AuthError} PAID request refused with `invalid_ledewire_wallet_payload_token`
+ *   (spec form), or a legacy `401` (pre-api#1066).
+ * @throws {ForbiddenError} PAID request refused with `invalid_ledewire_wallet_payload_role`
+ *   (spec form), or a legacy `403` (pre-api#1066).
+ * @throws {SpendCapReachedError} PAID request refused with `daily_spend_cap_reached`
+ *   (spec form), or a legacy `402` spend-cap body (pre-api#1066) — retrying or
+ *   funding the wallet cannot clear this, so there is nothing to re-challenge.
+ * @throws {LedewireError} For other Ledewire API error responses; `err.type` carries
+ *   the raw `errorReason` for an unrecognized spec-form refusal.
  */
 export function wrapFetchWithPayment(
   fetchFn: typeof globalThis.fetch,
@@ -43,6 +62,9 @@ export function wrapFetchWithPayment(
 
     const paymentRequiredHeader = firstResponse.headers.get('PAYMENT-REQUIRED')
     if (!paymentRequiredHeader) {
+      // No challenge to answer, and nothing further to inspect: the API only
+      // ever refuses the PAID request (below), never this first one — see
+      // ledewire/api#1066. Pass the response through untouched.
       return firstResponse
     }
 
@@ -57,10 +79,19 @@ export function wrapFetchWithPayment(
       return paidResponse
     }
 
-    const errorBody = await paidResponse.json().catch(() => ({}))
-    const raw = (errorBody as Record<string, unknown>)['error']
-    const message =
-      typeof raw === 'string' ? raw : `Payment failed (${String(paidResponse.status)})`
-    throwPaymentError(paidResponse.status, message)
+    // Spec form (x402 v2, api#1066): the PAID request's refusal is a
+    // `PAYMENT-RESPONSE` header carrying a SettleResponse with `success: false`.
+    // The JSON error body (e.g. a DailySpendCapReachedError body with
+    // cap_cents etc.) travels alongside it, read separately below.
+    const refusal = parsePaymentRefusal(paidResponse.headers.get('PAYMENT-RESPONSE'))
+    const body = await paidResponse.json().catch(() => undefined)
+
+    if (refusal) {
+      throwPaymentRefusal(refusal, body)
+    }
+
+    // Legacy (pre-api#1066): no PAYMENT-RESPONSE header — the refusal lives
+    // directly in the response status/body. Remove once api#1066 ships.
+    throwLegacyPaymentError(paidResponse.status, body)
   } as typeof globalThis.fetch
 }

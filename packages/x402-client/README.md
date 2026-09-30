@@ -190,6 +190,13 @@ Or create one at ledewire.com/settings/api-keys.
 
 ## Error handling
 
+The PAID request (the one carrying `PAYMENT-SIGNATURE`) can come back non-OK for reasons
+other than a bad signature — insufficient funds, an expired buyer JWT, an account role that
+can't spend, or the buyer's daily spend cap. Per the x402 v2 HTTP transport spec
+(ledewire/api#1066), the API reports this as a `402` with a `PAYMENT-RESPONSE` header — a
+base64 JSON `SettleResponse` with `success: false` and an `errorReason` — and both adapters
+map that `errorReason` to a typed error:
+
 ```ts
 import {
   createLedewireFetch,
@@ -197,8 +204,11 @@ import {
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  SpendCapReachedError,
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/core'
 
 const fetch = createLedewireFetch({ key, secret })
 
@@ -206,27 +216,58 @@ try {
   const res = await fetch('https://blog.example.com/posts/article')
 } catch (err) {
   if (err instanceof InsufficientFundsError) {
-    // Wallet has insufficient funds — top up at ledewire.com/wallet
+    // errorReason: insufficient_funds — wallet balance too low, top up at ledewire.com/wallet
   } else if (err instanceof NonceExpiredError) {
     // Payment nonce expired — retry the fetch from the beginning
   } else if (err instanceof UnsupportedSchemeError) {
     // The 402 was not a ledewire-wallet challenge — pass through or handle
   } else if (err instanceof MalformedPaymentRequiredError) {
     // Server sent a malformed PAYMENT-REQUIRED — likely a server misconfiguration
+  } else if (err instanceof SpendCapReachedError) {
+    // errorReason: daily_spend_cap_reached — nothing to retry or fund.
+    // Clears only at err.resetsAt, or when the cap is raised via client.user.spendCap.update().
+    //
+    // SECURITY: wrapFetchWithPayment/wrapAxiosWithPayment wrap arbitrary
+    // third-party URLs, so these numbers come from whichever server answered
+    // — not necessarily LedeWire's API. Never change the buyer's actual
+    // LedeWire spend cap based on this error; confirm first against the real
+    // API via `user.spendCap.get()`.
+    console.error(`Spend cap reached: ${err.spentCents}/${err.capCents} cents`)
+  } else if (err instanceof AuthError) {
+    // errorReason: invalid_ledewire_wallet_payload_token — buyer JWT rejected, re-authenticate
+  } else if (err instanceof ForbiddenError) {
+    // errorReason: invalid_ledewire_wallet_payload_role — this account can't spend
   } else if (err instanceof LedewireError) {
-    console.error(err.statusCode, err.message)
+    // Any other refusal — err.type carries the raw errorReason so callers can
+    // still branch on a reason this SDK version doesn't have its own class for.
+    console.error(err.statusCode, err.type, err.message)
   }
 }
 ```
 
-| Error                           | Cause                                                           |
-| ------------------------------- | --------------------------------------------------------------- |
-| `InsufficientFundsError`        | Wallet balance too low (server returned 422)                    |
-| `NonceExpiredError`             | Payment nonce expired before retry — simply retry `fetch()`     |
-| `UnsupportedSchemeError`        | 402 response uses a non-`ledewire-wallet` scheme                |
-| `MalformedPaymentRequiredError` | `PAYMENT-REQUIRED` header is invalid or missing required fields |
-| `AuthError`                     | Buyer API key credentials are invalid (401 on payment)          |
-| `LedewireError`                 | All other Ledewire API errors — check `.statusCode`             |
+`AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError` are re-exported from
+`@ledewire/core` — LedeWire's private shared internals, not published to npm. Always import them
+from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` directly.
+
+| Error                           | `errorReason` (spec form)               | Cause                                                           |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| `InsufficientFundsError`        | `insufficient_funds`                    | Wallet balance too low                                          |
+| `SpendCapReachedError`          | `daily_spend_cap_reached`               | Buyer's daily spend cap reached — funding does _not_ clear it   |
+| `AuthError`                     | `invalid_ledewire_wallet_payload_token` | Buyer JWT in the `PAYMENT-SIGNATURE` payload was rejected       |
+| `ForbiddenError`                | `invalid_ledewire_wallet_payload_role`  | Account role can't spend                                        |
+| `NonceExpiredError`             | —                                       | Payment nonce expired before retry — simply retry `fetch()`     |
+| `UnsupportedSchemeError`        | —                                       | 402 response uses a non-`ledewire-wallet` scheme                |
+| `MalformedPaymentRequiredError` | —                                       | `PAYMENT-REQUIRED` header is invalid or missing required fields |
+| `LedewireError`                 | any other value, on `err.type`          | All other Ledewire API errors — check `.statusCode`/`.type`     |
+
+**Legacy (pre-api#1066, removed once the API always sends `PAYMENT-RESPONSE`):** without that
+header on the paid leg, the same errors are inferred from the bare response instead — a `402`
+spend-cap body maps to `SpendCapReachedError`, `422` to `InsufficientFundsError`, `401` to
+`AuthError`, and `403` to `ForbiddenError`.
+
+A `402` on the _first_ (unpaid) request always means "here's your `PAYMENT-REQUIRED` challenge" —
+the API never refuses that first request, so a bare `402` with no `PAYMENT-REQUIRED` header
+passes straight through unchanged for the caller to inspect.
 
 ## Token lifecycle
 

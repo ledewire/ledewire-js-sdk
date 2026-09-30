@@ -263,6 +263,32 @@ client.purchases.list(params?)                    → Promise<{ data: PurchaseRe
 client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
 ```
 
+Single-use delivery: `purchases.create()`'s response is the only place
+`content_body` / `content_uri` ever appear — `list()` and `get()` never carry
+them, and there is no route that serves the same delivery again, so persist it
+immediately.
+
+```ts
+const purchase = await client.purchases.create({ content_id: 'article-123' })
+await saveDeliveredContent(purchase) // your own persistence — one-time delivery
+
+// content_body is always plain UTF-8 on the wire — never base64-encoded, no
+// decode step needed. What it contains depends on purchase.content.content_type.
+if (purchase.content_body && purchase.content.content_type === 'markdown') {
+  renderMarkdown(purchase.content_body)
+} else if (purchase.content_body && purchase.content.content_type === 'html') {
+  // Inline HTML is seller-supplied — sanitise before rendering it to any user
+  // (e.g. with a server-side sanitiser, or DOMPurify if forwarding to a browser).
+  const safeHtml = sanitizeHtml(purchase.content_body)
+} else if (purchase.content_uri) {
+  // Seller-supplied URI — check the scheme before following or linking to it.
+  const uri = new URL(purchase.content_uri)
+  if (['https:', 'http:'].includes(uri.protocol)) {
+    // fetch(purchase.content_uri) or forward it as a link
+  }
+}
+```
+
 ### client.content
 
 ```ts
@@ -311,11 +337,219 @@ interface UserApiKeyCreateResponse extends UserApiKey {
 }
 ```
 
+### client.user.spendCap
+
+Every new buyer starts with a default daily spend cap. It governs every wallet
+debit (MCP, REST, and the web payment gate). `null` on `update()` is the only
+way to become uncapped.
+
+```ts
+client.user.spendCap.get()     → Promise<UserSpendCap>
+client.user.spendCap.update(body: UserSpendCapUpdateRequest) → Promise<UserSpendCap>
+
+interface UserSpendCap {
+  cap_cents: number | null        // null once uncapped
+  spent_cents: number             // spend in the current window
+  remaining_cents: number | null  // null once uncapped
+  resets_at: string               // ISO 8601 — when the window rolls over
+  spend_window_timezone: string   // IANA zone, UTC by default
+  bulk_exempt: boolean            // true: bulk acquisitions do not count against the cap
+}
+
+interface UserSpendCapUpdateRequest {
+  daily_spend_limit_cents: number | null  // required; null removes the cap
+}
+```
+
+```ts
+const cap = await client.user.spendCap.get()
+if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
+  console.warn(`Only ${cap.remaining_cents}c left before the cap resets at ${cap.resets_at}`)
+}
+await client.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
+await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove the cap
+```
+
+**Exceeding the cap throws `SpendCapReachedError` (402)** from
+`purchases.create()`, the x402 content gate, and `acquisitions.authorize()`.
+Funding the wallet does NOT clear it — see [Error classes](#error-classes).
+
+### client.user.mcpKeys
+
+MCP API keys authenticate agent requests to the Ledewire MCP server as
+`Authorization: Bearer <key>:<secret>`. Scopes are fixed at creation — to
+change them, revoke and recreate.
+
+```ts
+client.user.mcpKeys.list()          → Promise<McpApiKey[]>          // secret never included
+client.user.mcpKeys.create(body)    → Promise<McpApiKeyCreateResponse>
+client.user.mcpKeys.revoke(id)      → Promise<void>
+
+interface McpApiKeyCreateRequest {
+  label: string
+  can_search?: boolean            // default true
+  can_purchase?: boolean          // default false
+  can_manage_content?: boolean    // seller-tier — requires store_id
+  can_read_analytics?: boolean    // seller-tier — requires store_id
+  store_id?: string               // a store this user owns or authors
+}
+
+interface McpApiKey {
+  id: string
+  label: string
+  can_search: boolean
+  can_purchase: boolean
+  can_manage_content: boolean
+  can_read_analytics: boolean
+  store_id: string | null
+  created_at: string
+}
+
+interface McpApiKeyCreateResponse extends McpApiKey {
+  key: string
+  secret: string  // shown once — store immediately alongside key
+}
+```
+
+```ts
+const { key, secret } = await client.user.mcpKeys.create({
+  label: 'my-rag-agent',
+  can_search: true,
+  can_purchase: true,
+})
+await secretsManager.put('LEDEWIRE_MCP_CREDENTIAL', `${key}:${secret}`)
+```
+
+### client.publications
+
+Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
+required, requests always sent without credentials.
+
+```ts
+client.publications.list(params?: PaginationParams)                     → Promise<PublicationListResponse>
+client.publications.listWorks(id, params?: PublicationWorksParams)      → Promise<PublicationWorkListResponse>
+// PublicationWorksParams: { from?: string, to?: string, cursor?: string, limit?: number }
+// from/to are inclusive YYYY-MM-DD bounds; limit defaults to the max, 1000.
+```
+
+Check `date_filter` ('applied' | 'unsupported') before treating an empty page
+as "nothing in range" — some publications carry no modification dates at all.
+Paginate with `next_cursor`: pass it back as `cursor` with the same `from`/`to`.
+A `null` `next_cursor` means the walk is over.
+
+```ts
+const { data } = await client.publications.list()
+const licensable = data.filter((p) => p.bulk_licensable)
+const page = await client.publications.listWorks(licensable[0].id, { from: '2026-01-01', to: '2026-01-31' })
+```
+
+### client.acquisitions
+
+Bulk licensing: submit a Selection of work URLs (typically `url`s from
+`publications.listWorks()`), get it priced, authorize the hold, and retrieve
+the delivered corpus and its signed manifest. Every method requires a buyer
+JWT except `signingKeyHistory()`, which is public.
+
+```ts
+client.acquisitions.create({ urls: string[] })       → Promise<AcquisitionResponse>              // 201, quote_state: 'pending'
+client.acquisitions.get(id)                          → Promise<AcquisitionResponse>              // poll this for quote + run progress
+client.acquisitions.requote(id)                      → Promise<AcquisitionResponse>              // 202 — re-price at today's rates
+client.acquisitions.acknowledgeExclusions(id)         → Promise<AcquisitionResponse>              // required before authorize()
+client.acquisitions.authorize(id)                     → Promise<AcquisitionResponse>              // 202 — places the hold, starts the run
+client.acquisitions.listWorks(id, params?: PaginationParams) → Promise<PaginatedAcquisitionWorkList> // per-work disposition, refused rows included
+client.acquisitions.getCorpus(id)                     → Promise<CorpusResponse>                  // corpus state — always 200, never errors
+client.acquisitions.buildCorpus(id)                   → Promise<CorpusResponse>                  // 200 if already downloadable, else 202
+client.acquisitions.downloadCorpus(id)                → Promise<CorpusDownloadResult>             // streamed gzip, discriminated on `ready`
+client.acquisitions.getManifest(id)                   → Promise<CorpusManifestResponse>           // 409 until first assembly
+client.acquisitions.signingKeyHistory()               → Promise<SigningKeyHistoryResponse>        // public — verifies manifest.signing_kid
+```
+
+End-to-end flow:
+
+```ts
+// 1. Submit a Selection and open the acquisition.
+let acquisition = await client.acquisitions.create({
+  urls: ['https://example.com/articles/1', 'https://example.com/articles/2'],
+})
+
+// 2. Quoting is async — poll until quote_state is 'ready'.
+while (acquisition.quote_state === 'pending') {
+  await new Promise((r) => setTimeout(r, 2000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+
+// 3-4. Inspect and acknowledge what cannot be sold — required before authorize().
+if (acquisition.exclusions.length > 0) {
+  console.warn('Excluded from this Selection:', acquisition.exclusions)
+}
+acquisition = await client.acquisitions.acknowledgeExclusions(acquisition.id)
+
+// 5. Place the hold and start the run.
+try {
+  acquisition = await client.acquisitions.authorize(acquisition.id)
+} catch (err) {
+  if (err instanceof SpendCapReachedError) {
+    // Funding the wallet will not clear this — it is a daily policy limit.
+    console.error(`Daily spend cap reached; resets at ${err.resetsAt}.`)
+    return
+  }
+  throw err
+}
+
+// 6. Poll until the run settles.
+while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
+  await new Promise((r) => setTimeout(r, 5000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+
+// 7. Partial failure is read from the per-work list, not thrown.
+const { data: works } = await client.acquisitions.listWorks(acquisition.id)
+const failed = works.filter((w) => w.delivery_state === 'undelivered')
+
+// 8. Download the corpus — streamed straight to a file in Node.
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
+
+const result = await client.acquisitions.downloadCorpus(acquisition.id)
+if (result.ready) {
+  await pipeline(Readable.fromWeb(result.body), createWriteStream('corpus.tar.gz'))
+  const { byte_size } = await client.acquisitions.getCorpus(acquisition.id)
+  // Compare the written file's size against byte_size to confirm completeness.
+} else {
+  console.log('Not ready yet:', result.corpus.state)
+}
+
+// 9. Verify the signed manifest — never trust the inline `jwk` in its JWS
+// header. Resolve signing_kid through signingKeyHistory(), match all 32 raw
+// public-key bytes, confirm it was valid at signed_at, then verify the
+// detached signature over the manifest's exact bytes.
+const manifest = await client.acquisitions.getManifest(acquisition.id)
+const keyHistory = await client.acquisitions.signingKeyHistory()
+```
+
+### client.x402
+
+Public x402 Bazaar resource discovery — no authentication, no credentials
+sent. Never carries delivered content (`content_body`/`content_uri`), only the
+`teaser` preview. Pay for a resource via the x402 flow itself
+(`@ledewire/x402-client`), not through this namespace.
+
+```ts
+client.x402.discoverResources(params?: { limit?: number, offset?: number }) → Promise<X402BazaarDiscoveryResponse>
+// limit max 100, offset zero-based.
+
+const { total, resources } = await client.x402.discoverResources({ limit: 20 })
+for (const resource of resources) {
+  console.log(resource.metadata.title, resource.metadata.teaser)
+}
+```
+
 ## createAgentClient()
 
 A convenience factory for autonomous (headless) agents. Wraps `createClient()`
 and exposes only the buyer-relevant namespaces: `auth`, `wallet`, `purchases`,
-`content`, `checkout`, `user`.
+`content`, `checkout`, `user`, `publications`, `acquisitions`, `x402`.
 
 ```ts
 import { createAgentClient } from '@ledewire/node'
@@ -339,7 +573,7 @@ const purchase = await agent.purchases.create({ content_id: 'abc123' })
 const article  = await agent.content.getWithAccess(purchase.content_id)
 ```
 
-`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user'>`.
+`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'publications' | 'acquisitions' | 'x402'>`.
 The `merchant`, `seller`, and `config` namespaces are intentionally absent.
 
 **Serverless warning:** `MemoryTokenStorage` (default) resets on every cold start.
@@ -369,7 +603,11 @@ const { data, pagination } = await client.seller.content.list(storeId, {
 ```ts
 interface ContentListItem {
   id: string
-  content_type: 'markdown' | 'external_ref'
+  content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+  // 'brokered' appears on responses only — never accepted by seller.content.create()/update().
+  // 'html' is inline (content_body) or remote (content_uri); pdf/image/video/external_ref
+  // always require content_uri. See client.seller.content.create() JSDoc for the full
+  // discriminated union.
   title: string
   price_cents: number
   teaser: string | null       // plain text teaser (SDK decodes base64 automatically); null when not set
@@ -390,7 +628,7 @@ interface CheckoutStateResponse {
     is_authenticated: boolean
     has_sufficient_funds: boolean | null
     has_purchased: boolean
-    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
   }
 }
 
@@ -405,6 +643,13 @@ interface TokenStorage {
   setTokens(tokens: StoredTokens): Promise<void>
   clearTokens(): Promise<void>
 }
+
+interface WalletBalanceResponse {
+  balance_cents: number    // always equal to spendable_cents
+  spendable_cents: number
+  held_cents: number       // committed to active bulk acquisitions, not yet spent/released
+  holds: Array<{ acquisition_id: string, held_cents: number, authorized_at: string }>
+}
 ```
 
 ## Error classes
@@ -418,19 +663,39 @@ import {
   ForbiddenError,
   NotFoundError,
   PurchaseError,
+  SpendCapReachedError,
 } from '@ledewire/node'
 
 class LedewireError extends Error {
   statusCode: number        // HTTP status code
   code: number | undefined  // machine-readable code from API body
   message: string           // human-readable description from API body
+  type: ErrorTypeValue | undefined  // machine-readable error.type, e.g. 'daily_spend_cap_reached'
+  details: Readonly<Record<string, unknown>> | undefined  // extra top-level error-body fields
 }
 
 class AuthError extends LedewireError {}       // 401 — bad credentials / expired token
 class ForbiddenError extends LedewireError {}  // 403 — authenticated but insufficient access
 class NotFoundError extends LedewireError {}   // 404 — resource not found
 class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+
+// 402 — daily_spend_cap_reached. Thrown by purchases.create(), the x402
+// content gate, and acquisitions.authorize(). Funding the wallet does NOT
+// clear this — it resets at `resetsAt`, or the cap can be raised/removed via
+// `client.user.spendCap.update()`.
+class SpendCapReachedError extends LedewireError {
+  capCents: number
+  spentCents: number
+  remainingCents: number
+  resetsAt: string    // ISO 8601
+  bulkExempt: boolean // true: this buyer's bulk acquisitions are excluded from the cap
+}
 ```
+
+`instanceof` checks work even across the separately bundled copies of
+`@ledewire/core` in `@ledewire/node`, `@ledewire/browser`, and
+`@ledewire/x402-client` — e.g. an error thrown inside `@ledewire/x402-client`
+checked with `SpendCapReachedError` imported from `@ledewire/node`.
 
 ## Testing with mock client
 

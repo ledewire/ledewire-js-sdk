@@ -31,6 +31,18 @@ type MerchantDomainVerificationSchema = components['schemas']['MerchantDomainVer
 type UserApiKeySchema = components['schemas']['UserApiKey']
 type UserApiKeyCreateResponseSchema = components['schemas']['UserApiKeyCreateResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
+type UserSpendCapSchema = components['schemas']['UserSpendCap']
+type McpApiKeySchema = components['schemas']['McpApiKey']
+type McpApiKeyCreateResponseSchema = components['schemas']['McpApiKeyCreateResponse']
+type PublicationSchema = components['schemas']['Publication']
+type PublicationWorkListResponseSchema = components['schemas']['PublicationWorkListResponse']
+type AcquisitionResponseSchema = components['schemas']['AcquisitionResponse']
+type AcquisitionWorkSchema = components['schemas']['AcquisitionWork']
+type CorpusResponseSchema = components['schemas']['CorpusResponse']
+type CorpusManifestResponseSchema = components['schemas']['CorpusManifestResponse']
+type SigningKeyHistoryResponseSchema = components['schemas']['SigningKeyHistoryResponse']
+type X402BazaarDiscoveryResponseSchema = components['schemas']['X402BazaarDiscoveryResponse']
+type DailySpendCapReachedErrorSchema = components['schemas']['DailySpendCapReachedError']
 
 /**
  * Returns a valid authentication response fixture.
@@ -47,10 +59,15 @@ export function authTokenFixture(overrides?: Partial<AuthResponse>): AuthRespons
 }
 
 /**
- * Returns an API error response fixture.
+ * Returns an API error response fixture. Pass `type` to simulate a refusal that
+ * carries a machine-readable `error.type` (see {@link ErrorType}).
  */
-export function errorResponseFixture(code: number, message: string): ErrorResponse {
-  return { error: { code, message } }
+export function errorResponseFixture(
+  code: number,
+  message: string,
+  type?: ErrorResponse['error']['type'],
+): ErrorResponse {
+  return { error: { code, message, ...(type !== undefined && { type }) } }
 }
 
 /**
@@ -252,6 +269,9 @@ export function walletBalanceFixture(
 ): WalletBalanceSchema {
   return {
     balance_cents: 12500,
+    spendable_cents: 12500,
+    held_cents: 0,
+    holds: [],
     ...overrides,
   }
 }
@@ -483,6 +503,250 @@ export function userApiKeyCreateResponseFixture(
     id: 'key-id-1',
     key: 'bktst_abc123',
     secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a buyer daily spend cap fixture.
+ */
+export function spendCapFixture(overrides?: Partial<UserSpendCapSchema>): UserSpendCapSchema {
+  return {
+    cap_cents: 5000,
+    spend_window_timezone: 'UTC',
+    spent_cents: 1500,
+    remaining_cents: 3500,
+    resets_at: '2099-01-02T00:00:00Z',
+    bulk_exempt: false,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns an MCP API key fixture (secret is never present after creation).
+ */
+export function mcpApiKeyFixture(overrides?: Partial<McpApiKeySchema>): McpApiKeySchema {
+  return {
+    id: 'mcp-key-id-1',
+    label: 'My Agent Key',
+    key: 'mcpk_abc123',
+    can_search: true,
+    can_purchase: false,
+    store_id: null,
+    can_manage_content: false,
+    can_read_analytics: false,
+    last_used_at: null,
+    created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns an MCP API key create response fixture.
+ * The `secret` is shown once only — store immediately.
+ */
+export function mcpApiKeyCreateResponseFixture(
+  overrides?: Partial<McpApiKeyCreateResponseSchema>,
+): McpApiKeyCreateResponseSchema {
+  return {
+    id: 'mcp-key-id-1',
+    key: 'mcpk_abc123',
+    secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    label: 'My Agent Key',
+    can_search: true,
+    can_purchase: false,
+    store_id: null,
+    can_manage_content: false,
+    can_read_analytics: false,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a bulk-licensing publication fixture.
+ */
+export function publicationFixture(overrides?: Partial<PublicationSchema>): PublicationSchema {
+  return {
+    id: 'pub-id-1',
+    name: 'Test Publication',
+    domains: ['example.com'],
+    bulk_licensable: true,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a page of a publication's works, as returned by
+ * `GET /v1/publications/{id}/works`.
+ */
+export function publicationWorkListFixture(
+  overrides?: Partial<PublicationWorkListResponseSchema>,
+): PublicationWorkListResponseSchema {
+  return {
+    publication_id: 'pub-id-1',
+    domain: 'example.com',
+    date_filter: 'not_requested',
+    works: [{ url: 'https://example.com/articles/1', last_mod: '2099-01-01T00:00:00Z' }],
+    next_cursor: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a bulk acquisition fixture.
+ */
+export function acquisitionFixture(
+  overrides?: Partial<AcquisitionResponseSchema>,
+): AcquisitionResponseSchema {
+  return {
+    id: 'acq-id-1',
+    status: 'quoted',
+    quote_state: 'ready',
+    publication_count: 1,
+    submitted_work_count: 2,
+    work_count: 2,
+    quote: {
+      state: 'ready',
+      firm_micros: 2_000_000,
+      estimated_micros: 0,
+      maximum_chargeable_total_cents: 200,
+      quoted_at: '2099-01-01T00:00:00Z',
+      expires_at: '2099-01-02T00:00:00Z',
+      exclusions_acknowledged_at: null,
+    },
+    exclusions: [],
+    delivery: {
+      purchased: 0,
+      delivered: 0,
+      undelivered: 0,
+      outstanding: 2,
+    },
+    created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a per-work disposition fixture for a bulk acquisition.
+ */
+export function acquisitionWorkFixture(
+  overrides?: Partial<AcquisitionWorkSchema>,
+): AcquisitionWorkSchema {
+  return {
+    position: 1,
+    submitted_url: 'https://example.com/articles/1',
+    canonical_url: 'https://example.com/articles/1',
+    line_state: 'firm',
+    exclusion_reason: null,
+    price_micros: 1_000_000,
+    purchased: true,
+    delivery_state: 'delivered',
+    failure_reason: null,
+    attempts: 1,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a bulk acquisition corpus status fixture.
+ */
+export function corpusFixture(overrides?: Partial<CorpusResponseSchema>): CorpusResponseSchema {
+  return {
+    state: 'ready',
+    format: 'tar_gz',
+    byte_size: 1024,
+    expires_at: '2099-01-31T00:00:00Z',
+    failure_reason: null,
+    download_url: '/v1/acquisitions/acq-id-1/corpus/download',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a signed corpus manifest fixture.
+ */
+export function corpusManifestFixture(
+  overrides?: Partial<CorpusManifestResponseSchema>,
+): CorpusManifestResponseSchema {
+  return {
+    manifest: { works: [] },
+    signature: 'base64url-signature',
+    digest: 'deadbeef',
+    signing_kid: 'kid-1',
+    key_history_head_digest: 'head-digest-1',
+    signed_at: '2099-01-01T00:00:00Z',
+    key_history_url: 'https://api.ledewire.com/.well-known/ledewire-signing-keys.json',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a signing-key history fixture (`.well-known/ledewire-signing-keys.json`).
+ */
+export function signingKeyHistoryFixture(
+  overrides?: Partial<SigningKeyHistoryResponseSchema>,
+): SigningKeyHistoryResponseSchema {
+  return {
+    schema_version: 1,
+    entries: [
+      {
+        kind: 'activate',
+        kid: 'kid-1',
+        sequence: 0,
+        public_key: 'base64url-public-key',
+        valid_from: '2099-01-01T00:00:00Z',
+      },
+    ],
+    ...overrides,
+  }
+}
+
+/**
+ * Returns an x402 Bazaar discovery response fixture.
+ */
+export function x402BazaarDiscoveryFixture(
+  overrides?: Partial<X402BazaarDiscoveryResponseSchema>,
+): X402BazaarDiscoveryResponseSchema {
+  return {
+    total: 1,
+    resources: [
+      {
+        resource: 'https://api.ledewire.com/v1/x402/contents/content-id-1',
+        type: 'http',
+        x402Version: 2,
+        accepts: [{ scheme: 'ledewire-wallet', network: 'ledewire:v1' }],
+        lastUpdated: 1_735_689_600,
+        metadata: {
+          title: 'Test Article',
+          teaser: 'A short teaser.',
+          store_name: 'Test Store',
+          category: 'markdown',
+        },
+      },
+    ],
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a daily-spend-cap-reached error body fixture, as returned with HTTP `402`
+ * by `POST /v1/purchases`, `GET /v1/x402/contents/{id}`, and acquisition
+ * authorization.
+ */
+export function spendCapReachedErrorFixture(
+  overrides?: Partial<DailySpendCapReachedErrorSchema>,
+): DailySpendCapReachedErrorSchema {
+  return {
+    error: {
+      code: 402,
+      message: 'Daily spend cap reached.',
+      type: 'daily_spend_cap_reached',
+    },
+    cap_cents: 5000,
+    spent_cents: 5000,
+    remaining_cents: 0,
+    resets_at: '2099-01-02T00:00:00Z',
+    bulk_exempt: false,
     ...overrides,
   }
 }

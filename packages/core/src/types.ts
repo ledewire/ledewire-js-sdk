@@ -78,6 +78,12 @@ export type ContentListItem = components['schemas']['ContentListItem']
  *   encodes it to base64 before transmission).
  * - `'external_ref'` requires `content_uri` (the external resource URL) and
  *   optionally `external_identifier` (namespaced platform ID, e.g. `vimeo:123`).
+ * - `'html'` is either inline (`content_body`, plain HTML — the SDK base64-encodes
+ *   it before sending) or remote (`content_uri`) — **exactly one of the two**, never
+ *   both. The two shapes are modelled as separate union members, each disallowing
+ *   the other's field via `?: never`, so passing both is a compile-time error.
+ * - `'pdf'`, `'image'`, and `'video'` all require `content_uri` (the SDK never
+ *   accepts `content_body` for these types).
  *
  * @remarks
  * This type is intentionally hand-written rather than aliased from
@@ -122,6 +128,85 @@ export type Content =
       title: string
       /** URI of the external resource (Vimeo, YouTube, PDF, etc.). */
       content_uri: string
+      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
+      external_identifier?: string
+      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+      teaser?: string
+      /** Price for the content in cents. */
+      price_cents: number
+      /** @default public */
+      visibility: 'public' | 'unlisted'
+      /** Flexible metadata for additional context. */
+      metadata?: {
+        author?: string
+        /** @format date-time */
+        publication_date?: string
+        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
+        reading_time?: string
+        [key: string]: unknown
+      }
+    }
+  | {
+      /** @discriminator */
+      content_type: 'html'
+      /** Content title. */
+      title: string
+      /** Full HTML body. The SDK base64-encodes this before sending. Mutually exclusive with `content_uri`. */
+      content_body: string
+      /** Not accepted alongside inline `content_body` — submitting both is rejected with `400`. */
+      content_uri?: never
+      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+      teaser?: string
+      /** Price for the content in cents. */
+      price_cents: number
+      /** @default public */
+      visibility: 'public' | 'unlisted'
+      /** Flexible metadata for additional context. */
+      metadata?: {
+        author?: string
+        /** @format date-time */
+        publication_date?: string
+        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
+        reading_time?: string
+        [key: string]: unknown
+      }
+    }
+  | {
+      /** @discriminator */
+      content_type: 'html'
+      /** Content title. */
+      title: string
+      /** URI of the remote HTML resource. Mutually exclusive with `content_body`. */
+      content_uri: string
+      /** Not accepted alongside remote `content_uri` — submitting both is rejected with `400`. */
+      content_body?: never
+      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
+      external_identifier?: string
+      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+      teaser?: string
+      /** Price for the content in cents. */
+      price_cents: number
+      /** @default public */
+      visibility: 'public' | 'unlisted'
+      /** Flexible metadata for additional context. */
+      metadata?: {
+        author?: string
+        /** @format date-time */
+        publication_date?: string
+        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
+        reading_time?: string
+        [key: string]: unknown
+      }
+    }
+  | {
+      /** @discriminator */
+      content_type: 'pdf' | 'image' | 'video'
+      /** Content title. */
+      title: string
+      /** URI of the remote resource. Required — these types are always remote. */
+      content_uri: string
+      /** Not accepted for `pdf`/`image`/`video` content. */
+      content_body?: never
       /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
       external_identifier?: string
       /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
@@ -223,6 +308,158 @@ export type UserApiKeyCreateRequest = components['schemas']['UserApiKeyCreateReq
  * Store it immediately in a secrets manager.
  */
 export type UserApiKeyCreateResponse = components['schemas']['UserApiKeyCreateResponse']
+
+/**
+ * Machine-readable reason on an API error envelope, present on refusals that carry one.
+ * Branch on this rather than on `message`, which is prose and may be reworded.
+ *
+ * - `retrieval_failed` — transient; worth retrying.
+ * - `not_licensable` — report the work as undelivered.
+ * - `price_drifted` — re-quote before retrying.
+ * - `client_error` — ours to fix; must never be retried unchanged.
+ * - `insufficient_funds` — cleared by funding the wallet.
+ * - `daily_spend_cap_reached` — deliberately **not** cleared by funding the wallet; see
+ *   {@link SpendCapReachedError}.
+ */
+export type ErrorType = NonNullable<components['schemas']['ErrorResponse']['error']['type']>
+
+/** The `ErrorResponse` schema — an API error envelope `{ error: { code, message, type? } }`. */
+export type ErrorResponse = components['schemas']['ErrorResponse']
+
+/**
+ * The authenticated buyer's daily spend cap, read against the current spend window.
+ * The cap governs every wallet debit the buyer makes — MCP, REST, or the web payment
+ * gate — and spend is derived from completed purchases, so a refund returns allowance.
+ *
+ * `cap_cents`, `spent_cents`, `remaining_cents` and `resets_at` are spelled exactly as
+ * they are in {@link DailySpendCapReachedErrorBody}, so a refusal and this resource
+ * describe the same numbers.
+ */
+export type UserSpendCap = components['schemas']['UserSpendCap']
+
+/**
+ * Request body for `PATCH /v1/user/spend-cap`. `daily_spend_limit_cents` is required
+ * and nullable: `null` is how a buyer becomes uncapped, and an omitted field is a
+ * client error rather than a request to be uncapped.
+ */
+export type UserSpendCapUpdateRequest = components['schemas']['UserSpendCapUpdateRequest']
+
+/** An MCP API key record (secret is never included after creation). */
+export type McpApiKey = components['schemas']['McpApiKey']
+
+/** Request body for creating a new MCP API key. */
+export type McpApiKeyCreateRequest = components['schemas']['McpApiKeyCreateRequest']
+
+/**
+ * Response returned once when an MCP API key is created.
+ * The `secret` is shown exactly once and cannot be retrieved again.
+ */
+export type McpApiKeyCreateResponse = components['schemas']['McpApiKeyCreateResponse']
+
+/**
+ * A Publication a buyer can license from in bulk — the title a Bulk acquisition is
+ * organised around. Listed from LedeWire's own registry, reconciled daily against the
+ * broker's directory, rather than from a live call.
+ */
+export type Publication = components['schemas']['Publication']
+
+/** Every {@link Publication} the broker reports as ready to license, paginated. */
+export type PublicationListResponse = components['schemas']['PublicationListResponse']
+
+/**
+ * A work a {@link Publication} has available to license, as the broker's catalog lists
+ * it. `url` is exactly what an acquisition Selection takes.
+ */
+export type PublicationWork = components['schemas']['PublicationWork']
+
+/**
+ * One page of a Publication's works, read live from the broker's catalog. Unpriced —
+ * pricing happens when a Selection of these URLs is quoted.
+ */
+export type PublicationWorkListResponse = components['schemas']['PublicationWorkListResponse']
+
+/**
+ * Query parameters accepted by `GET /v1/publications/{id}/works`.
+ * `from`/`to` are inclusive dates (`YYYY-MM-DD`); `cursor` is the previous page's
+ * `next_cursor`, sent back with the same `from`/`to`; `limit` defaults to the maximum
+ * (1000).
+ */
+export interface PublicationWorksParams {
+  /** Earliest modification date, inclusive, as `YYYY-MM-DD`. */
+  from?: string
+  /** Latest modification date, inclusive, as `YYYY-MM-DD`. */
+  to?: string
+  /** The previous page's `next_cursor`, sent with the same `from`/`to`. */
+  cursor?: string
+  /** Works per page. Maximum 1000. Defaults to the maximum. */
+  limit?: number
+  [key: string]: string | number | undefined
+}
+
+/**
+ * A Bulk acquisition — the resource the whole bulk-licensing flow hangs off. The
+ * buyer holds this id from the moment they submit a Selection, and every later step
+ * reads or advances it: the quote arrives on it, the acknowledgement is a timestamp
+ * on it, the hold is sized from its total, and the run writes its outcome back to it.
+ */
+export type AcquisitionResponse = components['schemas']['AcquisitionResponse']
+
+/** The priced Selection of an {@link AcquisitionResponse}, and the promise made about it. */
+export type AcquisitionQuote = components['schemas']['AcquisitionQuote']
+
+/**
+ * One work in an acquisition's Selection, and what happened to it. Every submitted
+ * row appears, including the ones LedeWire refused.
+ */
+export type AcquisitionWork = components['schemas']['AcquisitionWork']
+
+/** Per-work dispositions for a Bulk acquisition, paginated. */
+export type PaginatedAcquisitionWorkList = components['schemas']['PaginatedAcquisitionWorkList']
+
+/**
+ * Where a Bulk acquisition's Corpus is — a state, never an error. A corpus is a
+ * rendering of purchases the buyer already holds, not an entitlement of its own, so
+ * it can be discarded and rebuilt at no cost to the buyer.
+ */
+export type CorpusResponse = components['schemas']['CorpusResponse']
+
+/**
+ * The signed Manifest of a Bulk acquisition — the audit record itself, not a summary
+ * of one. Permanent: it does not expire the way the corpus blob does.
+ */
+export type CorpusManifestResponse = components['schemas']['CorpusManifestResponse']
+
+/**
+ * The append-only, hash-chained log of every Ed25519 key that has signed an
+ * audit-export manifest. The trust anchor a verifier resolves a manifest's `kid`
+ * through. Served from the public `GET /.well-known/ledewire-signing-keys.json`.
+ */
+export type SigningKeyHistoryResponse = components['schemas']['SigningKeyHistoryResponse']
+
+/** A single x402 v2 resource entry returned by the Bazaar discovery endpoint. */
+export type X402BazaarResource = components['schemas']['X402BazaarResource']
+
+/** Response from the public x402 Bazaar discovery endpoint (`GET /v1/x402/discovery/resources`). */
+export type X402BazaarDiscoveryResponse = components['schemas']['X402BazaarDiscoveryResponse']
+
+/**
+ * Query parameters accepted by `GET /v1/x402/discovery/resources`.
+ */
+export interface X402DiscoveryParams {
+  /** Number of resources to return (max 100). */
+  limit?: number
+  /** Zero-based offset for pagination. */
+  offset?: number
+  [key: string]: number | undefined
+}
+
+/**
+ * The REST and x402 web-gate form of a daily-spend-cap refusal, returned with HTTP
+ * `402 Payment Required` by `POST /v1/purchases`, `GET /v1/x402/contents/{id}`, and
+ * acquisition authorization. This is the raw wire shape; the SDK throws it as
+ * {@link SpendCapReachedError} rather than handing back the JSON body directly.
+ */
+export type DailySpendCapReachedErrorBody = components['schemas']['DailySpendCapReachedError']
 
 /**
  * Pagination parameters accepted by paginated list endpoints.
@@ -350,11 +587,18 @@ export interface StoredTokens {
 // ---------------------------------------------------------------------------
 
 /**
- * Next step in a content checkout flow.
- * Extends `NextRequiredAction` with the terminal `view_content` state
- * (returned once the buyer has purchased and can view the content).
+ * Next step in a content checkout flow. Consumer-facing alias for
+ * `CheckoutStateResponse['checkout_state']['next_required_action']`.
+ *
+ * **Single-use purchase model:** there is no terminal "you have access" state.
+ * A completed purchase does not imply access — `has_purchased` means only "has ever
+ * bought" — so `next_required_action` can still read `'purchase'` for content the
+ * buyer already bought once. Buying again is how the buyer receives the content:
+ * the delivery (`content_body` / `content_uri`) is returned directly in the
+ * response to `POST /v1/purchases`, and nowhere else — not on `GET`/list, and not
+ * via a since-withdrawn `'view_content'` state.
  */
-export type CheckoutNextAction = 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+export type CheckoutNextAction = 'authenticate' | 'fund_wallet' | 'purchase'
 
 /**
  * Checkout state machine result for a specific content item, as returned by

@@ -80,13 +80,16 @@ describe('checkout.state', () => {
     expect(result.checkout_state.next_required_action).toBe('authenticate')
   })
 
-  it('reflects view_content state when already purchased', async () => {
+  it('reflects purchase-required state even when already purchased (single-use model)', async () => {
+    // A completed purchase does not imply access: has_purchased means only "has
+    // ever bought", so next_required_action can still read 'purchase' for content
+    // the buyer already bought once. There is no terminal "has access" state.
     const fixture = checkoutStateFixture({
       checkout_state: {
         is_authenticated: true,
         has_sufficient_funds: true,
         has_purchased: true,
-        next_required_action: 'view_content',
+        next_required_action: 'purchase',
       },
     })
     server.use(http.get(`${BASE}/v1/checkout/state/content-id-1`, () => HttpResponse.json(fixture)))
@@ -94,7 +97,7 @@ describe('checkout.state', () => {
     const result = await makeClient().checkout.state('content-id-1')
 
     expect(result.checkout_state.has_purchased).toBe(true)
-    expect(result.checkout_state.next_required_action).toBe('view_content')
+    expect(result.checkout_state.next_required_action).toBe('purchase')
   })
 
   it('throws NotFoundError on 404', async () => {

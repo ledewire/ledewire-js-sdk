@@ -229,6 +229,35 @@ export function createMockClient(
         create: stub(),
         revoke: stub(),
       },
+      spendCap: {
+        get: stub(),
+        update: stub(),
+      },
+      mcpKeys: {
+        list: stub(),
+        create: stub(),
+        revoke: stub(),
+      },
+    },
+    publications: {
+      list: stub(),
+      listWorks: stub(),
+    },
+    acquisitions: {
+      create: stub(),
+      get: stub(),
+      requote: stub(),
+      acknowledgeExclusions: stub(),
+      authorize: stub(),
+      listWorks: stub(),
+      getCorpus: stub(),
+      buildCorpus: stub(),
+      downloadCorpus: stub(),
+      getManifest: stub(),
+      signingKeyHistory: stub(),
+    },
+    x402: {
+      discoverResources: stub(),
     },
     config: {
       getPublic: stub(),

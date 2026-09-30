@@ -1,15 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { LedewirePaymentClient, throwPaymentError } from './payment-client.js'
-import type { LedewirePaymentPayload } from './types.js'
+import {
+  LedewirePaymentClient,
+  throwPaymentError,
+  extractPaymentErrorMessage,
+  throwLegacyPaymentError,
+  throwPaymentRefusal,
+} from './payment-client.js'
+import type { LedewirePaymentPayload, LedewirePaymentRefusal } from './types.js'
 import {
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
   InsufficientFundsError,
 } from './errors.js'
-import { AuthError, LedewireError } from '@ledewire/core'
+import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const ORIGIN_URL = 'https://blog.example.com/posts/article'
@@ -249,9 +255,158 @@ describe('throwPaymentError', () => {
     expect(() => throwPaymentError(401, 'bad creds')).toThrow(AuthError)
   })
 
+  it('throws ForbiddenError on 403', () => {
+    expect(() => throwPaymentError(403, 'forbidden')).toThrow(ForbiddenError)
+  })
+
   it('throws LedewireError for any other status', () => {
-    // Exercises the final `throw new LedewireError` — false branch of `status === 401`
+    // Exercises the final `throw new LedewireError` — false branch of the known statuses
     expect(() => throwPaymentError(500, 'internal')).toThrow(LedewireError)
-    expect(() => throwPaymentError(403, 'forbidden')).toThrow(LedewireError)
+  })
+})
+
+describe('extractPaymentErrorMessage', () => {
+  it('reads error as a plain string', () => {
+    expect(extractPaymentErrorMessage({ error: 'Insufficient balance' }, 'fallback')).toBe(
+      'Insufficient balance',
+    )
+  })
+
+  it('reads error.message from an object-shaped error', () => {
+    expect(
+      extractPaymentErrorMessage(
+        {
+          error: {
+            code: 402,
+            message: 'Daily spend cap reached.',
+            type: 'daily_spend_cap_reached',
+          },
+        },
+        'fallback',
+      ),
+    ).toBe('Daily spend cap reached.')
+  })
+
+  it('falls back when error is missing', () => {
+    expect(extractPaymentErrorMessage({ code: 42 }, 'fallback')).toBe('fallback')
+  })
+
+  it('falls back when body is not an object', () => {
+    expect(extractPaymentErrorMessage(undefined, 'fallback')).toBe('fallback')
+    expect(extractPaymentErrorMessage(null, 'fallback')).toBe('fallback')
+  })
+
+  it('falls back when error.message is not a string', () => {
+    expect(extractPaymentErrorMessage({ error: { code: 42 } }, 'fallback')).toBe('fallback')
+  })
+})
+
+describe('throwLegacyPaymentError', () => {
+  it('throws SpendCapReachedError when the body is a well-formed spend-cap refusal', () => {
+    const body = {
+      error: { code: 402, message: 'Daily spend cap reached.', type: 'daily_spend_cap_reached' },
+      cap_cents: 5000,
+      spent_cents: 5000,
+      remaining_cents: 0,
+      resets_at: '2099-01-02T00:00:00Z',
+      bulk_exempt: false,
+    }
+    expect(() => throwLegacyPaymentError(402, body)).toThrow(SpendCapReachedError)
+  })
+
+  it('falls back to throwPaymentError when the body is not a spend-cap refusal', () => {
+    expect(() => throwLegacyPaymentError(422, { error: 'Insufficient balance' })).toThrow(
+      InsufficientFundsError,
+    )
+  })
+
+  it('extracts an object-shaped error message before delegating', () => {
+    expect(() =>
+      throwLegacyPaymentError(401, { error: { code: 401, message: 'Bad creds' } }),
+    ).toThrow('Bad creds')
+  })
+})
+
+describe('throwPaymentRefusal', () => {
+  const refusal = (errorReason: string): LedewirePaymentRefusal => ({
+    success: false,
+    errorReason,
+    transaction: '',
+    network: 'ledewire:v1',
+  })
+
+  it('maps insufficient_funds to InsufficientFundsError', () => {
+    expect(() => throwPaymentRefusal(refusal('insufficient_funds'), undefined)).toThrow(
+      InsufficientFundsError,
+    )
+  })
+
+  it('maps daily_spend_cap_reached with a well-formed body to SpendCapReachedError', () => {
+    const body = {
+      error: { code: 402, message: 'Daily spend cap reached.', type: 'daily_spend_cap_reached' },
+      cap_cents: 5000,
+      spent_cents: 5000,
+      remaining_cents: 0,
+      resets_at: '2099-01-02T00:00:00Z',
+      bulk_exempt: false,
+    }
+    const err = (() => {
+      try {
+        throwPaymentRefusal(refusal('daily_spend_cap_reached'), body)
+      } catch (e) {
+        return e
+      }
+    })()
+    expect(err).toBeInstanceOf(SpendCapReachedError)
+    expect((err as SpendCapReachedError).capCents).toBe(5000)
+  })
+
+  it('maps daily_spend_cap_reached with a body missing cap fields to a typed LedewireError, never NaN', () => {
+    const err = (() => {
+      try {
+        throwPaymentRefusal(refusal('daily_spend_cap_reached'), {
+          error: { message: 'Cap reached' },
+        })
+      } catch (e) {
+        return e
+      }
+    })()
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).not.toBeInstanceOf(SpendCapReachedError)
+    expect((err as LedewireError).type).toBe('daily_spend_cap_reached')
+    expect((err as LedewireError).statusCode).toBe(402)
+  })
+
+  it('maps invalid_ledewire_wallet_payload_token to AuthError', () => {
+    expect(() =>
+      throwPaymentRefusal(refusal('invalid_ledewire_wallet_payload_token'), undefined),
+    ).toThrow(AuthError)
+  })
+
+  it('maps invalid_ledewire_wallet_payload_role to ForbiddenError', () => {
+    expect(() =>
+      throwPaymentRefusal(refusal('invalid_ledewire_wallet_payload_role'), undefined),
+    ).toThrow(ForbiddenError)
+  })
+
+  it('maps an unknown errorReason to a LedewireError whose type is the reason', () => {
+    const err = (() => {
+      try {
+        throwPaymentRefusal(refusal('some_future_reason'), undefined)
+      } catch (e) {
+        return e
+      }
+    })()
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).type).toBe('some_future_reason')
+    expect((err as LedewireError).message).toContain('some_future_reason')
+  })
+
+  it('prefers the body message over the generic fallback', () => {
+    expect(() =>
+      throwPaymentRefusal(refusal('some_future_reason'), {
+        error: { message: 'Custom refusal text' },
+      }),
+    ).toThrow('Custom refusal text')
   })
 })

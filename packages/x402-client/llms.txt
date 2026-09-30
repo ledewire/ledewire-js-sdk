@@ -51,17 +51,53 @@ staging and production without configuration changes.
 
 ## Error types
 
+The PAID request (the one carrying PAYMENT-SIGNATURE) can fail for reasons other than a
+bad signature. Per the x402 v2 HTTP transport spec (ledewire/api#1066), that failure is a
+402 with a PAYMENT-RESPONSE header — base64 JSON SettleResponse `{success:false,
+errorReason, transaction:"", network:"ledewire:v1", payer?}` — and both adapters map
+`errorReason` to a typed error. The API's JSON error body (e.g. a DailySpendCapReachedError
+body with cap_cents etc.) travels alongside the header, not inside it.
+
 ```ts
 import {
-  InsufficientFundsError,   // 422 — wallet balance too low
+  InsufficientFundsError,   // errorReason: insufficient_funds (legacy: 422)
   NonceExpiredError,         // 402 — nonce expired, retry the fetch
   UnsupportedSchemeError,    // 402 — not a ledewire-wallet challenge
   MalformedPaymentRequiredError, // 402 — bad PAYMENT-REQUIRED structure
+  AuthError,          // errorReason: invalid_ledewire_wallet_payload_token (legacy: 401)
+  ForbiddenError,     // errorReason: invalid_ledewire_wallet_payload_role (legacy: 403)
+  LedewireError,      // any other errorReason, set on err.type (legacy: other statuses)
+  SpendCapReachedError, // errorReason: daily_spend_cap_reached (legacy: 402 cap body)
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/core'
 ```
 
-All errors extend LedewireError. Check .statusCode and .message.
+Import AuthError/ForbiddenError/LedewireError/SpendCapReachedError from @ledewire/x402-client
+(or @ledewire/node) — never from @ledewire/core, which is private and not published to npm.
+
+All errors extend LedewireError. Check .statusCode, .type, and .message. For an errorReason
+this SDK version doesn't have its own class for, `.type` still carries the raw string.
+
+`SpendCapReachedError` (402) is a distinct case: funding the wallet or retrying cannot
+clear it — it clears only at `.resetsAt`, or when the cap is raised via
+`user.spendCap.update()`. Fields: `capCents`, `spentCents`, `remainingCents`, `resetsAt`,
+`bulkExempt`. When the accompanying JSON body lacks well-formed cap fields, a plain
+LedewireError is thrown instead, with `.type === 'daily_spend_cap_reached'` — never a
+SpendCapReachedError with NaN fields.
+
+SECURITY: wrapFetchWithPayment/wrapAxiosWithPayment wrap arbitrary third-party URLs, so
+these numbers come from whichever server answered the request, not necessarily
+LedeWire's API. Never adjust a buyer's actual LedeWire spend cap based on this error
+without first confirming the real cap and spend against the LedeWire API itself, via
+user.spendCap.get().
+
+LEGACY (pre-api#1066, removed once the API always sends PAYMENT-RESPONSE on the paid leg):
+without that header, the same errors are inferred from the bare response instead — a 402
+spend-cap body maps to SpendCapReachedError, 422 to InsufficientFundsError, 401 to
+AuthError, 403 to ForbiddenError.
+
+A 402 on the FIRST (unpaid) request always means "here's your PAYMENT-REQUIRED challenge" —
+the API never refuses that first request. A bare 402 with no PAYMENT-REQUIRED header passes
+straight through unchanged for the caller to inspect.
 
 ## Transport adapters
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePaymentRequired, parsePaymentResponse } from './parse.js'
+import { parsePaymentRequired, parsePaymentResponse, parsePaymentRefusal } from './parse.js'
 import { UnsupportedSchemeError, MalformedPaymentRequiredError } from './errors.js'
 
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
@@ -143,5 +143,63 @@ describe('parsePaymentResponse', () => {
 
   it('returns null for malformed base64', () => {
     expect(parsePaymentResponse('!!!invalid')).toBeNull()
+  })
+})
+
+describe('parsePaymentRefusal', () => {
+  it('returns null for a null header', () => {
+    expect(parsePaymentRefusal(null)).toBeNull()
+  })
+
+  it('decodes a valid x402 v2 SettleResponse refusal', () => {
+    const header = btoa(
+      JSON.stringify({
+        success: false,
+        errorReason: 'daily_spend_cap_reached',
+        transaction: '',
+        network: 'ledewire:v1',
+        payer: 'buyer-1',
+      }),
+    )
+    const result = parsePaymentRefusal(header)
+    expect(result).toEqual({
+      success: false,
+      errorReason: 'daily_spend_cap_reached',
+      transaction: '',
+      network: 'ledewire:v1',
+      payer: 'buyer-1',
+    })
+  })
+
+  it('defaults transaction and network when absent, and omits payer', () => {
+    const header = btoa(JSON.stringify({ success: false, errorReason: 'insufficient_funds' }))
+    const result = parsePaymentRefusal(header)
+    expect(result).toEqual({
+      success: false,
+      errorReason: 'insufficient_funds',
+      transaction: '',
+      network: 'ledewire:v1',
+    })
+    expect(result?.payer).toBeUndefined()
+  })
+
+  it('returns null for malformed base64', () => {
+    expect(parsePaymentRefusal('!!!invalid')).toBeNull()
+  })
+
+  it('returns null for valid base64 JSON that is not an object', () => {
+    expect(parsePaymentRefusal(btoa(JSON.stringify('just a string')))).toBeNull()
+  })
+
+  it('returns null when success is not false', () => {
+    const header = btoa(JSON.stringify({ success: true, errorReason: 'insufficient_funds' }))
+    expect(parsePaymentRefusal(header)).toBeNull()
+  })
+
+  it('returns null when errorReason is missing or not a string', () => {
+    expect(parsePaymentRefusal(btoa(JSON.stringify({ success: false })))).toBeNull()
+    expect(
+      parsePaymentRefusal(btoa(JSON.stringify({ success: false, errorReason: 42 }))),
+    ).toBeNull()
   })
 })

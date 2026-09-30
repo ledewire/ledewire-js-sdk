@@ -86,9 +86,6 @@
           <pre><code>const state = await lw.checkout.state('content-id')
 
 switch (state.checkout_state.next_required_action) {
-  case 'view_content':
-    showFullArticle()
-    break
   case 'authenticate':
     showLoginPrompt()
     break
@@ -129,13 +126,45 @@ await lw.auth.loginWithGoogle({ id_token: googleIdToken })</code></pre>
         <div class="step">
           <h3>Purchase and reveal content</h3>
           <p>
-            Once the wallet has sufficient funds, create a purchase and refresh
-            the checkout state — <code>next_required_action</code> will become
-            <code>'view_content'</code>.
+            Purchases are single-use: once the wallet has sufficient funds,
+            buying delivers the content directly in the
+            <code>purchases.create()</code> response — the only place
+            <code>content_body</code> / <code>content_uri</code> ever appear
+            for a purchase. There is no route that serves the same delivery
+            again, so persist it immediately.
           </p>
-          <pre><code>await lw.purchases.create({ content_id: 'content-id' })
-const updated = await lw.checkout.state('content-id')
-// updated.checkout_state.next_required_action === 'view_content' ✓</code></pre>
+          <pre><code>const purchase = await lw.purchases.create({ content_id: 'content-id' })
+await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
+
+if (purchase.content_body) {
+  // content_body is always plain UTF-8 text on the wire — never
+  // base64-encoded — so no decoding step is needed. What it contains
+  // depends on purchase.content.content_type.
+  if (purchase.content.content_type === 'markdown') {
+    renderMarkdown(purchase.content_body)
+  } else if (purchase.content.content_type === 'html') {
+    // Inline HTML content is seller-supplied and must be sanitised
+    // before insertion — never assign it to innerHTML directly.
+    document.getElementById('article').innerHTML = DOMPurify.sanitize(purchase.content_body)
+  }
+} else if (purchase.content_uri) {
+  // content_uri points at a remote resource (video, PDF, image, or
+  // remote HTML). Check the scheme before navigating or linking to it —
+  // the URI is seller-supplied and a non-http(s) scheme should not be
+  // followed automatically.
+  const uri = new URL(purchase.content_uri)
+  if (['https:', 'http:'].includes(uri.protocol)) {
+    window.location.href = purchase.content_uri
+  }
+}</code></pre>
+          <div class="callout">
+            <strong>Spend cap:</strong> every buyer starts with a default daily
+            spend cap. If it's reached, <code>lw.purchases.create()</code>
+            rejects with a <code>SpendCapReachedError</code> (HTTP 402).
+            Funding the wallet does not clear it — the cap resets at
+            <code>err.resetsAt</code>, or the buyer can raise it via
+            <code>lw.user.spendCap.update()</code>.
+          </div>
         </div>
       </div>
 

@@ -190,3 +190,49 @@ describe('createClient refreshFn', () => {
     expect(onAuthExpired).toHaveBeenCalledOnce()
   })
 })
+
+// ---------------------------------------------------------------------------
+// createClient — namespaces added for the 2026-09 API sync
+// ---------------------------------------------------------------------------
+
+describe('createClient — bulk licensing and discovery namespaces', () => {
+  it('routes client.publications.list through the configured base URL', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications`, () =>
+        HttpResponse.json({
+          data: [],
+          pagination: { total: 0, per_page: 25, current_page: 1, total_pages: 0 },
+        }),
+      ),
+    )
+
+    const result = await createClient().publications.list()
+
+    expect(result.data).toEqual([])
+  })
+
+  it('routes client.acquisitions.get to /v1/acquisitions/{id}', async () => {
+    let hit = false
+    server.use(
+      http.get(`${BASE}/v1/acquisitions/acq-1`, () => {
+        hit = true
+        return HttpResponse.json(errorResponseFixture(404, 'Not found'), { status: 404 })
+      }),
+    )
+
+    await expect(createClient().acquisitions.get('acq-1')).rejects.toThrow()
+    expect(hit).toBe(true)
+  })
+
+  it('routes client.x402.discoverResources to the discovery endpoint', async () => {
+    server.use(
+      http.get(`${BASE}/v1/x402/discovery/resources`, () =>
+        HttpResponse.json({ total: 0, resources: [] }),
+      ),
+    )
+
+    const result = await createClient().x402.discoverResources()
+
+    expect(result.total).toBe(0)
+  })
+})

@@ -125,3 +125,23 @@ export interface LedewireSettlementResponse {
   payer: string
   accessToken?: string | null
 }
+
+/**
+ * Decoded `PAYMENT-RESPONSE` header on the PAID request's `402` refusal —
+ * the x402 v2 HTTP transport spec's `SettleResponse` shape with
+ * `success: false` (see ledewire/api#1066). The API's JSON error body (e.g.
+ * a `DailySpendCapReachedError` body with `cap_cents` etc.) travels
+ * alongside this header, not inside it — read it separately from the
+ * response body.
+ */
+export interface LedewirePaymentRefusal {
+  success: false
+  /** Machine-readable refusal reason, e.g. `daily_spend_cap_reached`. */
+  errorReason: string
+  /** Always empty on a refusal — no transaction was settled. */
+  transaction: string
+  /** Payment network identifier. Always `ledewire:v1`. */
+  network: string
+  /** Buyer wallet identifier, when the server included one. */
+  payer?: string
+}

@@ -10,8 +10,10 @@ import type { ContentWithAccessResponse } from '@ledewire/core'
  * @example
  * ```ts
  * const result = await lw.content.getWithAccess('content-id')
- * if (result.access_info.next_required_action === 'view_content') {
- *   renderMarkdown(result.content_body ?? '')
+ * if (result.access_info.has_purchased) {
+ *   // Note: single-use — a past purchase does not imply access. Buy again
+ *   // via lw.purchases.create() to receive the content; the delivery comes
+ *   // back directly in that response, not from this endpoint.
  * }
  * ```
  */
@@ -30,8 +32,10 @@ export class BrowserContentNamespace {
    * @example
    * ```ts
    * const result = await lw.content.getWithAccess('article-123')
-   * if (result.access_info.next_required_action === 'view_content') {
-   *   renderMarkdown(result.content_body ?? '')
+   * if (result.access_info.next_required_action === 'purchase') {
+   *   // Buy (or re-buy) via lw.purchases.create() — the response carries
+   *   // content_body / content_uri directly. has_purchased means only
+   *   // "has ever bought" and does not by itself grant access.
    * }
    * ```
    */

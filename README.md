@@ -27,7 +27,7 @@ and content purchases:
   // Determine what the current visitor needs to do next
   const state = await lw.checkout.state('content-id')
   // state.checkout_state.next_required_action:
-  //   'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  //   'authenticate' | 'fund_wallet' | 'purchase'
 </script>
 ```
 
@@ -51,6 +51,11 @@ const client = createClient()
 const { stores } = await client.merchant.auth.loginWithEmailAndListStores({ email, password })
 const storeId = stores[0].id
 ```
+
+`@ledewire/node` also covers a buyer's daily spend cap (`client.user.spendCap`),
+MCP API keys (`client.user.mcpKeys`), bulk licensing across a publication's
+catalog (`client.publications`, `client.acquisitions`), and x402 Bazaar
+discovery (`client.x402`) — see [`packages/node/README.md`](packages/node/README.md).
 
 ## Documentation
 

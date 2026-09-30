@@ -20,11 +20,19 @@
       <button id="btn-action" style="display:none"></button>
     </div>
 
+    <div id="article-body"></div>
+
     <!--
       In production, pin to a specific major version:
       https://cdn.jsdelivr.net/npm/@ledewire/browser@1/dist/ledewire.min.js
     -->
     <script src="../../packages/browser/dist/ledewire.min.js"></script>
+    <!-- Only needed to sanitise seller-supplied inline HTML content (see renderContent below) -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js"
+      integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL"
+      crossorigin="anonymous"
+    ></script>
     <script>
       // Replace these with your real values
       const API_KEY    = 'your_api_key'
@@ -43,12 +51,11 @@
         const state = await lw.checkout.state(CONTENT_ID)
         const action = state.checkout_state.next_required_action
 
-        if (action === 'view_content') {
-          document.getElementById('paywall').style.display = 'none'
-          // TODO: Render full content
-          return
-        }
-
+        // Purchases are single-use, so checkout state never reports
+        // "already has access" — next_required_action is always one of
+        // 'authenticate' | 'fund_wallet' | 'purchase'. Buying delivers the
+        // content directly in the purchase() response below; there is no
+        // separate "already purchased" state to branch on here.
         document.getElementById('paywall').style.display = 'block'
         const btn = document.getElementById('btn-action')
         btn.style.display = 'block'
@@ -104,8 +111,42 @@
       }
 
       async function purchase() {
-        await lw.purchases.create({ content_id: CONTENT_ID })
-        await checkAccess()
+        // Purchases are single-use: the content is delivered directly in
+        // this response, and this is the only place it will ever appear —
+        // there is no route that serves the same delivery again, so persist
+        // it immediately if you need it beyond this page view.
+        const purchase = await lw.purchases.create({ content_id: CONTENT_ID })
+        renderContent(purchase)
+      }
+
+      function renderContent(purchase) {
+        document.getElementById('paywall').style.display = 'none'
+        const container = document.getElementById('article-body')
+
+        if (purchase.content_body) {
+          // content_body is always plain UTF-8 text on the wire — never
+          // base64-encoded — so no decoding step is needed. What it
+          // contains depends on purchase.content.content_type.
+          if (purchase.content.content_type === 'html') {
+            // Inline HTML content is seller-supplied and must be sanitised
+            // before insertion — never assign it to innerHTML directly.
+            container.innerHTML = DOMPurify.sanitize(purchase.content_body)
+          } else {
+            container.textContent = purchase.content_body
+          }
+        } else if (purchase.content_uri) {
+          // content_uri points at a remote resource (video, PDF, image, or
+          // remote HTML). Check the scheme before linking to it — the URI
+          // is seller-supplied and a non-http(s) scheme should not be
+          // followed automatically.
+          const uri = new URL(purchase.content_uri)
+          if (['https:', 'http:'].includes(uri.protocol)) {
+            const link = document.createElement('a')
+            link.href = purchase.content_uri
+            link.textContent = 'View content'
+            container.appendChild(link)
+          }
+        }
       }
 
       checkAccess()

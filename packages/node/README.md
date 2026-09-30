@@ -30,27 +30,32 @@ const stores = await client.merchant.auth.listStores()
 
 ## Client Namespaces
 
-| Namespace                      | Description                                                      |
-| ------------------------------ | ---------------------------------------------------------------- |
-| `client.config`                | Platform-level public config (no auth required)                  |
-| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset |
-| `client.wallet`                | Buyer wallet balance and payment sessions                        |
-| `client.purchases`             | Buyer purchase history, create purchases, verify ownership       |
-| `client.content`               | Fetch content with buyer access info                             |
-| `client.checkout`              | Checkout state — what action is required next                    |
-| `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                      |
-| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset |
-| `client.merchant.users`        | Merchant user management (invite, list, update, remove)          |
-| `client.merchant.content`      | Merchant content CRUD + search (merchant JWT auth)               |
-| `client.merchant.buyers`       | Buyer statistics within a store                                  |
-| `client.merchant.sales`        | Sales reporting and revenue statistics                           |
-| `client.merchant.config`       | Store configuration                                              |
-| `client.merchant.domains`      | x402 domain verification for URL-based content gating            |
-| `client.merchant.pricingRules` | x402 URL pattern-based pricing rules                             |
-| `client.seller.content`        | Seller content CRUD + search (API key auth)                      |
-| `client.seller.sales`          | Seller sales statistics and revenue reporting                    |
-| `client.seller.buyers`         | Anonymized buyer statistics (API key auth)                       |
-| `client.seller.config`         | Store configuration (API key auth)                               |
+| Namespace                      | Description                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| `client.config`                | Platform-level public config (no auth required)                                               |
+| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset                              |
+| `client.wallet`                | Buyer wallet balance (incl. `held_cents`/`holds` from bulk acquisitions) and payment sessions |
+| `client.purchases`             | Buyer purchase history, create purchases, verify ownership                                    |
+| `client.content`               | Fetch content with buyer access info                                                          |
+| `client.checkout`              | Checkout state — what action is required next                                                 |
+| `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                                                   |
+| `client.user.spendCap`         | Buyer's daily spend cap — read and update the ceiling                                         |
+| `client.user.mcpKeys`          | Manage buyer MCP API keys for the Ledewire MCP server                                         |
+| `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
+| `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
+| `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
+| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
+| `client.merchant.users`        | Merchant user management (invite, list, update, remove)                                       |
+| `client.merchant.content`      | Merchant content CRUD + search (merchant JWT auth)                                            |
+| `client.merchant.buyers`       | Buyer statistics within a store                                                               |
+| `client.merchant.sales`        | Sales reporting and revenue statistics                                                        |
+| `client.merchant.config`       | Store configuration                                                                           |
+| `client.merchant.domains`      | x402 domain verification for URL-based content gating                                         |
+| `client.merchant.pricingRules` | x402 URL pattern-based pricing rules                                                          |
+| `client.seller.content`        | Seller content CRUD + search (API key auth)                                                   |
+| `client.seller.sales`          | Seller sales statistics and revenue reporting                                                 |
+| `client.seller.buyers`         | Anonymized buyer statistics (API key auth)                                                    |
+| `client.seller.config`         | Store configuration (API key auth)                                                            |
 
 ## Configuration
 
@@ -195,6 +200,24 @@ await client.seller.content.create(storeId, {
   visibility: 'public',
 })
 
+// Inline HTML — content_body and content_uri are mutually exclusive for 'html'
+await client.seller.content.create(storeId, {
+  content_type: 'html',
+  title: 'Interactive Report',
+  content_body: '<h1>Q3 Results</h1><p>...</p>',
+  price_cents: 900,
+  visibility: 'public',
+})
+
+// Remote HTML, PDF, image, and video all require content_uri (never content_body)
+await client.seller.content.create(storeId, {
+  content_type: 'pdf',
+  title: 'Annual Report (PDF)',
+  content_uri: 'https://cdn.example.com/reports/annual-2026.pdf',
+  price_cents: 2000,
+  visibility: 'public',
+})
+
 const items = await client.seller.content.list(storeId)
 // items.data — ContentListItem[]
 // items.pagination — PaginationMeta
@@ -211,6 +234,112 @@ const combined = await client.seller.content.search(storeId, {
 const { google_client_id } = await client.config.getPublic()
 // google.accounts.id.initialize({ client_id: google_client_id, callback })
 ```
+
+## Example: Buyer Spend Cap & MCP API Keys
+
+Every buyer starts with a default daily spend cap governing every wallet debit
+(MCP, REST, and the web payment gate). Read it, raise it, or remove it (`null`):
+
+```ts
+const cap = await client.user.spendCap.get()
+if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
+  console.warn(`Only ${cap.remaining_cents}c left before the cap resets at ${cap.resets_at}`)
+}
+
+await client.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
+await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove the cap
+```
+
+MCP API keys authenticate agent requests to the Ledewire MCP server. The
+`secret` is shown once at creation — store it immediately:
+
+```ts
+const { key, secret } = await client.user.mcpKeys.create({
+  label: 'my-rag-agent',
+  can_search: true,
+  can_purchase: true,
+})
+await secretsManager.put('LEDEWIRE_MCP_CREDENTIAL', `${key}:${secret}`)
+
+const keys = await client.user.mcpKeys.list() // secrets never included
+await client.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
+```
+
+## Example: Bulk Licensing (Acquisitions)
+
+Buy a publication's entire catalog (or a date-bounded slice of it) in one
+transaction instead of purchasing works one at a time:
+
+```ts
+// 1. Browse the catalog and pull a page of work URLs.
+const { data: publications } = await client.publications.list()
+const publication = publications.find((p) => p.bulk_licensable)
+const { data: urls } = await client.publications.listWorks(publication.id, {
+  from: '2026-01-01',
+  to: '2026-01-31',
+})
+
+// 2. Submit the Selection. Quoting is asynchronous.
+let acquisition = await client.acquisitions.create({ urls: urls.map((w) => w.url) })
+while (acquisition.quote_state === 'pending') {
+  await new Promise((r) => setTimeout(r, 2000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+
+// 3. Acknowledge whatever cannot be sold — required before authorizing.
+acquisition = await client.acquisitions.acknowledgeExclusions(acquisition.id)
+
+// 4. Place the hold and start the run.
+try {
+  acquisition = await client.acquisitions.authorize(acquisition.id)
+} catch (err) {
+  if (err instanceof SpendCapReachedError) {
+    // Funding the wallet will not clear this — it's a daily policy limit.
+    console.error(`Spend cap reached; resets at ${err.resetsAt}.`)
+    return
+  }
+  throw err
+}
+
+// 5. Poll until the run settles, then check for partial failure.
+while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
+  await new Promise((r) => setTimeout(r, 5000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+const { data: works } = await client.acquisitions.listWorks(acquisition.id)
+const failed = works.filter((w) => w.delivery_state === 'undelivered')
+
+// 6. Stream the corpus archive to a file.
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
+
+const result = await client.acquisitions.downloadCorpus(acquisition.id)
+if (result.ready) {
+  await pipeline(Readable.fromWeb(result.body), createWriteStream('corpus.tar.gz'))
+}
+
+// 7. Verify the signed manifest against the append-only signing-key log —
+// never trust the `jwk` embedded in the manifest's own JWS header.
+const manifest = await client.acquisitions.getManifest(acquisition.id)
+const keyHistory = await client.acquisitions.signingKeyHistory()
+```
+
+## Example: x402 Bazaar Discovery
+
+Public, unauthenticated browsing of resources gated by the x402
+`ledewire-wallet` scheme:
+
+```ts
+const { total, resources } = await client.x402.discoverResources({ limit: 20 })
+for (const resource of resources) {
+  console.log(resource.metadata.title, resource.metadata.teaser)
+}
+```
+
+Pay for a discovered resource via the x402 flow itself — see
+[`@ledewire/x402-client`](../x402-client/) — not through this namespace, which
+never carries delivered content.
 
 ## Error Handling
 
@@ -239,13 +368,41 @@ try {
 }
 ```
 
-| Subclass         | Status  | When thrown                                                             |
-| ---------------- | ------- | ----------------------------------------------------------------------- |
-| `AuthError`      | 401     | Invalid credentials, expired token, failed token refresh                |
-| `ForbiddenError` | 403     | Valid credentials, wrong account role (e.g. buyer on merchant endpoint) |
-| `NotFoundError`  | 404     | Resource not found, wrong email/password on email login                 |
-| `PurchaseError`  | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)           |
-| `LedewireError`  | any     | Catch-all base class for all other API errors                           |
+| Subclass               | Status  | When thrown                                                                                                   |
+| ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `AuthError`            | 401     | Invalid credentials, expired token, failed token refresh                                                      |
+| `ForbiddenError`       | 403     | Valid credentials, wrong account role (e.g. buyer on merchant endpoint)                                       |
+| `NotFoundError`        | 404     | Resource not found, wrong email/password on email login                                                       |
+| `PurchaseError`        | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)                                                 |
+| `SpendCapReachedError` | 402     | Buyer's daily spend cap reached — `purchases.create()`, the x402 content gate, and `acquisitions.authorize()` |
+| `LedewireError`        | any     | Catch-all base class for all other API errors                                                                 |
+
+Every `LedewireError` also carries `type` (the API error body's machine-readable
+`error.type`, e.g. `'daily_spend_cap_reached'`, `'insufficient_funds'`) and
+`details` (any extra top-level fields on the error body). `instanceof` checks
+work even across the separately bundled copies of `@ledewire/core` inside
+`@ledewire/node`, `@ledewire/browser`, and `@ledewire/x402-client` — an error
+thrown by the x402-client is still recognized by `SpendCapReachedError`
+imported from `@ledewire/node`.
+
+**`SpendCapReachedError` — funding the wallet does not clear it:**
+
+```ts
+import { SpendCapReachedError } from '@ledewire/node'
+
+try {
+  await client.purchases.create({ content_id })
+} catch (err) {
+  if (err instanceof SpendCapReachedError) {
+    // A daily policy limit, not a balance problem — do NOT prompt the buyer
+    // to fund their wallet. It clears when the window rolls over at
+    // err.resetsAt, or when the cap is raised via client.user.spendCap.update().
+    console.error(
+      `Spend cap reached: spent ${err.spentCents} of ${err.capCents} cents. Resets at ${err.resetsAt}.`,
+    )
+  }
+}
+```
 
 ## Documentation
 

@@ -22,7 +22,16 @@ export class WalletNamespace {
   /**
    * Returns the authenticated buyer's current wallet balance.
    *
-   * @returns The current wallet balance in cents.
+   * `balance_cents` and `spendable_cents` are always the same number —
+   * `balance_cents` has always meant "what you can spend," and money committed to
+   * a bulk acquisition is a hold, which moves it out of the wallet rather than
+   * annotating it. `held_cents` is the total currently committed to active bulk
+   * acquisitions and not yet spent or released, and `holds` lists one entry per
+   * such acquisition (`acquisition_id`, `held_cents`, `authorized_at`) so a buyer
+   * mid-acquisition can see why their balance is lower than their purchase
+   * history explains.
+   *
+   * @returns The current wallet balance in cents, including held funds detail.
    */
   async balance(): Promise<WalletBalanceResponse> {
     return this.http.get<WalletBalanceResponse>('/v1/wallet/balance')
@@ -30,6 +39,18 @@ export class WalletNamespace {
 
   /**
    * Returns the authenticated buyer's wallet transaction history, newest first.
+   *
+   * `bulk_acquisition` and `bulk_hold` are each a single entry for a whole bulk
+   * acquisition — its per-work purchases are deliberately not listed here,
+   * because one acquisition can hold tens of thousands of them and they describe
+   * one decision. A `bulk_hold` entry is an acquisition still holding funds (money
+   * left the wallet but has not been spent); it becomes a `bulk_acquisition` entry
+   * for the amount actually captured once the acquisition ends, and an
+   * acquisition never produces both. Note that a bulk acquisition's per-work
+   * purchases each carry a display `price_cents` that is **not summable** — bulk
+   * prices at micro precision and rounds to cents once, on the acquisition total,
+   * so `amount_cents` on the `bulk_acquisition` / `bulk_hold` entry is the figure
+   * to read.
    *
    * @returns A list of completed wallet transaction entries.
    */

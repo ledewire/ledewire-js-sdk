@@ -52,6 +52,27 @@ export {
   NonceExpiredError,
   InsufficientFundsError,
 } from './errors.js'
+/**
+ * `AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError`
+ * are re-exported here from `@ledewire/core` — LedeWire's private shared
+ * internals, not published to npm. Import them from here (or from
+ * `@ledewire/node`), never from `@ledewire/core` directly.
+ *
+ * On the PAID request's `402` refusal (spec form, ledewire/api#1066):
+ * `AuthError` maps `invalid_ledewire_wallet_payload_token`, `ForbiddenError`
+ * maps `invalid_ledewire_wallet_payload_role`, and `SpendCapReachedError`
+ * maps `daily_spend_cap_reached`. The pre-api#1066 legacy mapping (kept
+ * during the switch-over) instead reads a bare `401`/`403`/`402` status.
+ *
+ * `@ledewire/core` is bundled separately into every published package via
+ * tsup, so each of `@ledewire/x402-client`, `@ledewire/node`, and
+ * `@ledewire/browser` carries its own distinct copy of these classes.
+ * `instanceof` still works across those copies: every instance carries a
+ * non-enumerable class-brand list, and each class's `Symbol.hasInstance`
+ * falls back to checking it when the plain prototype check fails — so it
+ * works whichever published package's copy of the class you check against.
+ */
+export { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
 export type {
   PaymentSigner,
   LedewireFetchConfig,
@@ -62,4 +83,5 @@ export type {
   LedewireWalletPayload,
   LedewirePaymentPayload,
   LedewireSettlementResponse,
+  LedewirePaymentRefusal,
 } from './types.js'

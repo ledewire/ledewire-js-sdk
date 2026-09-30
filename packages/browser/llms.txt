@@ -137,10 +137,10 @@ switch (checkout_state.next_required_action) {
     // Show wallet funding UI (checkout_state.has_sufficient_funds === false)
     break
   case 'purchase':
-    // Show purchase confirmation UI
-    break
-  case 'view_content':
-    // User has access — fetch and render the content
+    // Show purchase confirmation UI. Single-use: has_purchased means only
+    // "has ever bought" — buying (again, if needed) is how the buyer
+    // receives the content, delivered directly in the purchases.create()
+    // response. There is no terminal "already has access" state.
     break
 }
 ```
@@ -149,7 +149,10 @@ switch (checkout_state.next_required_action) {
 
 ```ts
 lw.wallet.balance()                                    → Promise<WalletBalanceResponse>
-// { balance_cents: number }
+// { balance_cents: number, spendable_cents: number, held_cents: number, holds: Hold[] }
+// balance_cents always equals spendable_cents. held_cents is committed to active
+// bulk acquisitions (node-only feature); holds is one entry per such acquisition:
+// { acquisition_id, held_cents, authorized_at }.
 
 lw.wallet.transactions(params?: PaginationParams)      → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
 
@@ -173,9 +176,9 @@ lw.purchases.get(purchaseId: string)                  → Promise<PurchaseRespon
 ```ts
 lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessResponse>
 // Returns content payload + access info. Requires a valid buyer session.
-// content_type: 'markdown' | 'external_ref'
-// content_body: plain text markdown (SDK decodes base64 automatically)
-// content_uri: URL for external_ref content (Vimeo, YouTube, PDF, etc.)
+// content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+// content_body: plain text (SDK decodes base64 automatically) — markdown, brokered, or inline html
+// content_uri: URL — external_ref, pdf, image, video, or remote html
 ```
 
 ### lw.user
@@ -192,6 +195,56 @@ lw.user.apiKeys.revoke(keyId)     → Promise<void>
 The `secret` field in the create response is shown **once** — display it
 immediately in the UI and prompt the user to copy it. There is no way to retrieve
 it again.
+
+#### lw.user.spendCap
+
+Every buyer starts with a default daily spend cap governing every wallet debit
+(MCP, REST, and the web payment gate). `null` on `update()` is the only way to
+become uncapped.
+
+```ts
+lw.user.spendCap.get()                                        → Promise<UserSpendCap>
+lw.user.spendCap.update(body: UserSpendCapUpdateRequest)      → Promise<UserSpendCap>
+
+interface UserSpendCap {
+  cap_cents: number | null        // null once uncapped
+  spent_cents: number
+  remaining_cents: number | null  // null once uncapped
+  resets_at: string               // ISO 8601
+  spend_window_timezone: string   // IANA zone, UTC by default
+  bulk_exempt: boolean
+}
+
+interface UserSpendCapUpdateRequest {
+  daily_spend_limit_cents: number | null  // required; null removes the cap
+}
+```
+
+Exceeding the cap throws `SpendCapReachedError` (402) from
+`lw.purchases.create()` — funding the wallet does NOT clear it. It clears at
+`resetsAt`, or when the cap is raised/removed here.
+
+#### lw.user.mcpKeys
+
+MCP API keys authenticate agent requests to the Ledewire MCP server as
+`Authorization: Bearer <key>:<secret>`. Scopes are fixed at creation.
+
+```ts
+lw.user.mcpKeys.list()          → Promise<McpApiKey[]>   // secret never included
+lw.user.mcpKeys.create(body)    → Promise<McpApiKeyCreateResponse>
+lw.user.mcpKeys.revoke(id)      → Promise<void>
+
+interface McpApiKeyCreateRequest {
+  label: string
+  can_search?: boolean            // default true
+  can_purchase?: boolean          // default false
+  can_manage_content?: boolean    // seller-tier — requires store_id
+  can_read_analytics?: boolean    // seller-tier — requires store_id
+  store_id?: string
+}
+```
+
+The `secret` in the create response is shown once — store it alongside `key`.
 
 ### lw.seller
 
@@ -220,6 +273,13 @@ lw.seller.content.get(contentId: string)              → Promise<ContentRespons
 
 ## Full checkout flow example
 
+Purchases are single-use: `has_purchased` means only "has ever bought", and a
+past purchase does not by itself grant access again. Buying is how the buyer
+receives the content — delivered directly in the `purchases.create()` response,
+which is the only place `content_body` / `content_uri` appear for a purchase.
+That delivery is one-time — persist it immediately; there is no route that
+serves the same content a second time.
+
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
@@ -235,19 +295,26 @@ switch (checkout_state.next_required_action) {
     window.location.href = session.payment_url  // Stripe checkout
     break
 
-  case 'purchase':
-    await lw.purchases.create({ content_id: 'article-123' })
-    break
+  case 'purchase': {
+    const purchase = await lw.purchases.create({ content_id: 'article-123' })
+    await saveDeliveredContent(purchase) // persist now — one-time delivery
 
-  case 'view_content':
-    const { content_type, content_body, content_uri } =
-      await lw.content.getWithAccess('article-123')
-    if (content_type === 'markdown') {
-      renderMarkdown(content_body)  // plain text — SDK decodes base64 automatically
-    } else {
-      window.location.href = content_uri  // redirect to gated video/PDF
+    // content_body is always plain UTF-8 on the wire, never base64-encoded.
+    // What it contains depends on purchase.content.content_type.
+    if (purchase.content_body && purchase.content.content_type === 'markdown') {
+      renderMarkdown(purchase.content_body)
+    } else if (purchase.content_body && purchase.content.content_type === 'html') {
+      // Inline HTML is seller-supplied — sanitise before inserting it.
+      container.innerHTML = DOMPurify.sanitize(purchase.content_body)
+    } else if (purchase.content_uri) {
+      // Seller-supplied URI — check the scheme before navigating to it.
+      const uri = new URL(purchase.content_uri)
+      if (['https:', 'http:'].includes(uri.protocol)) {
+        window.location.href = purchase.content_uri  // redirect to gated video/PDF
+      }
     }
     break
+  }
 }
 ```
 
@@ -276,7 +343,7 @@ interface CheckoutStateResponse {
     is_authenticated: boolean
     has_sufficient_funds: boolean | null  // null when not authenticated
     has_purchased: boolean
-    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+    next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
   }
 }
 
@@ -298,25 +365,52 @@ interface TokenStorage {
 All errors extend `LedewireError`. Import named subclasses for actionable handling:
 
 ```ts
-import { LedewireError, AuthError, ForbiddenError, NotFoundError, PurchaseError } from '@ledewire/browser'
+import {
+  LedewireError,
+  AuthError,
+  ForbiddenError,
+  NotFoundError,
+  PurchaseError,
+  SpendCapReachedError,
+} from '@ledewire/browser'
 
 class LedewireError extends Error {
   statusCode: number        // HTTP status code
   code: number | undefined  // machine-readable code from API body
   message: string           // human-readable description from API body
+  type: ErrorTypeValue | undefined  // machine-readable error.type, e.g. 'daily_spend_cap_reached'
+  details: Readonly<Record<string, unknown>> | undefined  // extra top-level error-body fields
 }
 
 class AuthError extends LedewireError {}       // 401 — bad credentials / session expired
 class ForbiddenError extends LedewireError {}  // 403 — authenticated but access denied
 class NotFoundError extends LedewireError {}   // 404 — resource not found
 class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+
+// 402 — daily_spend_cap_reached, thrown by lw.purchases.create(). Funding the
+// wallet does NOT clear this — it resets at `resetsAt`, or via
+// lw.user.spendCap.update().
+class SpendCapReachedError extends LedewireError {
+  capCents: number
+  spentCents: number
+  remainingCents: number
+  resetsAt: string    // ISO 8601
+  bulkExempt: boolean
+}
 ```
+
+`instanceof` checks work even across the separately bundled copies of
+`@ledewire/core` inside `@ledewire/browser`, `@ledewire/node`, and
+`@ledewire/x402-client`.
 
 ```ts
 try {
   await lw.purchases.create({ content_id: 'article-123' })
 } catch (err) {
-  if (err instanceof AuthError) {
+  if (err instanceof SpendCapReachedError) {
+    // A daily policy limit — do NOT prompt the buyer to fund their wallet.
+    showError(`Spend cap reached. Resets at ${err.resetsAt}.`)
+  } else if (err instanceof AuthError) {
     showLoginModal()
   } else if (err instanceof PurchaseError) {
     showError('Purchase failed: ' + err.message)
