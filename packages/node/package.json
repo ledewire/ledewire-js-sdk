@@ -52,6 +52,11 @@
     "merchant"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ledewire/ledewire-js-sdk.git",
+    "directory": "packages/node"
+  },
   "devDependencies": {
     "@ledewire/core": "workspace:*",
     "@types/node": "^20.0.0",
