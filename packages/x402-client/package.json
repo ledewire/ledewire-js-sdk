@@ -54,7 +54,7 @@
     "@ledewire/core": "workspace:*",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "axios": "^1.16.0",
+    "axios": "^1.20.0",
     "msw": "^2.7.0",
     "tsup": "^8.3.0",
     "typescript": "*",
@@ -62,7 +62,7 @@
   },
   "peerDependencies": {
     "@x402/core": ">=0.4.0",
-    "axios": ">=1.16.0"
+    "axios": ">=1.20.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
