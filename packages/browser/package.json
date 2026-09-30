@@ -37,6 +37,11 @@
     "paywall"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ledewire/ledewire-js-sdk.git",
+    "directory": "packages/browser"
+  },
   "devDependencies": {
     "@ledewire/core": "workspace:*",
     "@vitest/coverage-v8": "^4.1.11",

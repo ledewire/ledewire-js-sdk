@@ -27,25 +27,31 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # Publishing uses npm trusted publishing (OIDC via `id-token: write`), which
+      # needs Node >= 22.14 and npm >= 11.5.1. No npm token is stored: each package
+      # on npmjs.com trusts this workflow file. `registry-url` is deliberately unset
+      # so setup-node doesn't write a token-based .npmrc.
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate npm token
+      # `changeset publish` → `pnpm publish` → the `npm` binary on PATH, so fail
+      # fast here rather than mid-publish if the bundled npm can't do OIDC.
+      - name: Check npm supports trusted publishing
         run: |
-          WHOAMI=$(npm whoami --registry https://registry.npmjs.org 2>&1) || true
-          if echo "$WHOAMI" | grep -q "npm error\|ENEEDAUTH\|ENOTFOUND\|EINVALIDNPMTOKEN"; then
-            echo "::error::NPM_TOKEN is invalid or lacks publish permission. npm whoami output: $WHOAMI"
+          NPM_VERSION=$(npm --version)
+          if ! node -e '
+            const [a, b, c] = process.argv[1].split(".").map(Number);
+            process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1);
+          ' "$NPM_VERSION"; then
+            echo "::error::npm $NPM_VERSION is too old for trusted publishing (need >= 11.5.1)"
             exit 1
           fi
-          echo "npm token is valid — authenticated as: $WHOAMI"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          echo "npm $NPM_VERSION supports trusted publishing"
 
       - name: Build
         run: pnpm build
@@ -63,8 +69,8 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No NPM_TOKEN: without it, changesets/action skips writing an .npmrc
+          # and npm authenticates via OIDC trusted publishing.
 
       - name: Attach browser CDN bundle to GitHub Release
         if: steps.changesets.outputs.published == 'true'
