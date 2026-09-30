@@ -12,8 +12,12 @@ jobs:
   check:
     name: Require changeset
     runs-on: ubuntu-latest
-    # Skip if the PR has the 'skip-changeset' label (for docs-only / CI-only PRs)
-    if: "!contains(github.event.pull_request.labels.*.name, 'skip-changeset')"
+    # Skip if the PR has the 'skip-changeset' label (for docs-only / CI-only PRs),
+    # and for the "chore: version packages" PR that changesets/action opens from
+    # changeset-release/*: it consumes the changesets, so it never carries one.
+    if: >-
+      !contains(github.event.pull_request.labels.*.name, 'skip-changeset') &&
+      !startsWith(github.head_ref, 'changeset-release/')
     steps:
       - uses: actions/checkout@v5
         with:
