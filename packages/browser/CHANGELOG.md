@@ -1,5 +1,36 @@
 # @ledewire/browser
 
+## 0.8.0
+
+### Minor Changes
+
+- 8976828: Sync with the 2026-09 LedeWire API spec.
+
+  **Breaking — single-use purchases.** `CheckoutNextAction` / `NextRequiredAction` no longer include
+  `view_content` (checkout state) or `none` (content with access): the API withdrew both. A completed
+  purchase no longer implies access; `has_purchased` means "has ever bought". The purchased content is
+  delivered only on the `purchases.create()` response (`content_body` as plain UTF-8, or `content_uri`)
+  and is never served again, so persist it immediately.
+
+  **New**
+  - `SpendCapReachedError` (402, `error.type === 'daily_spend_cap_reached'`) with `capCents`,
+    `spentCents`, `remainingCents`, `resetsAt`, and `bulkExempt`. Funding the wallet does not clear it.
+    `LedewireError` gains an optional machine-readable `type`. x402-client's fetch and Axios adapters
+    throw it — and map `insufficient_funds`/`invalid_ledewire_wallet_payload_token`/
+    `invalid_ledewire_wallet_payload_role` to `InsufficientFundsError`/`AuthError`/`ForbiddenError` —
+    from the PAID request's `402` refusal, per the x402 v2 HTTP transport spec
+    (`PAYMENT-RESPONSE` header, ledewire/api#1066); a pre-api#1066 fallback still reads the same
+    errors off a bare `402`/`422`/`401`/`403` when that header is absent.
+  - `user.spendCap.get()` / `.update()` (node and browser).
+  - `user.mcpKeys.list()` / `.create()` / `.revoke()` (node and browser).
+  - Node: `publications.list()` / `.listWorks()`, and `acquisitions.*` for bulk licensing: create,
+    poll, requote, acknowledge exclusions, authorize, per-work results, corpus state/build/streamed
+    download, signed manifest, and signing-key history. These are also available on `createAgentClient()`.
+  - Node: `x402.discoverResources()` for the public x402 Bazaar discovery endpoint.
+  - Content types `html` (inline or remote), `pdf`, `image`, and `video`; `brokered` on responses.
+  - Wallet balance `spendable_cents`, `held_cents`, and `holds`; `bulk_acquisition` / `bulk_hold`
+    transaction reasons.
+
 ## 0.7.0
 
 ### Minor Changes
