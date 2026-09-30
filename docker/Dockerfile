@@ -20,4 +20,10 @@ ENV npm_config_store_dir=/home/node/.pnpm-store
 COPY --chown=node:node pnpm-lock.yaml pnpm-workspace.yaml .npmrc /home/node/deps/
 # --ignore-scripts: lifecycle scripts belong to `pnpm install` in the container, where
 # the workspace they expect exists; here there is no package.json for them to find.
-RUN cd /home/node/deps && pnpm fetch --ignore-scripts
+#
+# bin/dexec runs commands as the host user's uid, not `node` (see the comment there),
+# and that uid exists nowhere in this image. The chmod opens up the home directory,
+# including the pnpm store, so whichever uid execs can write caches and add to the
+# store. It must stay in this RUN: in a layer of its own it would copy the whole
+# store into a second layer just to change its mode bits.
+RUN cd /home/node/deps && pnpm fetch --ignore-scripts && chmod -R a+rwX /home/node

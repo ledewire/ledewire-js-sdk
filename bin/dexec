@@ -12,4 +12,11 @@ tty_flag="-T"
 if [ -t 0 ] && [ -t 1 ]; then
   tty_flag=""
 fi
-exec docker compose -f docker/compose.yaml exec $tty_flag sdk "$@"
+
+# Run as the host user, not the image's `node` (uid 1000). The worktree is a
+# virtiofs mount of the host's files, and for about a second after the container
+# writes, the VM reports those paths as owned by the writing uid. Host git sees a
+# directory owned by someone else and refuses it as "dubious ownership" — which
+# some commands report as "not a git repository". Writing as the host uid means
+# the reported owner never changes.
+exec docker compose -f docker/compose.yaml exec $tty_flag -u "$(id -u):$(id -g)" sdk "$@"

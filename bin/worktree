@@ -532,7 +532,8 @@ setup_worktree() {
     echo "== Building and starting container =="
     docker compose -f docker/compose.yaml up -d --build
     echo "== Installing dependencies inside the container =="
-    docker compose -f docker/compose.yaml exec -T sdk pnpm install --frozen-lockfile --prefer-offline
+    # Through bin/dexec so the install runs as the host uid, like everything else.
+    bin/dexec pnpm install --frozen-lockfile --prefer-offline </dev/null
   )
 
   print_worktree_summary "$wt_path"
