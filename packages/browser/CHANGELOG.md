@@ -1,5 +1,11 @@
 # @ledewire/browser
 
+## 0.8.1
+
+### Patch Changes
+
+- 647e6d8: Publish via npm trusted publishing (OIDC) instead of a long-lived npm token. Releases now carry npm provenance attestations, and each package's metadata links back to its source directory in the GitHub repository.
+
 ## 0.8.0
 
 ### Minor Changes
