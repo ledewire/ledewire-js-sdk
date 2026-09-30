@@ -234,6 +234,24 @@ try {
   }
 }</code></pre>
 
+      <p>
+        <code>client.purchases.create()</code>, the x402 content gate, and
+        <code>client.acquisitions.authorize()</code> can also throw
+        <code>SpendCapReachedError</code> (402) when the buyer's daily spend
+        cap is reached. Funding the wallet does not clear it — the cap resets
+        at <code>err.resetsAt</code>, or can be raised via
+        <code>client.user.spendCap.update()</code>.
+      </p>
+      <pre><code>import { SpendCapReachedError } from '@ledewire/node'
+
+try {
+  await client.purchases.create({ content_id })
+} catch (err) {
+  if (err instanceof SpendCapReachedError) {
+    console.error(`Spend cap reached; resets at ${err.resetsAt}`)
+  }
+}</code></pre>
+
       <h3>Full namespace reference</h3>
       <table>
         <thead>
@@ -278,7 +296,7 @@ try {
           </tr>
           <tr>
             <td><code>client.purchases.*</code></td>
-            <td>create, list, get</td>
+            <td>create, list, get (single-use delivery — see below)</td>
           </tr>
           <tr>
             <td><code>client.content.*</code></td>
@@ -288,8 +306,77 @@ try {
             <td><code>client.checkout.*</code></td>
             <td>state</td>
           </tr>
+          <tr>
+            <td><code>client.user.spendCap.*</code></td>
+            <td>get, update</td>
+          </tr>
+          <tr>
+            <td><code>client.user.mcpKeys.*</code></td>
+            <td>list, create, revoke</td>
+          </tr>
+          <tr>
+            <td><code>client.publications.*</code></td>
+            <td>list, listWorks</td>
+          </tr>
+          <tr>
+            <td><code>client.acquisitions.*</code></td>
+            <td>
+              create, get, requote, acknowledgeExclusions, authorize, listWorks, getCorpus,
+              buildCorpus, downloadCorpus, getManifest, signingKeyHistory
+            </td>
+          </tr>
+          <tr>
+            <td><code>client.x402.*</code></td>
+            <td>discoverResources</td>
+          </tr>
         </tbody>
       </table>
+
+      <h3>Buyer purchases — single-use delivery</h3>
+      <p>
+        Purchases are single-use: <code>client.purchases.create()</code> delivers the content
+        directly in its response (<code>content_body</code> as plain UTF-8, or
+        <code>content_uri</code>). Neither field is ever present on <code>list()</code> or
+        <code>get()</code> — persist the delivery immediately, there is no route that serves
+        it a second time.
+      </p>
+      <pre><code>const purchase = await client.purchases.create({ content_id: 'content-id' })
+await saveDeliveredContent(purchase) // one-time delivery
+
+if (purchase.content_body) {
+  // Always plain UTF-8 — never base64-encoded.
+} else if (purchase.content_uri) {
+  // Check the scheme before following or linking to it.
+}</code></pre>
+
+      <h3>Bulk licensing (agents)</h3>
+      <p>
+        License a publication's entire catalog in one transaction via
+        <code>client.publications</code> and <code>client.acquisitions</code>:
+        submit a Selection of work URLs, poll the quote, acknowledge exclusions, authorize the
+        hold, then download the corpus once the run settles.
+      </p>
+      <pre><code>let acquisition = await client.acquisitions.create({ urls })
+
+while (acquisition.quote_state === 'pending') {
+  await new Promise((r) => setTimeout(r, 2000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+
+acquisition = await client.acquisitions.acknowledgeExclusions(acquisition.id)
+acquisition = await client.acquisitions.authorize(acquisition.id) // may throw SpendCapReachedError
+
+while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
+  await new Promise((r) => setTimeout(r, 5000))
+  acquisition = await client.acquisitions.get(acquisition.id)
+}
+
+const result = await client.acquisitions.downloadCorpus(acquisition.id)
+// result.ready === true → stream result.body to a file</code></pre>
+      <p>
+        <code>createAgentClient()</code> exposes <code>publications</code>, <code>acquisitions</code>,
+        and <code>x402</code> alongside the buyer namespaces, for autonomous agents.
+      </p>
 
       <p>
         For full parameter and return type documentation, see the
