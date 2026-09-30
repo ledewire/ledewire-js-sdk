@@ -16,8 +16,12 @@ and is never served again, so persist it immediately.
 
 - `SpendCapReachedError` (402, `error.type === 'daily_spend_cap_reached'`) with `capCents`,
   `spentCents`, `remainingCents`, `resetsAt`, and `bulkExempt`. Funding the wallet does not clear it.
-  `LedewireError` gains an optional machine-readable `type`. x402-client throws it on a 402 with a
-  spend-cap body and no `PAYMENT-REQUIRED` header.
+  `LedewireError` gains an optional machine-readable `type`. x402-client's fetch and Axios adapters
+  throw it — and map `insufficient_funds`/`invalid_ledewire_wallet_payload_token`/
+  `invalid_ledewire_wallet_payload_role` to `InsufficientFundsError`/`AuthError`/`ForbiddenError` —
+  from the PAID request's `402` refusal, per the x402 v2 HTTP transport spec
+  (`PAYMENT-RESPONSE` header, ledewire/api#1066); a pre-api#1066 fallback still reads the same
+  errors off a bare `402`/`422`/`401`/`403` when that header is absent.
 - `user.spendCap.get()` / `.update()` (node and browser).
 - `user.mcpKeys.list()` / `.create()` / `.revoke()` (node and browser).
 - Node: `publications.list()` / `.listWorks()`, and `acquisitions.*` for bulk licensing: create,

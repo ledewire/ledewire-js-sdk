@@ -5,7 +5,29 @@ import { wrapFetchWithPayment } from './fetch.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
 import { InsufficientFundsError } from '../errors.js'
-import { LedewireError, SpendCapReachedError } from '@ledewire/core'
+import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
+
+/** Base64-encode an x402 v2 `SettleResponse` refusal for the `PAYMENT-RESPONSE` header. */
+function paymentResponseHeader(errorReason: string, overrides?: Record<string, unknown>): string {
+  return btoa(
+    JSON.stringify({
+      success: false,
+      errorReason,
+      transaction: '',
+      network: 'ledewire:v1',
+      ...overrides,
+    }),
+  )
+}
+
+const CAP_BODY = {
+  error: { code: 402, message: 'Daily spend cap reached.', type: 'daily_spend_cap_reached' },
+  cap_cents: 5000,
+  spent_cents: 5000,
+  remaining_cents: 0,
+  resets_at: '2099-01-02T00:00:00Z',
+  bulk_exempt: false,
+}
 
 const API_BASE = 'http://api.test'
 const ORIGIN_URL = 'https://blog.example.com/posts/article'
@@ -77,27 +99,14 @@ describe('wrapFetchWithPayment', () => {
     expect(res.status).toBe(402)
   })
 
-  it('throws SpendCapReachedError on a 402 with no PAYMENT-REQUIRED header and a daily-spend-cap-reached body', async () => {
-    const capBody = {
-      error: { code: 402, message: 'Daily spend cap reached.', type: 'daily_spend_cap_reached' },
-      cap_cents: 5000,
-      spent_cents: 5000,
-      remaining_cents: 0,
-      resets_at: '2099-01-02T00:00:00Z',
-      bulk_exempt: false,
-    }
-    server.use(http.get(ORIGIN_URL, () => HttpResponse.json(capBody, { status: 402 })))
+  it('returns a first-response 402 as-is even when its body looks like a spend-cap refusal', async () => {
+    // The API never refuses the FIRST (unpaid) request this way — see api#1066.
+    // A bare 402 with no PAYMENT-REQUIRED header always passes through unchanged now.
+    server.use(http.get(ORIGIN_URL, () => HttpResponse.json(CAP_BODY, { status: 402 })))
     const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
-
-    const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
-
-    expect(err).toBeInstanceOf(SpendCapReachedError)
-    const spendCapErr = err as SpendCapReachedError
-    expect(spendCapErr.capCents).toBe(5000)
-    expect(spendCapErr.spentCents).toBe(5000)
-    expect(spendCapErr.remainingCents).toBe(0)
-    expect(spendCapErr.resetsAt).toBe('2099-01-02T00:00:00Z')
-    expect(spendCapErr.bulkExempt).toBe(false)
+    const res = await fetch(ORIGIN_URL)
+    expect(res.status).toBe(402)
+    await expect(res.json()).resolves.toEqual(CAP_BODY)
   })
 
   it('calls buildPaymentSignature and sets PAYMENT-SIGNATURE on retry', async () => {
@@ -210,5 +219,177 @@ describe('wrapFetchWithPayment', () => {
     const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(InsufficientFundsError)
     expect((err as InsufficientFundsError).message).toContain('422')
+  })
+
+  describe('PAYMENT-RESPONSE refusal on the paid request (x402 v2 spec form, api#1066)', () => {
+    function paidRespondsWith(build: () => Response) {
+      return http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        return build()
+      })
+    }
+
+    it('maps daily_spend_cap_reached with a well-formed cap body to SpendCapReachedError', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(JSON.stringify(CAP_BODY), {
+              status: 402,
+              headers: {
+                'Content-Type': 'application/json',
+                'PAYMENT-RESPONSE': paymentResponseHeader('daily_spend_cap_reached'),
+              },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(SpendCapReachedError)
+      const spendCapErr = err as SpendCapReachedError
+      expect(spendCapErr.capCents).toBe(5000)
+      expect(spendCapErr.spentCents).toBe(5000)
+      expect(spendCapErr.remainingCents).toBe(0)
+      expect(spendCapErr.resetsAt).toBe('2099-01-02T00:00:00Z')
+      expect(spendCapErr.bulkExempt).toBe(false)
+    })
+
+    it('maps daily_spend_cap_reached with a cap body missing fields to LedewireError, not NaN', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(JSON.stringify({ error: { message: 'Cap reached' } }), {
+              status: 402,
+              headers: {
+                'Content-Type': 'application/json',
+                'PAYMENT-RESPONSE': paymentResponseHeader('daily_spend_cap_reached'),
+              },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(LedewireError)
+      expect(err).not.toBeInstanceOf(SpendCapReachedError)
+      expect((err as LedewireError).type).toBe('daily_spend_cap_reached')
+      expect((err as LedewireError).statusCode).toBe(402)
+      expect(Number.isNaN((err as SpendCapReachedError).capCents)).toBe(false)
+    })
+
+    it('maps insufficient_funds to InsufficientFundsError', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(null, {
+              status: 402,
+              headers: { 'PAYMENT-RESPONSE': paymentResponseHeader('insufficient_funds') },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(InsufficientFundsError)
+    })
+
+    it('maps invalid_ledewire_wallet_payload_token to AuthError', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(null, {
+              status: 402,
+              headers: {
+                'PAYMENT-RESPONSE': paymentResponseHeader('invalid_ledewire_wallet_payload_token'),
+              },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(AuthError)
+    })
+
+    it('maps invalid_ledewire_wallet_payload_role to ForbiddenError', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(null, {
+              status: 402,
+              headers: {
+                'PAYMENT-RESPONSE': paymentResponseHeader('invalid_ledewire_wallet_payload_role'),
+              },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(ForbiddenError)
+    })
+
+    it('maps an unknown errorReason to a LedewireError whose type is the reason', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(null, {
+              status: 402,
+              headers: { 'PAYMENT-RESPONSE': paymentResponseHeader('some_future_reason') },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(LedewireError)
+      expect((err as LedewireError).type).toBe('some_future_reason')
+    })
+  })
+
+  describe('legacy paid-response mapping (pre-api#1066, no PAYMENT-RESPONSE header)', () => {
+    function paidRespondsWith(build: () => Response) {
+      return http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        return build()
+      })
+    }
+
+    it('throws SpendCapReachedError for a 402 cap body with no PAYMENT-RESPONSE header', async () => {
+      server.use(paidRespondsWith(() => HttpResponse.json(CAP_BODY, { status: 402 })))
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const err = await fetch(ORIGIN_URL).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(SpendCapReachedError)
+      expect((err as SpendCapReachedError).capCents).toBe(5000)
+    })
+
+    it('throws AuthError for a 401 with no PAYMENT-RESPONSE header', async () => {
+      server.use(
+        paidRespondsWith(() => HttpResponse.json({ error: 'Unauthorized' }, { status: 401 })),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(AuthError)
+    })
+
+    it('throws ForbiddenError for a 403 with no PAYMENT-RESPONSE header', async () => {
+      server.use(paidRespondsWith(() => HttpResponse.json({ error: 'Forbidden' }, { status: 403 })))
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(ForbiddenError)
+    })
+
+    it('falls back to the legacy mapping without crashing when PAYMENT-RESPONSE is malformed', async () => {
+      server.use(
+        paidRespondsWith(
+          () =>
+            new HttpResponse(JSON.stringify({ error: 'Insufficient balance' }), {
+              status: 422,
+              headers: { 'Content-Type': 'application/json', 'PAYMENT-RESPONSE': '!!!not-base64' },
+            }),
+        ),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      await expect(fetch(ORIGIN_URL)).rejects.toThrow(InsufficientFundsError)
+    })
   })
 })
