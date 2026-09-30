@@ -197,8 +197,10 @@ import {
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
+  AuthError,
+  LedewireError,
+  SpendCapReachedError,
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/core'
 
 const fetch = createLedewireFetch({ key, secret })
 
@@ -213,20 +215,35 @@ try {
     // The 402 was not a ledewire-wallet challenge — pass through or handle
   } else if (err instanceof MalformedPaymentRequiredError) {
     // Server sent a malformed PAYMENT-REQUIRED — likely a server misconfiguration
+  } else if (err instanceof SpendCapReachedError) {
+    // Daily spend cap reached — no PAYMENT-REQUIRED header, nothing to retry or fund.
+    // Clears only at err.resetsAt, or when the cap is raised via client.user.spendCap.update().
+    //
+    // SECURITY: wrapFetchWithPayment/wrapAxiosWithPayment wrap arbitrary
+    // third-party URLs, so these numbers come from whichever server answered
+    // — not necessarily LedeWire's API. Never change the buyer's actual
+    // LedeWire spend cap based on this error; confirm first against the real
+    // API via `user.spendCap.get()`.
+    console.error(`Spend cap reached: ${err.spentCents}/${err.capCents} cents`)
   } else if (err instanceof LedewireError) {
     console.error(err.statusCode, err.message)
   }
 }
 ```
 
-| Error                           | Cause                                                           |
-| ------------------------------- | --------------------------------------------------------------- |
-| `InsufficientFundsError`        | Wallet balance too low (server returned 422)                    |
-| `NonceExpiredError`             | Payment nonce expired before retry — simply retry `fetch()`     |
-| `UnsupportedSchemeError`        | 402 response uses a non-`ledewire-wallet` scheme                |
-| `MalformedPaymentRequiredError` | `PAYMENT-REQUIRED` header is invalid or missing required fields |
-| `AuthError`                     | Buyer API key credentials are invalid (401 on payment)          |
-| `LedewireError`                 | All other Ledewire API errors — check `.statusCode`             |
+`AuthError`, `LedewireError`, and `SpendCapReachedError` are re-exported from `@ledewire/core` —
+LedeWire's private shared internals, not published to npm. Always import them from
+`@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` directly.
+
+| Error                           | Cause                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `InsufficientFundsError`        | Wallet balance too low (server returned 422)                                 |
+| `NonceExpiredError`             | Payment nonce expired before retry — simply retry `fetch()`                  |
+| `UnsupportedSchemeError`        | 402 response uses a non-`ledewire-wallet` scheme                             |
+| `MalformedPaymentRequiredError` | `PAYMENT-REQUIRED` header is invalid or missing required fields              |
+| `SpendCapReachedError`          | Buyer's daily spend cap reached — no `PAYMENT-REQUIRED` header on this `402` |
+| `AuthError`                     | Buyer API key credentials are invalid (401 on payment)                       |
+| `LedewireError`                 | All other Ledewire API errors — check `.statusCode`                          |
 
 ## Token lifecycle
 

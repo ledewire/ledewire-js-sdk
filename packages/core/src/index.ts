@@ -8,5 +8,6 @@
 export * from './base64.js'
 export * from './errors.js'
 export * from './http-client.js'
+export * from './spend-cap.js'
 export * from './token-manager.js'
 export * from './types.js'

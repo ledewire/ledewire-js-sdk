@@ -27,7 +27,7 @@ and content purchases:
   // Determine what the current visitor needs to do next
   const state = await lw.checkout.state('content-id')
   // state.checkout_state.next_required_action:
-  //   'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  //   'authenticate' | 'fund_wallet' | 'purchase'
 </script>
 ```
 

@@ -25,6 +25,9 @@ import type { LedewireFetchConfig } from './types.js'
  * @throws {NonceExpiredError} When the payment nonce is already expired.
  * @throws {InsufficientFundsError} When the buyer wallet has insufficient funds.
  * @throws {AuthError} When buyer API key authentication fails.
+ * @throws {SpendCapReachedError} When a `402` carries no `PAYMENT-REQUIRED` header and
+ *   its body is a daily-spend-cap-reached refusal — retrying or funding the wallet
+ *   cannot clear this, so there is nothing to challenge.
  * @throws {LedewireError} For other API error responses (400, 401, 403, 404, 429).
  */
 export function createLedewireFetch(config: LedewireFetchConfig): typeof globalThis.fetch {

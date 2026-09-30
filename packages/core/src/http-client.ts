@@ -1,8 +1,6 @@
-import type { components } from './api.gen.js'
 import { AuthError, ForbiddenError, LedewireError, NotFoundError } from './errors.js'
-
-/** @internal */
-type ApiErrorBody = components['schemas']['ErrorResponse']
+import type { ErrorTypeValue } from './errors.js'
+import { spendCapErrorFromBody } from './spend-cap.js'
 
 /**
  * Configuration options for `HttpClient`.
@@ -23,8 +21,64 @@ export interface HttpClientConfig {
   onUnauthorized?: () => string | null | Promise<string | null>
 }
 
+/**
+ * Per-request overrides accepted by {@link HttpClient} methods.
+ */
+export interface RequestOptions {
+  /**
+   * Whether to attach authentication to this request. Defaults to `true`.
+   * Pass `false` for public endpoints: skips `getAccessToken`, sends no
+   * `Authorization` header, and maps a `401` straight to an {@link AuthError}
+   * without invoking `onUnauthorized`.
+   */
+  auth?: boolean
+}
+
 /** The default LedeWire API base URL used by all SDK packages. */
 export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
+
+/**
+ * Extracts `{ message, code, type, details }` from a parsed API error body,
+ * tolerating shapes that don't match the documented `ErrorResponse` envelope:
+ * an empty object, a body with no `error` field at all, `error` as a bare
+ * string (e.g. the spec's `{ "error": "Content ... not found" }` 404 purchase
+ * example), `null`, or non-object JSON. Never throws; falls back to
+ * `fallbackMessage` (the response's `statusText`) whenever the body doesn't
+ * carry a usable message.
+ */
+function extractErrorInfo(
+  body: unknown,
+  fallbackMessage: string,
+): {
+  message: string
+  code: number | undefined
+  type: ErrorTypeValue | undefined
+  details: Record<string, unknown> | undefined
+} {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { message: fallbackMessage, code: undefined, type: undefined, details: undefined }
+  }
+
+  const record = body as Record<string, unknown>
+  const { error, ...rest } = record
+  const details = Object.keys(rest).length > 0 ? rest : undefined
+
+  if (typeof error === 'string') {
+    return { message: error, code: undefined, type: undefined, details }
+  }
+
+  if (!error || typeof error !== 'object' || Array.isArray(error)) {
+    return { message: fallbackMessage, code: undefined, type: undefined, details }
+  }
+
+  const errorRecord = error as Record<string, unknown>
+  const message =
+    typeof errorRecord['message'] === 'string' ? errorRecord['message'] : fallbackMessage
+  const code = typeof errorRecord['code'] === 'number' ? errorRecord['code'] : undefined
+  const type = typeof errorRecord['type'] === 'string' ? errorRecord['type'] : undefined
+
+  return { message, code, type, details }
+}
 
 /**
  * Core HTTP client used by all SDK packages.
@@ -33,6 +87,8 @@ export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
  * - Injects `Authorization: Bearer <token>` headers automatically
  * - Maps HTTP error responses to typed `LedewireError` subclasses
  * - On receiving a 401, calls `onUnauthorized` once and retries the request
+ * - Per-request `{ auth: false }` (see {@link RequestOptions}) skips all of
+ *   the above for public endpoints
  *
  * This is an internal class - consumers should use the
  * package-level client factories (`init` / `createClient`) instead.
@@ -52,9 +108,14 @@ export class HttpClient {
    * GET request with optional query parameters.
    * @param path - API path (e.g. `/v1/wallet/balance`)
    * @param params - Query string parameters. `undefined` values are omitted; numbers are coerced to strings.
+   * @param options - Per-request overrides. Pass `{ auth: false }` for public endpoints.
    */
-  async get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
-    return this.request<T>('GET', this.buildUrl(path, params))
+  async get<T>(
+    path: string,
+    params?: Record<string, string | number | undefined>,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return this.request<T>('GET', this.buildUrl(path, params), undefined, options)
   }
 
   /**
@@ -97,6 +158,26 @@ export class HttpClient {
     return this.request<T>('DELETE', this.buildUrl(path))
   }
 
+  /**
+   * GET request that returns the raw, unparsed `Response` instead of decoded JSON.
+   * Used for binary downloads (e.g. `GET /v1/acquisitions/{id}/corpus/download`,
+   * which streams a gzip archive when the corpus is ready, or a JSON
+   * `CorpusResponse` body otherwise).
+   *
+   * Applies the same `Authorization` header injection and single-retry-on-401
+   * behaviour as {@link HttpClient.get}, and maps a non-2xx response to the same
+   * typed errors — it just skips the `response.json()` decode step so the caller
+   * can read the body as a stream, blob, or array buffer.
+   *
+   * @param path - API path (e.g. `/v1/acquisitions/{id}/corpus/download`)
+   * @returns The raw `Response`. Callers are responsible for reading its body.
+   */
+  async getRaw(path: string): Promise<Response> {
+    return this.performRequest('GET', this.buildUrl(path), {
+      Accept: 'application/gzip, application/json',
+    })
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
@@ -116,32 +197,16 @@ export class HttpClient {
     method: string,
     url: string,
     body?: unknown,
-    isRetry = false,
+    options?: RequestOptions,
   ): Promise<T> {
-    const token = await this.getAccessToken()
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    }
-    if (token) headers['Authorization'] = `Bearer ${token}`
-
-    const response = await fetch(url, {
+    const response = await this.performRequest(
       method,
-      headers,
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    })
-
-    if (response.status === 401 && !isRetry) {
-      const newToken = await this.onUnauthorized()
-      if (newToken) {
-        return this.request<T>(method, url, body, true)
-      }
-      throw new AuthError('Session expired. Please re-authenticate.')
-    }
-
-    if (!response.ok) {
-      await this.throwApiError(response)
-    }
+      url,
+      { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body,
+      false,
+      options,
+    )
 
     if (response.status === 204) {
       return undefined as T
@@ -150,26 +215,70 @@ export class HttpClient {
     return response.json() as Promise<T>
   }
 
+  /**
+   * Shared auth-injection, single-401-retry, and error-mapping logic behind both
+   * `request()` (JSON in, JSON out) and `getRaw()` (JSON in, raw `Response` out).
+   */
+  private async performRequest(
+    method: string,
+    url: string,
+    headers: Record<string, string>,
+    body?: unknown,
+    isRetry = false,
+    options?: RequestOptions,
+  ): Promise<Response> {
+    const useAuth = options?.auth !== false
+    const token = useAuth ? await this.getAccessToken() : null
+    const finalHeaders: Record<string, string> = { ...headers }
+    if (token) finalHeaders['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(url, {
+      method,
+      headers: finalHeaders,
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    })
+
+    if (response.status === 401 && !isRetry) {
+      if (useAuth) {
+        const newToken = await this.onUnauthorized()
+        if (newToken) {
+          return this.performRequest(method, url, headers, body, true, options)
+        }
+      }
+      throw new AuthError('Session expired. Please re-authenticate.')
+    }
+
+    if (!response.ok) {
+      await this.throwApiError(response)
+    }
+
+    return response
+  }
+
   private async throwApiError(response: Response): Promise<never> {
-    let body: ApiErrorBody | undefined
+    let body: unknown
     try {
-      body = (await response.json()) as ApiErrorBody
+      body = await response.json()
     } catch {
       // Non-JSON body - fall through to use statusText
     }
 
-    const message = body?.error.message ?? response.statusText
-    const code = body?.error.code
+    const spendCapError = spendCapErrorFromBody(body)
+    if (spendCapError) {
+      throw spendCapError
+    }
+
+    const { message, code, type, details } = extractErrorInfo(body, response.statusText)
 
     switch (response.status) {
       case 401:
-        throw new AuthError(message, code)
+        throw new AuthError(message, code, type, details)
       case 403:
-        throw new ForbiddenError(message, code)
+        throw new ForbiddenError(message, code, type, details)
       case 404:
-        throw new NotFoundError(message, code)
+        throw new NotFoundError(message, code, type, details)
       default:
-        throw new LedewireError(message, response.status, code)
+        throw new LedewireError(message, response.status, code, type, details)
     }
   }
 }

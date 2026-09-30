@@ -78,7 +78,9 @@ This layer is the backbone. All business logic in `browser` and `node` is built 
 **API surface (buyer flows only):**
 
 - Authentication: email/password signup & login, Google OAuth login, token refresh, password reset
-- Checkout state machine: `authenticate → fund_wallet → purchase → view_content`
+- Checkout state machine: `authenticate → fund_wallet → purchase` (single-use — a
+  completed purchase does not imply access; buying again delivers the content
+  directly in the `purchases.create()` response)
 - Content: fetch content with access info, check access state
 - Wallet: get balance, create payment session, poll payment status, transaction history
 - Purchases: create purchase, list purchases, verify purchase
@@ -92,7 +94,7 @@ This layer is the backbone. All business logic in `browser` and `node` is built 
 
   // Check if current user can read an article
   const state = await lw.checkout.state('content-id-123');
-  // state.next_required_action → 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  // state.next_required_action → 'authenticate' | 'fund_wallet' | 'purchase'
 </script>
 ```
 

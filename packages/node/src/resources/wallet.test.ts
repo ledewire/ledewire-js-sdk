@@ -50,6 +50,33 @@ describe('wallet.balance', () => {
 
     await expect(makeClient().wallet.balance()).rejects.toThrow(AuthError)
   })
+
+  it('returns held_cents and holds for an active bulk acquisition', async () => {
+    const fixture = walletBalanceFixture({
+      balance_cents: 5000,
+      spendable_cents: 5000,
+      held_cents: 2500,
+      holds: [
+        {
+          acquisition_id: 'acq-id-1',
+          held_cents: 2500,
+          authorized_at: '2099-01-01T00:00:00Z',
+        },
+      ],
+    })
+    server.use(http.get(`${BASE}/v1/wallet/balance`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().wallet.balance()
+
+    expect(result.balance_cents).toBe(result.spendable_cents)
+    expect(result.held_cents).toBe(2500)
+    expect(result.holds).toHaveLength(1)
+    expect(result.holds[0]).toEqual({
+      acquisition_id: 'acq-id-1',
+      held_cents: 2500,
+      authorized_at: '2099-01-01T00:00:00Z',
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------

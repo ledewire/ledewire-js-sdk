@@ -1,5 +1,6 @@
 import type { PaymentSigner } from '../types.js'
 import { throwPaymentError } from '../payment-client.js'
+import { spendCapErrorFromBody } from '@ledewire/core'
 
 /**
  * Wraps a `fetch` function with automatic Ledewire x402 payment handling.
@@ -7,6 +8,14 @@ import { throwPaymentError } from '../payment-client.js'
  * On a `402 Payment Required` response with a `PAYMENT-REQUIRED` header,
  * builds a `PAYMENT-SIGNATURE` and retries the original request transparently.
  * All other responses pass through unchanged.
+ *
+ * **Security note — the spend-cap numbers on {@link SpendCapReachedError} are
+ * untrusted.** This wrapper fetches arbitrary third-party URLs, so a
+ * `daily_spend_cap_reached` 402 body can come from *any* server the caller
+ * points it at, not only LedeWire's API — nothing here verifies it. Never
+ * change a buyer's LedeWire spend cap based on the fields of an error caught
+ * from this wrapper; confirm the real cap and spend first, against the
+ * LedeWire API itself, via `user.spendCap.get()`.
  *
  * @example
  * ```ts
@@ -23,6 +32,9 @@ import { throwPaymentError } from '../payment-client.js'
  * @throws {NonceExpiredError} When the payment nonce is already expired.
  * @throws {InsufficientFundsError} When the buyer wallet has insufficient funds.
  * @throws {AuthError} When buyer API key authentication fails.
+ * @throws {SpendCapReachedError} When a `402` carries no `PAYMENT-REQUIRED` header and
+ *   its body is a daily-spend-cap-reached refusal — retrying or funding the wallet
+ *   cannot clear this, so there is nothing to challenge.
  * @throws {LedewireError} For other Ledewire API error responses.
  */
 export function wrapFetchWithPayment(
@@ -43,6 +55,17 @@ export function wrapFetchWithPayment(
 
     const paymentRequiredHeader = firstResponse.headers.get('PAYMENT-REQUIRED')
     if (!paymentRequiredHeader) {
+      // No challenge to answer. Check for the one refusal that looks like this:
+      // a daily-spend-cap 402 that funding or retrying cannot clear. Clone
+      // first so an unmatched body is still readable by the caller.
+      const body = await firstResponse
+        .clone()
+        .json()
+        .catch(() => undefined)
+      const spendCapError = spendCapErrorFromBody(body)
+      if (spendCapError) {
+        throw spendCapError
+      }
       return firstResponse
     }
 

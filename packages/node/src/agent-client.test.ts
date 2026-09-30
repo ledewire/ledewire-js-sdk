@@ -40,6 +40,15 @@ describe('createAgentClient — namespace shape', () => {
     expect(agent).toHaveProperty('user')
   })
 
+  it('exposes the buyer bulk-licensing and x402 discovery namespaces', () => {
+    const agent = createAgentClient({ key: BUYER_KEY, secret: BUYER_SECRET })
+
+    expect(typeof agent.publications.list).toBe('function')
+    expect(typeof agent.acquisitions.create).toBe('function')
+    expect(typeof agent.x402.discoverResources).toBe('function')
+    expect(typeof agent.user.spendCap.get).toBe('function')
+  })
+
   it('does NOT expose merchant, seller, or config', () => {
     const agent = makeAgent() as Record<string, unknown>
 

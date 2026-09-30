@@ -8,7 +8,12 @@ import type { CheckoutStateResponse } from '@ledewire/core'
  * ```ts
  * const state = await client.checkout.state('content-id')
  * // state.checkout_state.next_required_action:
- * // 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+ * // 'authenticate' | 'fund_wallet' | 'purchase'
+ * //
+ * // Single-use model: a completed purchase does not imply access, so
+ * // 'purchase' can still be the next action even when has_purchased is
+ * // true. Buying delivers the content directly in the POST /v1/purchases
+ * // response — there is no separate "view content" step.
  * ```
  */
 export class CheckoutNamespace {

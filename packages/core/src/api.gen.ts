@@ -4,6 +4,108 @@
  */
 
 export interface paths {
+  '/.well-known/oauth-authorization-server': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * OAuth 2.0 Authorization Server Metadata
+     * @description RFC 8414 discovery document. MCP clients fetch this after the `WWW-Authenticate` challenge to learn where to authorize, exchange codes, and register.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Authorization server metadata */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthAuthorizationServerMetadata']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/oauth/register': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Register an OAuth client (RFC 7591)
+     * @description Dynamic Client Registration. A client POSTs its metadata and receives an opaque `client_id` it can immediately use to start the authorization code + PKCE flow.
+     *
+     *     **No authentication is required.** RFC 7591 initial access tokens are not used, because the clients this serves (VS Code and similar) have no way to obtain one. What constrains the endpoint instead: registered clients are always public (no `client_secret` is ever issued), redirect URIs are limited to https or loopback, and the endpoint is rate limited to 5 registrations per minute per IP.
+     *
+     *     Nothing about registration affects what a token later grants — scopes, tiers, and store binding are decided at consent, unchanged.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['OauthClientRegistrationRequest']
+        }
+      }
+      responses: {
+        /** @description Client registered */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthClientRegistrationResponse']
+          }
+        }
+        /** @description `invalid_redirect_uri` when a redirect URI is missing, malformed, carries a fragment, or is http on a non-loopback host. `invalid_client_metadata` for any other unusable metadata, including a `token_endpoint_auth_method` other than `none`. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthClientRegistrationErrorResponse']
+          }
+        }
+        /** @description Rate limit exceeded (5 registrations per minute per IP). */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/config/public': {
     parameters: {
       query?: never
@@ -75,6 +177,15 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Error response */
         default: {
           headers: {
@@ -122,6 +233,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description Error response */
@@ -191,6 +311,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Google service unavailable */
         503: {
           headers: {
@@ -245,6 +374,15 @@ export interface paths {
         }
         /** @description Invalid key or secret */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
           headers: {
             [name: string]: unknown
           }
@@ -392,6 +530,117 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/user/spend-cap': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read the authenticated buyer's daily spend cap
+     * @description Returns the cap, the timezone bounding the spend window, spend so far in the current window, what remains, and when the window rolls. The session token names the buyer; there is no id in the path, so no buyer can read another's cap.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The buyer's spend cap */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['UserSpendCap']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Set or clear the authenticated buyer's daily spend cap
+     * @description Writes daily_spend_limit_cents for the buyer the session token names — null clears the cap, leaving the buyer uncapped. This is the supported way to become uncapped: buyer creation always applies the default cap, even when an explicit null is supplied. Returns the updated cap in the same shape GET returns.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['UserSpendCapUpdateRequest']
+        }
+      }
+      responses: {
+        /** @description The updated spend cap */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['UserSpendCap']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Cap is negative, fractional, non-integer, or the field was omitted */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Error response */
+        default: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
   '/v1/auth/login/api-key': {
     parameters: {
       query?: never
@@ -429,6 +678,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description Error response */
@@ -478,6 +736,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['AuthenticationResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -616,6 +883,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
       }
     }
     delete?: never
@@ -679,6 +955,15 @@ export interface paths {
         }
         /** @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store. */
         403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
           headers: {
             [name: string]: unknown
           }
@@ -823,6 +1108,15 @@ export interface paths {
         }
         /** @description User not found */
         404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
           headers: {
             [name: string]: unknown
           }
@@ -2271,7 +2565,7 @@ export interface paths {
               access?: {
                 has_full_access?: boolean
                 /** @enum {string} */
-                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase' | 'none'
+                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
                 paywall_position?: number
               }
             }
@@ -2319,7 +2613,7 @@ export interface paths {
                 has_sufficient_funds?: boolean
                 has_purchased?: boolean
                 /** @enum {string} */
-                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
               }
             }
           }
@@ -2422,6 +2716,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Payment Required — the buyer's daily spend cap would be exceeded. No money moved and no purchase was completed. Note the absence of a funding URL: adding wallet funds cannot clear a cap. */
+        402: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['DailySpendCapReachedError']
+          }
+        }
         /** @description Forbidden - User lacks sufficient permissions */
         403: {
           headers: {
@@ -2431,7 +2734,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Content not found */
+        /** @description Content not found — no work carries this id, **or** the work it names is not `public`. Visibility is access control rather than discoverability: a work a Seller has set to `unlisted` is withheld from sale on every buyer-facing path, and this endpoint answers for it exactly as it does for an id that names nothing. The refusal is free — it precedes the wallet debit, so no funds move and no purchase record is written. A Seller's own access to their unlisted work through the seller-scoped paths is unaffected. */
         404: {
           headers: {
             [name: string]: unknown
@@ -3223,6 +3526,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        429: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
       }
     }
     delete?: never
@@ -3403,11 +3715,18 @@ export interface paths {
         /** @description Payment required. PAYMENT-REQUIRED header contains the x402 v2 PaymentRequired JSON (Base64-encoded). */
         402: {
           headers: {
-            /** @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, and payment parameters. The `accepts[0].extra` object contains `nonce` (single-use token), `expiresAt` (Unix timestamp), and `contentId` (UUID of the content being purchased). The `extensions.ledewire-wallet` discovery block contains `apiBase` (request-derived, environment-aware), `authEndpoint` (`/v1/auth/login/buyer-api-key`), `signupUrl` (configurable via `LEDEWIRE_SIGNUP_URL` env var), `schemeVersion` (`ledewire:v1`), and `contentId` (UUID of the Ledewire content record). Clients such as `@ledewire/x402-client` use this block to self-configure without hardcoding the Ledewire API location. `contentId` is essential for the Worker gate case where the origin URL carries no Ledewire identifier — the client must read it from here to construct the `PAYMENT-SIGNATURE` payload. */
+            /**
+             * @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, and payment parameters. The `accepts[0].extra` object contains `nonce` (single-use token), `expiresAt` (Unix timestamp), and `contentId` (UUID of the content being purchased). The `extensions` block contains two sub-objects: `payment-identifier: { supported: true }` (server advertises idempotent retry support — clients should generate a stable UUID per logical fetch and include it in `extensions.payment-identifier` of the PAYMENT-SIGNATURE to avoid double-charging on network errors), and `ledewire-wallet` (discovery block with `apiBase` [request-derived, environment-aware], `authEndpoint` [`/v1/auth/login/buyer-api-key`], `signupUrl` [configurable via `LEDEWIRE_SIGNUP_URL`], `schemeVersion` [`ledewire:v1`], and `contentId` [UUID of the Ledewire content record]). Clients such as `@ledewire/x402-client` use the `ledewire-wallet` block to self-configure without hardcoding the API location. `contentId` is essential for the Worker gate case where the origin URL carries no Ledewire identifier — the client reads it from here to construct the `PAYMENT-SIGNATURE` payload.
+             *     A 402 carrying a `DailySpendCapReachedError` body and **no** PAYMENT-REQUIRED header is the other case: the buyer's daily spend cap would be exceeded. Retrying the handshake cannot help and neither can funding the wallet — the cap resets at `resets_at`.
+             */
             'PAYMENT-REQUIRED'?: string
             [name: string]: unknown
           }
-          content?: never
+          content: {
+            'application/json':
+              | components['schemas']['DailySpendCapReachedError']
+              | components['schemas']['ErrorResponse']
+          }
         }
         /** @description JWT in PAYMENT-SIGNATURE belongs to a non-buyer role (merchant or store-manager). */
         403: {
@@ -3452,6 +3771,50 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/x402/discovery/resources': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Discover publicly available x402 v2 resources (Bazaar)
+     * @description Unauthenticated endpoint for x402 crawlers and agents to discover Ledewire content without requiring MCP support. Returns public content formatted as x402 v2 Bazaar resource entries. `content_body` and `content_uri` are never included.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Number of resources to return (max 100). */
+          limit?: number
+          /** @description Zero-based offset for pagination. */
+          offset?: number
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Paginated list of x402 v2 Bazaar resources */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['X402BazaarDiscoveryResponse']
           }
         }
       }
@@ -3551,6 +3914,944 @@ export interface paths {
           }
         }
         /** @description Key material unavailable (credentials not configured). */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/publications': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the publications available to license
+     * @description Every Publication the Broker reports as ready to license, ordered by name. Served from our own registry, reconciled daily against the Broker's directory, so it answers even while the Broker is unreachable.
+     *
+     *     Licensability is the only filter. A publication that publishes no `FULL_USE` rate is listed and flagged `bulk_licensable: false` rather than omitted, and nothing is hidden for its page types, article lengths or perceived value.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: {
+          page?: number
+          per_page?: number
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description A page of publications */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PublicationListResponse']
+          }
+        }
+        /** @description Invalid pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/publications/{id}/works': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List a publication's works by date range
+     * @description One page of the article URLs a Publication has available to license, read live from the Broker's catalog and optionally bounded by modification date. A page of URLs is exactly what `POST /v1/acquisitions` takes as a Selection. Works are not priced here; pricing happens when the Selection is quoted.
+     *
+     *     Check `date_filter` before reading an empty page as "nothing in range". Some publications' catalogs carry no modification dates, and on those the Broker's date filter returns nothing at all. That is reported as `unsupported`.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Earliest modification date, inclusive, as `YYYY-MM-DD`. */
+          from?: string
+          /** @description Latest modification date, inclusive, as `YYYY-MM-DD`. */
+          to?: string
+          /** @description The previous page's `next_cursor`, sent with the same `from`/`to`. */
+          cursor?: string
+          /** @description Works per page. Defaults to the maximum. */
+          limit?: number
+        }
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description A page of works */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PublicationWorkListResponse']
+          }
+        }
+        /** @description A malformed or reversed date, a limit out of range, or a cursor that is invalid or was issued for a different query */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No listed publication has that id */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The Broker's catalog could not be read, even after retrying */
+        502: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Submit a Selection and open a Bulk acquisition
+     * @description Uploads the list of works a Buyer wants and returns the acquisition that will carry its quote. Returns in milliseconds: nothing here calls the broker.
+     *
+     *     **Quoting is asynchronous.** Resolving rates for 10,000 works is roughly 200 upstream batch calls under undocumented limits, so the response comes back `quote_state: pending` with a snapshot the Buyer can already read, and pricing runs behind it. Poll `GET /v1/acquisitions/{id}` until `quote_state` is `ready`.
+     *
+     *     Two limits are enforced before any upstream call, and they refuse differently because they want different remedies: too many works means "trim the file", while too much value means "split this into two acquisitions".
+     *
+     *     **Authorization:** buyer JWT.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description The works to license, in the order they should be recorded. Every row gets a disposition, refused ones included — a row that vanished silently between upload and quote is the failure the acknowledgement step exists to prevent. */
+            urls: string[]
+          }
+        }
+      }
+      responses: {
+        /** @description The acquisition, with its quote not yet priced */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description No `urls`, or an empty list */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Refused whole, before any upstream call. `error.type` distinguishes the two and they want different remedies: `selection_too_large` carries `maximum` and `submitted` and means trim the file, where `selection_value_too_large` means split this into two acquisitions. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No broker store is configured, so there is nothing bulk may run against. */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Poll a Bulk acquisition
+     * @description The one resource the whole flow hangs off — the quote arriving and the run progressing are both read here, because the Buyer holds one id and neither question is answerable from the other.
+     *
+     *     Cheap enough to poll for hours: it carries counts and an exclusion tally rather than rows. Per-work detail is `GET /v1/acquisitions/{id}/works`.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The acquisition */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer — deliberately the same answer as "not yours". */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/quote': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Re-price a quote by identity
+     * @description Re-prices the snapshot at today's rates **without re-resolving it**. The Buyer returns to the id they already hold and gets the same works at current prices without uploading anything again, which is what makes the 24-hour quote expiry cheap rather than punitive.
+     *
+     *     What is re-asked is what the rate surface decides — an unrated property may start publishing, a repriced one may come back under the ceiling. What is not re-asked is what the uploaded file decided: a malformed row is still malformed and a duplicate is still the second spelling of a work already in the list.
+     *
+     *     Asynchronous, like the first quote. The acknowledgement is withdrawn, because the list the Buyer acknowledged is not this list.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Re-pricing started. Poll the acquisition until `quote_state` is `ready`. */
+        202: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Refused. `error.type` is `quote_in_progress` when a re-pricing is already running — pricing is expensive upstream, so a client polling and re-quoting in one loop is not allowed to queue one per iteration. Otherwise the hold is already placed: a re-quote moves the total the funds are reserved against, so it is refused once the money is committed. A `failed` quote is re-quotable, and asking again is the remedy for it. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/acknowledgement': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Acknowledge what cannot be sold
+     * @description The Buyer registers the exclusions. Its own step rather than a flag on authorize, and the reason is the product being sold: a large upload will contain rows we cannot honour, rejecting the whole file is hostile at that size, and quoting the remainder silently is worse. The failure that matters most for an audit-trail product is a Buyer authorizing without registering that works they asked for are not coming.
+     *
+     *     Withdrawn again by any re-quote, so it always refers to the current exclusions.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Acknowledged. The acquisition can now be authorized. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Nothing to acknowledge yet, or a quote too old to stand behind. `error.type` is `quote_expired` in the second case, and carries `quoted_at` and `valid_for_seconds`; the remedy is a re-quote. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/authorization': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Place the hold and start the run
+     * @description The one moment a Bulk acquisition's money is committed. Funds move from the wallet to held funds for the stated maximum chargeable total, and retrieval begins off the request thread — 10,000 works is 10,000 round trips against a broker with no bulk primitive, so this returns immediately and the Buyer polls the acquisition.
+     *
+     *     Two constraints are checked and they are not the same constraint. **Wallet balance** asks whether the Buyer has the money; **cap headroom** asks whether they are allowed to spend it today. The cap is read first and answered in its own terms, because sending a capped-out Buyer to add funds would send them to do something that cannot work.
+     *
+     *     The spend cap is read once, here. Captures drawing on this hold are never re-checked: a refusal now is actionable, where a refusal at capture 31,000 is a half-delivered acquisition with money held and licences already paid for upstream.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Hold placed, run started. Poll the acquisition. */
+        202: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The daily spend cap refuses this acquisition. Carries `cap_cents`, `spent_cents`, `remaining_cents`, `resets_at` and `bulk_exempt` — and deliberately **no funding URL**, because adding money cannot clear a cap. Distinct from insufficient funds for that reason. */
+        402: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['DailySpendCapReachedError']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The hold was refused and the quote survives, so it can be acknowledged or re-priced and authorized again. Either the exclusions are unacknowledged, or the quote expired between acknowledgement and here, or the wallet is short, or the acquisition is not in a state that can be authorized. Insufficient funds answers here rather than at 402 — the existing contract for this API — which is what keeps it distinct from a cap refusal. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/works': {
+    parameters: {
+      query?: {
+        page?: number
+        per_page?: number
+      }
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Per-work dispositions
+     * @description Every work in the Selection with what happened to it, in submission order, refused rows included.
+     *
+     *     **Partial failure is read from here, not caught.** An acquisition where 300 of 10,000 works failed is ordinary — it does not fail the request and it is not an exception — so each outcome is a line item carrying its typed reason.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    get: {
+      parameters: {
+        query?: {
+          page?: number
+          per_page?: number
+        }
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description A page of works */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['PaginatedAcquisitionWorkList']
+          }
+        }
+        /** @description Invalid pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/corpus': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Where the corpus is
+     * @description Answers with a **state**, never with an error — every case is a 200. A corpus is a rendering of Purchases the Buyer already holds rather than an entitlement of its own, so a blob past its 30-day retention answers `rebuild_required`: a 404 or a 410 would say something was lost, and nothing was.
+     *
+     *     Reading the state never starts work. Use `POST` to ask for an assembly.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The corpus state, whatever it is */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CorpusResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Build the corpus, if there is nothing to serve
+     * @description Starts an assembly when the state is `rebuild_required`, and does nothing when a corpus is already downloadable — re-assembling one that is sitting there spends minutes of a worker for a file the Buyer can already have.
+     *
+     *     A separate verb from `GET` rather than a flag on it, because a Buyer polling every few seconds while a run finishes would otherwise queue one assembly per poll.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Nothing to do — a corpus is already downloadable. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CorpusResponse']
+          }
+        }
+        /** @description Assembly started. Poll the GET until `ready`. */
+        202: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CorpusResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/corpus/download': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * Download the corpus
+     * @description The archive itself, behind the same authentication as everything else here — deliberately not a presigned object-store link, which would be a bearer capability anyone holding it could spend. The bytes are streamed from this route in every environment; it never redirects, so one authenticated request is the whole download:
+     *
+     *     `curl -o corpus.tar.gz -H "Authorization: Bearer $TOKEN" https://api.ledewire.com/v1/acquisitions/$ID/corpus/download`
+     *
+     *     The archive is sent with chunked transfer encoding and carries no `Content-Length`. To verify a download is complete, compare its size with the `byte_size` the state endpoint reports.
+     *
+     *     A corpus that is not `ready` answers with its state at 200, exactly as the state endpoint would: asking for the file of an expired corpus is the same situation as asking where it is.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The archive, or — when there is nothing to serve — the corpus state as JSON. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/gzip': string
+            'application/json': components['schemas']['CorpusResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/manifest': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    /**
+     * The signed manifest of a Bulk acquisition
+     * @description Returns the audit record standalone, so it can be obtained long after the corpus blob has expired. Its own resource rather than a field on the corpus download, because a field on a download that no longer exists is not a record anyone can obtain.
+     *
+     *     To verify a corpus against it, resolve `signing_kid` through `/.well-known/ledewire-signing-keys.json`, match the key on all 32 raw public-key bytes, check it was valid at `signed_at`, verify the detached signature over the manifest's exact bytes, recompute every delivered entry's content hash against its file, and check the archive holds no file the manifest does not list. See docs/bulk-corpus-and-manifest.md.
+     *
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The signed manifest */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CorpusManifestResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this Buyer. Deliberately the same answer as "not yours": a 403 distinguishing them would confirm to a stranger that a named Buyer ran a bulk acquisition, which is the one fact this product's customers care about keeping quiet. */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The acquisition exists and has no manifest yet. The manifest is written once, at first assembly, so this says "ask for the corpus" rather than "there is nothing here". */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/.well-known/ledewire-signing-keys.json': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The audit-export signing key history
+     * @description Publishes the append-only, hash-chained log of every Ed25519 key that has signed an audit-export manifest. A verifier holding a corpus resolves the manifest's `kid` through this document — never through the `jwk` inline in the manifest's own JWS header, which an attacker controls end to end. The match is on all 32 raw public-key bytes.
+     *     Public and unauthenticated by necessity: a third party verifying a decade-old corpus holds no credentials of ours, and an anchor you need our permission to reach is not an anchor.
+     *     Note the limit, stated in full in docs/audit-export-key-history.md: the root entry is signed by nothing and this document is served from a domain we control, so content and licence terms verify without us while our attestation does not, until #989 lands.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The key history, in chain order */
+        200: {
+          headers: {
+            /** @description max-age=86400, public */
+            'Cache-Control'?: string
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['SigningKeyHistoryResponse']
+          }
+        }
+        /** @description No signing key has been activated. Deliberately not an empty list — a verifier reading `[]` would conclude its signature came from a key we never had, which is the answer it should get for a forgery, and the two must not look alike. */
         503: {
           headers: {
             [name: string]: unknown
@@ -4080,6 +5381,124 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/mcp': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Ledewire MCP Server — JSON-RPC 2.0 dispatcher
+     * @description Single endpoint for the Ledewire Model Context Protocol (MCP) server. All requests are JSON-RPC 2.0 with `Content-Type: application/json`.
+     *
+     *     **Protocol version.** The revision is negotiated per `initialize`: send the revision you support as `params.protocolVersion` and the server echoes it back in `result.protocolVersion` when it can speak it — including revisions older and newer than the pinned one. A client that requests an unsupported revision is answered at `2025-11-25`. Do not hard-code the value from the examples below; read what `initialize` returned.
+     *
+     *     `initialize` params are validated: `protocolVersion`, `capabilities` and `clientInfo` are all required, and omitting any of them is rejected with `-32602`.
+     *
+     *     **Protocol methods:**
+     *
+     *     | `method` | Auth required | Description | |---|---|---| | `initialize` | No | Handshake — negotiates the protocol version and returns capabilities, server info, and onboarding instructions | | `notifications/initialized` | No | Client acknowledgement. Carries no `id` and is answered with HTTP `202` and an empty body | | `ping` | No | Liveness check. Returns an empty `result` object | | `tools/list` | No | Lists all 16 tools with `description`, `inputSchema`, `outputSchema`, and `_meta` | | `tools/call` | Per tool — see below | Invokes one tool by name | | `resources/list` | No | Lists the 3 resources with `uri`, `name`, `description`, and `mimeType` | | `resources/read` | Per resource | Reads one resource by `uri` | | `prompts/list` | No | Lists the 3 prompt templates with their arguments | | `prompts/get` | No | Renders one prompt template with the supplied arguments |
+     *
+     *     A JSON array of request objects is accepted as a batch, and answered with an array of responses in no guaranteed order — match them by `id`.
+     *
+     *     **Tools (`tools/call`):** every tool is listed by `tools/list` regardless of the caller's auth state, so a client can see the full surface before authenticating. A tool's tier determines what it requires.
+     *
+     *     | Tool | Tier | Required scope | Description | |---|---|---|---| | `search_content` | Open | — | Full-text search for premium content across all public stores | | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability | | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date | | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step | | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents | | `get_content_details` | Buyer | `mcp:search` | Pre-purchase info + purchase status for a content item | | `get_content` | Buyer | `mcp:search` (read); `can_purchase` (payment) | x402-gated content delivery | | `list_purchases` | Buyer | `mcp:search` | Paginated purchase history | | `list_my_stores` | Buyer | `mcp:search` | Stores the key owner has owner or author access to | | `fund_wallet` | Buyer | `mcp:search` | Buyer portal link for adding funds to the wallet | | `list_my_content` | Seller content | `mcp:manage_content` | Paginated catalog of the connected store | | `search_my_content` | Seller content | `mcp:manage_content` | Find a content item by title, tag, or external identifier | | `register_content` | Seller content | `mcp:manage_content` | Create a content item in the connected store | | `update_content` | Seller content | `mcp:manage_content` | Update fields on an existing content item | | `check_content_status` | Seller content | `mcp:manage_content` | Read-only diagnosis of one content item | | `get_sales_summary` | Seller analytics | `mcp:analytics` | Total revenue and purchase count, optionally by month | | `get_content_sales` | Seller analytics | `mcp:analytics` | Per-content purchase count and revenue | | `get_buyer_insights` | Seller analytics | `mcp:analytics` | Per-buyer spend and recency, keyed by an opaque buyer reference |
+     *
+     *     Each entry in `tools/list` publishes its own requirement under the MCP metadata extension point, as `_meta["com.ledewire/requiredScopes"]` — an array of OAuth scope strings, empty for open tools. Read the requirement from there rather than from this table. (Before the SDK migration this was a non-standard top-level `x-requiredScopes` key; that key is no longer emitted.)
+     *
+     *     The two seller tiers additionally require the key to be store-scoped, and re-verify store membership on every call: a key whose team membership was revoked is refused even though its scopes are unchanged.
+     *
+     *     **Resources (`resources/read`):**
+     *
+     *     | `uri` | Auth required | Media type | Description | |---|---|---|---| | `ledewire://docs/overview` | No | `text/markdown` | Platform concepts, content types, the x402 payment model, and pricing norms | | `ledewire://docs/pricing-guidelines` | No | `text/markdown` | Recommended price ranges by content type and competitive pricing tips | | `ledewire://seller/context` | `mcp:manage_content` | `application/json` | Live store context: content count, payment protocols, active content status, account health |
+     *
+     *     An unknown `uri` is rejected with `-32602`, naming the URI in both `error.message` and `error.data.uri` — it is an invalid resource, not an unknown method. An unauthorized read of `ledewire://seller/context` is neither: it returns a well-formed result whose JSON body carries an `error` key, because that is where the client already reads the payload from.
+     *
+     *     **Prompts (`prompts/get`):**
+     *
+     *     | `name` | Arguments | Description | |---|---|---| | `onboarding_checklist` | `domain` (required) | Walk through store setup and identify gaps with next steps | | `troubleshoot_integration` | `problem` (required), `domain` (optional) | Diagnose an integration problem and recommend a fix | | `optimize_pricing` | none | Analyse sales data and catalog to produce price change recommendations |
+     *
+     *     A missing required argument is rejected with `-32602`. A prompt taking no arguments omits the `arguments` key from `prompts/list` rather than publishing an empty array.
+     *
+     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works` and `register` tools require no authentication.
+     *
+     *     **`search_content` pagination:** `offset` and `limit` page the Ledewire catalog, and walking `offset` in `limit`-sized steps reaches every Ledewire item matching the query. `total_count` is a full match count rather than the size of the page returned, but it is the sum of two differently scoped halves: every Ledewire item matching the query, which is stable across offsets and limits, plus the brokered rows merged into *this* page, which is not. Treat it as an upper bound to page towards, not a fixed total.
+     *
+     *     Brokered results from partner marketplaces are an overlay on the requested page rather than part of it: they are fetched in one unpaginated slice per call, so `results` may hold more than `limit` entries and the same brokered rows recur on every page. If you accumulate pages, deduplicate by `id`.
+     *
+     *     **`search_content` completeness:** `unavailable_providers` names the catalogs that could not be searched on this call, and is an empty array when every catalog answered. A partner marketplace that is down contributes no rows and therefore nothing to `total_count`, which is indistinguishable from one that answered and held no match — so a short or empty `results` with a non-empty `unavailable_providers` is an incomplete search, not a finding. Retry before concluding that nothing matched.
+     *
+     *     **Rate limits:** 15 req/min per IP unauthenticated; 60 req/min per key authenticated.
+     *
+     *     **x402 payment flow for `get_content`:**
+     *     1. First call (no `_meta`) on unpurchased content → `result.isError: true` with `structuredContent`
+     *        containing `x402Version: 2`, `accepts`, and `extra.nonce` (5-minute TTL).
+     *
+     *     2. Retry call with `_meta: { "x402/payment": { scheme: "ledewire-wallet", payload: { nonce: "..." } } }`
+     *        → purchase is settled and full content is returned.
+     *
+     *     3. On success (new purchase or already purchased), the response includes
+     *        `_meta["x402/payment-response"].accessToken` for offline verification via
+     *        `GET /.well-known/x402-jwks.json`.
+     */
+    post: operations['mcpCall']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/mcp/keys': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List active MCP API keys
+     * @description Returns all non-revoked MCP API keys for the authenticated user, ordered by `created_at DESC`. Revoked keys are excluded. The secret is never returned after initial creation.
+     */
+    get: operations['listMcpKeys']
+    put?: never
+    /**
+     * Create an MCP API key
+     * @description Creates a new MCP API key for the authenticated user. The `secret` is returned **once only** in this response — it cannot be retrieved again. Store it immediately. To change permissions, revoke the key and create a new one.
+     */
+    post: operations['createMcpKey']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/mcp/keys/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description UUID of the MCP API key to revoke. */
+        id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke an MCP API key
+     * @description Soft-deletes the key by setting `revoked_at`. The row is retained for audit purposes but will be rejected by all MCP tool calls immediately. Only the key owner can revoke it.
+     */
+    delete: operations['revokeMcpKey']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -4095,7 +5514,7 @@ export interface components {
       has_sufficient_funds: boolean
       wallet_balance_cents: number
       /** @enum {string} */
-      next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'none'
+      next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
     }
     AuthenticationResponse: {
       /** @enum {string} */
@@ -4168,6 +5587,17 @@ export interface components {
       error: {
         code: number
         message: string
+        /**
+         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
+         * @enum {string}
+         */
+        type?:
+          | 'retrieval_failed'
+          | 'not_licensable'
+          | 'price_drifted'
+          | 'client_error'
+          | 'insufficient_funds'
+          | 'daily_spend_cap_reached'
       }
     }
     AuthSignupRequest: {
@@ -4226,6 +5656,429 @@ export interface components {
       key: string
       /** @description 64-char hex authentication secret. Store immediately — shown once only. */
       secret: string
+    }
+    /** @description The authenticated buyer's daily spend cap, read against the current spend window. The cap governs every wallet debit the buyer makes — MCP, REST, or the web payment gate — and spend is derived from completed purchases, so a refund returns allowance. cap_cents, spent_cents, remaining_cents and resets_at are spelled exactly as they are in DailySpendCapReachedError, so a refusal and this resource describe the same numbers. */
+    UserSpendCap: {
+      /** @description The daily spend cap in cents. null means uncapped. */
+      cap_cents: number | null
+      /** @description IANA timezone whose calendar day bounds the spend window. Defaults to UTC. Reports the zone actually used, so an unrecognised stored value reads back as UTC. */
+      spend_window_timezone: string
+      /** @description Total spent so far in the current spend window, summed over completed purchases by any path. */
+      spent_cents: number
+      /** @description Cap minus spend so far, floored at zero. null when the buyer is uncapped — there is no ceiling to subtract from. Zero after the cap is lowered below spend already made. */
+      remaining_cents: number | null
+      /**
+       * Format: date-time
+       * @description The instant the current spend window rolls, in UTC.
+       */
+      resets_at: string
+      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. */
+      bulk_exempt: boolean
+    }
+    /** @description Sets the buyer's cap. The field is required and nullable: null is how a buyer becomes uncapped, and an omitted field is treated as a client error rather than as a request to be uncapped. A cap below spend already made in the current window is accepted — it simply leaves remaining_cents at zero until the window rolls. Zero is a valid cap and refuses every priced purchase. */
+    UserSpendCapUpdateRequest: {
+      /** @description New cap in whole cents, or null to remove the cap. Negative and fractional values are rejected with 422. */
+      daily_spend_limit_cents: number | null
+    }
+    McpApiKeyCreateRequest: {
+      /** @description Human-readable name for the key */
+      label: string
+      /** @description Grants access to search and read-only MCP tools. Defaults to true. */
+      can_search?: boolean
+      /** @description Grants access to payment submission via MCP. Defaults to false. */
+      can_purchase?: boolean
+      /**
+       * Format: uuid
+       * @description Scopes the key to a specific store. User must be an owner or author of that store.
+       */
+      store_id?: string | null
+      /** @description Grants access to seller content management tools. Defaults to false. */
+      can_manage_content?: boolean
+      /** @description Grants access to seller analytics tools. Defaults to false. */
+      can_read_analytics?: boolean
+    }
+    /** @description Returned once only at creation. The secret cannot be retrieved again. */
+    McpApiKeyCreateResponse: {
+      /** Format: uuid */
+      id: string
+      /** @description Public identifier used to look up the key */
+      key: string
+      /** @description Authentication secret. Store immediately — shown once only. */
+      secret: string
+      label: string
+      can_search: boolean
+      can_purchase: boolean
+      /** Format: uuid */
+      store_id?: string | null
+      can_manage_content: boolean
+      can_read_analytics: boolean
+    }
+    McpApiKey: {
+      /** Format: uuid */
+      id: string
+      label: string
+      key: string
+      can_search: boolean
+      can_purchase: boolean
+      /** Format: uuid */
+      store_id?: string | null
+      can_manage_content: boolean
+      can_read_analytics: boolean
+      /** Format: date-time */
+      last_used_at?: string | null
+      /** Format: date-time */
+      created_at: string
+    }
+    McpContentSearchResult: {
+      /** Format: uuid */
+      id: string
+      title: string
+      /** @description Plain UTF-8 text preview. Never base64. */
+      teaser: string
+      price_cents: number
+      /** @enum {string} */
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+      /** Format: uuid */
+      store_id: string
+      store_name: string
+      tags: string[]
+      /** @description Canonical article URL. Populated for Tollbit results; null for Ledewire items unless resource_url is set. */
+      url?: string | null
+      /** @description Academic author display names. Null for non-academic content or unknown values. */
+      authors: string[] | null
+      /** @description Academic abstract text. Null for non-academic content or when unavailable. */
+      abstract: string | null
+      /** @description DOI URL for academic works. Null for non-academic content or unknown values. */
+      doi: string | null
+      /** @description Academic publication date. Null for non-academic content or unknown values. */
+      publication_date: string | null
+      /** @description Academic citation count from source metadata. Null for non-academic content or unknown values. */
+      citation_count: number | null
+    }
+    /** @description Content returned to a store team member (owner or author) accessing their own content without a purchase. */
+    McpSellerContent: components['schemas']['McpContentSearchResult'] & {
+      /** @description Article body. Present when content_type is `markdown` or inline `html`. */
+      content_body?: string | null
+      /** @description External content URI. Present when content_type is `external_ref`, `pdf`, `image`, `video`, or remote `html`. */
+      content_uri?: string | null
+    }
+    McpFullContent: components['schemas']['McpContentSearchResult'] & {
+      /** @description Article body. Present when content_type is `markdown` or inline `html`. */
+      content_body?: string | null
+      /** @description External content URI. Present when content_type is `external_ref`, `pdf`, `image`, `video`, or remote `html`. */
+      content_uri?: string | null
+      /** Format: date-time */
+      purchased_at: string
+      /** @description The licence the broker granted for this work, as returned on the retrieval — not the one we requested. Null when no grant was recorded: every non-brokered purchase, and brokered purchases made before the grant was captured. Null means "not recorded", never "no rights granted". */
+      license?: {
+        /**
+         * @description The broker's licence type, e.g. `ON_DEMAND_LICENSE` or `ON_DEMAND_FULL_USE_LICENSE`. Which one is minted depends on the rates the property publishes, so it varies per work.
+         * @example ON_DEMAND_LICENSE
+         */
+        type: string
+        /**
+         * @description The rights granted. `ON_DEMAND_LICENSE` carries `PARTIAL_USE` alone; `ON_DEMAND_FULL_USE_LICENSE` carries `FULL_USE` and `PARTIAL_USE`.
+         * @example [
+         *       "PARTIAL_USE"
+         *     ]
+         */
+        permissions: string[]
+        /** @description The broker-hosted licence document for this grant. */
+        document_url: string | null
+      } | null
+      _meta: {
+        'x402/payment-response': {
+          success: boolean
+          transaction: string
+          network: string
+          payer: string
+          accessToken: string
+        }
+      }
+    }
+    /** @description A record that a purchase happened: what was bought, when, at what price, and under which licence. Deliberately **not** a content schema. `list_purchases` used to return `McpFullContent`, which carries the article body, so a Buyer could re-read the full text of every work they had ever bought, free, 20 per call. Under single use (#939) a purchase is one licensed delivery, so purchase history is a receipt and the body is not part of it. Use `get_content` to buy a work — including one bought before. */
+    McpPurchaseReceipt: {
+      /** @description The purchase this receipt records. Distinct per purchase, so repeat buys of one work are distinguishable. */
+      purchase_id: string
+      content_id: string
+      title: string
+      /** @description Where the work lives. Not a way to read it — a brokered URL serves a paywall to an unlicensed caller. */
+      url?: string | null
+      store_id: string
+      store_name: string
+      /** @description What this purchase was charged, at the price in force when it was made. */
+      price_cents: number
+      /** Format: date-time */
+      purchased_at: string
+      /** @description The licence the broker granted for this purchase, as returned on the retrieval. Null when no grant was recorded: every non-brokered purchase, and brokered purchases made before the grant was captured. Null means "not recorded", never "no rights granted". */
+      license?: {
+        /** @example ON_DEMAND_LICENSE */
+        type: string
+        /**
+         * @example [
+         *       "PARTIAL_USE"
+         *     ]
+         */
+        permissions: string[]
+        document_url: string | null
+      } | null
+    }
+    McpGetWalletBalanceResult: {
+      /** @description Current wallet balance in cents for the authenticated MCP key owner. */
+      wallet_balance_cents: number
+    }
+    McpRegisterResult: {
+      /** @description The API key identifier (not secret). */
+      key: string
+      /** @description The API key secret — returned once, never retrievable again. */
+      secret: string
+      label: string
+      can_search: boolean
+      can_purchase: boolean
+    }
+    McpGetContentDetailsResult: {
+      content: components['schemas']['McpContentSearchResult']
+      /** @description Whether the authenticated user has a completed purchase for this content. */
+      has_purchased: boolean
+      /** @description Current wallet balance in cents for the authenticated MCP key owner. */
+      wallet_balance_cents: number
+    }
+    McpListPurchasesResult: {
+      /** @description Receipts, newest first, one per purchase and never collapsed — a Buyer may hold several purchases of one work, each at the price in force when it was made. These were `McpFullContent` until #939, which meant this endpoint returned the body of every article the Buyer had ever bought. */
+      purchases: components['schemas']['McpPurchaseReceipt'][]
+      /** @description Total number of completed purchases. */
+      total_count: number
+      offset: number
+      limit: number
+    }
+    /** @description Returned as structuredContent when a get_content payment attempt fails due to insufficient wallet balance. Always accompanied by isError: true. */
+    McpInsufficientFundsError: {
+      /** @enum {string} */
+      error: 'insufficient_funds'
+      /** @description Current wallet balance in cents. */
+      wallet_balance_cents: number
+      /** @description Price of the content in cents. */
+      required_cents: number
+      /** @description Amount needed to top up the wallet to cover this purchase (required_cents - wallet_balance_cents). */
+      shortfall_cents: number
+      /**
+       * Format: uri
+       * @description Direct link to the Ledewire wallet funding page, pre-filled with the shortfall amount.
+       */
+      funding_url: string
+    }
+    /** @description Returned as structuredContent when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
+    McpDailySpendCapReachedError: {
+      /** @enum {string} */
+      error: 'daily_spend_cap_reached'
+      /** @description The buyer's daily spend cap in cents. */
+      cap_cents: number
+      /** @description Total spent so far in the current spend window. Ordinary completed purchases are summed per row; a bulk acquisition contributes its total, never its per-work purchases. */
+      spent_cents: number
+      /** @description Cap minus spend so far, floored at zero — what the buyer may still spend in this window. */
+      remaining_cents: number
+      /**
+       * Format: date-time
+       * @description The instant the current spend window rolls, in UTC. One calendar day boundary in the buyer's own timezone.
+       */
+      resets_at: string
+      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. */
+      bulk_exempt: boolean
+    }
+    /** @description The REST and x402 web-gate form of the same refusal, returned with HTTP 402 Payment Required by POST /v1/purchases and GET /v1/x402/contents/{id}. Carries the same fields as McpDailySpendCapReachedError alongside the standard error envelope, and the same absence of a funding URL. `error.type` is the machine-readable discriminator. */
+    DailySpendCapReachedError: {
+      error: {
+        /** @enum {integer} */
+        code: 402
+        message: string
+        /** @enum {string} */
+        type: 'daily_spend_cap_reached'
+      }
+      /** @description The buyer's daily spend cap in cents. */
+      cap_cents: number
+      /** @description Total spent so far in the current spend window, summed over completed purchases by any path. */
+      spent_cents: number
+      /** @description Cap minus spend so far, floored at zero — what the buyer may still spend in this window. */
+      remaining_cents: number
+      /**
+       * Format: date-time
+       * @description The instant the current spend window rolls, in UTC.
+       */
+      resets_at: string
+      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only. */
+      bulk_exempt: boolean
+    }
+    /** @description Returned by the fund_wallet tool. Contains the buyer portal wallet URL. Open this link in a browser to add funds using the Ledewire wallet funding page. */
+    McpFundWalletResult: {
+      /**
+       * Format: uri
+       * @description Buyer portal wallet URL. Includes an `amount` query param when amount_cents was provided.
+       */
+      url: string
+    }
+    /** @description One JSON-RPC 2.0 request envelope. `id` is omitted for notifications (`notifications/initialized`), which are acknowledged with HTTP 202 and no body. */
+    McpJsonRpcRequest: {
+      /** @enum {string} */
+      jsonrpc: '2.0'
+      /** @enum {string} */
+      method:
+        | 'initialize'
+        | 'notifications/initialized'
+        | 'ping'
+        | 'tools/list'
+        | 'tools/call'
+        | 'resources/list'
+        | 'resources/read'
+        | 'prompts/list'
+        | 'prompts/get'
+      /** @description Client-supplied request identifier. Echoed back in the response. Omitted for notifications. */
+      id?: number | string
+      /** @description Shape depends on `method`. `initialize`: `{ protocolVersion, capabilities, clientInfo }` — all three required. `tools/call`: `{ name: "<tool_name>", arguments: { ... } }`; call `tools/list` for each tool's full `inputSchema`. `resources/read`: `{ uri: "ledewire://..." }`. `prompts/get`: `{ name: "<prompt_name>", arguments: { ... } }`. `tools/list`, `resources/list`, `prompts/list` and `ping` take no parameters. */
+      params?: {
+        /**
+         * @description Tool name for `tools/call`, prompt name for `prompts/get`.
+         * @enum {string}
+         */
+        name?:
+          | 'search_content'
+          | 'list_publications'
+          | 'list_publication_works'
+          | 'register'
+          | 'get_wallet_balance'
+          | 'get_content_details'
+          | 'get_content'
+          | 'list_purchases'
+          | 'list_my_stores'
+          | 'fund_wallet'
+          | 'list_my_content'
+          | 'search_my_content'
+          | 'register_content'
+          | 'update_content'
+          | 'check_content_status'
+          | 'get_sales_summary'
+          | 'get_content_sales'
+          | 'get_buyer_insights'
+          | 'onboarding_checklist'
+          | 'troubleshoot_integration'
+          | 'optimize_pricing'
+        arguments?: {
+          [key: string]: unknown
+        }
+        /**
+         * @description Resource URI for `resources/read`.
+         * @enum {string}
+         */
+        uri?:
+          | 'ledewire://docs/overview'
+          | 'ledewire://docs/pricing-guidelines'
+          | 'ledewire://seller/context'
+        /** @description Requested revision for `initialize`. See the negotiation note on the endpoint. */
+        protocolVersion?: string
+        capabilities?: Record<string, never>
+        clientInfo?: Record<string, never>
+      }
+    }
+    /** @description Returned by the list_my_stores tool. Every store the authenticated key's owner holds owner or author access to, with that store's non-archived content count. */
+    McpListMyStoresResult: {
+      stores: {
+        /** Format: uuid */
+        store_id: string
+        store_name: string
+        /**
+         * @description Highest access the key owner holds on this store.
+         * @enum {string}
+         */
+        role: 'owner' | 'author'
+        /** @description Non-archived content items in the store. */
+        content_count: number
+      }[]
+    }
+    /** @description Returned by the list_my_content tool. A page of the connected store's catalog, including items no buyer can see. Pagination follows the standard `offset`/`limit` contract shared with search_content and list_purchases; the `total`, `page` and `per_page` fields are retained for clients written against the tool's original contract and describe the same window. */
+    McpListMyContentResult: {
+      contents: {
+        /** Format: uuid */
+        id: string
+        title: string
+        teaser?: string | null
+        price_cents: number
+        /** @description `public`, `unlisted`, or `archived`. */
+        visibility: string
+        /** @enum {string} */
+        content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+        tags: string[]
+        /** Format: date-time */
+        created_at: string
+      }[]
+      /** @description Total matching items across all pages, before pagination. */
+      total_count: number
+      /** @description Number of records skipped to produce this page. */
+      offset: number
+      /** @description Maximum records this page could contain. */
+      limit: number
+      /** @description Legacy, superseded by `total_count`. Identical value, retained for existing clients. */
+      total: number
+      /** @description Legacy, superseded by `offset`. One-based page number of the page *containing* the first record returned, derived from the window actually applied. When `offset` is not a multiple of `limit` there is no exact page number and this page's own span only overlaps the records returned — `offset: 25, limit: 10` returns records 25-34 and reports page 3, which spans 20-29. Paginate by `offset`, not by incrementing this field. */
+      page: number
+      /** @description Legacy, superseded by `limit`. Identical value, retained for existing clients. */
+      per_page: number
+    }
+    /** @description Returned by the search_my_content tool. Deliberately narrower than McpListMyContentResult — it is a lookup aid for finding a content_id, not a catalog view. */
+    McpSearchMyContentResult: {
+      contents: {
+        /** Format: uuid */
+        id: string
+        title: string
+        teaser?: string | null
+        /** @enum {string} */
+        content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+        tags: string[]
+      }[]
+    }
+    /** @description Returned by both register_content and update_content on success. The two tools share one shape: the identifying fields of the content item as it now stands. Neither returns the body — read it back with get_content if you need it. */
+    McpContentMutationResult: {
+      /** Format: uuid */
+      id?: string
+      title?: string
+      /** @enum {string} */
+      content_type?: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+      /** @description `public`, `unlisted`, or `archived`. */
+      visibility?: string
+      price_cents?: number
+    }
+    /** @description Returned by the check_content_status tool. Read-only diagnosis of one content item — `issues` is empty exactly when `is_healthy` is true. */
+    McpCheckContentStatusResult: {
+      /** Format: uuid */
+      content_id: string
+      title: string
+      /** @description Problems found, in plain English. Empty when the item is healthy. */
+      issues: string[]
+      /** @description Suggested next steps, one per issue where a fix is known. */
+      recommendations: string[]
+      is_healthy: boolean
+    }
+    /** @description One row of the get_content_sales tool's result — a single content item's sales performance. */
+    McpContentSalesRow: {
+      /** Format: uuid */
+      content_id: string
+      title: string
+      purchase_count: number
+      revenue_cents: number
+    }
+    /** @description Result of the get_content_sales tool — one page of the store's per-content sales ranking. Carried identically in structuredContent and in the double-encoded text block. */
+    McpGetContentSalesResult: {
+      content_sales: components['schemas']['McpContentSalesRow'][]
+      /** @description Number of content items in the whole ranking, not in the returned page. Scoped the same way the rows are — an author key counts only their attributed content. */
+      total_count: number
+      offset: number
+      limit: number
+    }
+    /** @description Result of the get_buyer_insights tool — one page of the store's buyers, ranked by total spend descending. Carried identically in structuredContent and in the text block. */
+    McpGetBuyerInsightsResult: {
+      buyer_insights: components['schemas']['BuyerStatisticsItem'][]
+      /** @description Number of buyers in the whole ranking, not in the returned page. Scoped the same way the rows are — an author key counts only buyers of their attributed content. */
+      total_count: number
+      offset: number
+      limit: number
     }
     AuthTokenRefreshRequest: {
       refresh_token?: string
@@ -4316,8 +6169,26 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** @description The buyer's wallet. balance_cents and spendable_cents are the same number and always will be — balance_cents has always meant "what you can spend", and money committed to a bulk acquisition is a hold, which moves it out of the wallet rather than annotating it. held_cents and holds exist so a buyer mid-acquisition can see why their balance is lower than their purchase history explains. */
     WalletBalanceResponse: {
+      /** @description Spendable balance in cents. Excludes funds held against a bulk acquisition. */
       balance_cents: number
+      /** @description The same figure as balance_cents, named in the vocabulary holds require. */
+      spendable_cents: number
+      /** @description Total committed to active bulk acquisitions and not yet spent or released. */
+      held_cents: number
+      /** @description One entry per bulk acquisition currently holding funds. Empty when none is. */
+      holds: {
+        /** Format: uuid */
+        acquisition_id: string
+        /** @description What this acquisition is currently holding. */
+        held_cents: number
+        /**
+         * Format: date-time
+         * @description When the hold was placed.
+         */
+        authorized_at: string
+      }[]
     }
     WalletTransactionItem: {
       /** @description ID of the transaction entry (matches the source record) */
@@ -4328,17 +6199,29 @@ export interface components {
        */
       type: 'credit' | 'debit'
       /**
-       * @description What caused this wallet movement
+       * @description What caused this wallet movement. bulk_acquisition and bulk_hold are each one entry for a whole bulk acquisition — its per-work purchases are deliberately not listed here, because one acquisition can hold tens of thousands of them and they describe one decision. bulk_hold is an acquisition still holding funds: the money has left the wallet but has not been spent, and it becomes a bulk_acquisition entry for the amount actually captured once the acquisition ends. An acquisition never produces both.
        * @enum {string}
        */
-      reason: 'wallet_funding' | 'purchase' | 'refund'
-      /** @description Always positive; direction expressed by `type` */
+      reason: 'wallet_funding' | 'purchase' | 'refund' | 'bulk_acquisition' | 'bulk_hold'
+      /** @description Always positive; direction expressed by `type`. For a bulk_hold entry this is what is currently held; for a bulk_acquisition entry it is what was captured, not what was held — the uncaptured remainder was released, never charged. Note that a bulk acquisition's per-work purchases each carry a price_cents that is a rounded display value and is NOT summable: bulk prices at micro precision and rounds to cents once, on the acquisition total, so this aggregate is the figure to read. */
       amount_cents: number
       /** @description Running wallet balance immediately after this event */
       balance_after_cents: number
-      /** @enum {string} */
-      status: 'completed' | 'pending' | 'failed' | 'cancelled'
-      /** @description ID of the source record (Purchase or FundingTransfer) */
+      /**
+       * @description Status of the source record. authorized/acquiring/settled/cancelled/failed are bulk acquisition states; the rest are purchase and funding transfer states.
+       * @enum {string}
+       */
+      status:
+        | 'completed'
+        | 'pending'
+        | 'failed'
+        | 'cancelled'
+        | 'settled'
+        | 'reverted'
+        | 'refunded'
+        | 'authorized'
+        | 'acquiring'
+      /** @description ID of the source record (Purchase, FundingTransfer or Acquisition) */
       reference_id: string
       /** @description Human-readable label suitable for display */
       description: string
@@ -4364,17 +6247,17 @@ export interface components {
         has_sufficient_funds?: boolean
       }
     }
-    /** @description Update request for content. `content_body` applies to `markdown` content; `content_uri` and `external_identifier` apply to `external_ref` content. */
+    /** @description Update request for content. `content_body` applies to `markdown` and inline `html` content; `content_uri` applies to `external_ref` and remote `html` content. For `html`, submitting both `content_body` and `content_uri` in the same request is rejected with `400`. */
     ContentUpdateRequest: {
       /** @description Content title */
       title?: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. For `markdown` content only. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
+       * @description Full article body, base64 encoded. For `markdown` and inline `html` content. Must be base64-encoded before sending (e.g. `btoa(bodyText)`).
        */
       content_body?: string
       /**
-       * @description URI of the resource. Required for `external_ref` content; optional for `markdown` content.
+       * @description URI of the resource. For `external_ref` and remote `html` content.
        * @example https://vimeo.com/123456789
        */
       content_uri?: string
@@ -4606,22 +6489,22 @@ export interface components {
        */
       started_at?: string
     }
-    /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `external_ref` requires `content_uri`. Both types accept an optional `content_uri` link. */
+    /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `html` requires exactly one of `content_body` (inline) or `content_uri` (remote); `external_ref`, `pdf`, `image`, and `video` require `content_uri` (`content_body` is not accepted). */
     Content: {
       /**
-       * @description The type of content being created.
+       * @description The type of content being created. `pdf`, `image`, and `video` require `content_uri`; `content_body` is not accepted for these types.
        * @enum {string}
        */
-      content_type: 'markdown' | 'external_ref'
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref'
       /** @description Content title */
       title: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. Required when `content_type` is `markdown`. Must be base64-encoded before sending (e.g. `btoa(markdownText)`).
+       * @description Full article body, base64 encoded. Required when `content_type` is `markdown`. For `html` content, provide either `content_body` (inline) or `content_uri` (remote) — not both. Must be base64-encoded before sending (e.g. `btoa(htmlText)`). Note: HTML special characters (`<`, `>`, `&`) should be unicode-escaped when embedding the JSON response in a `<script>` tag.
        */
       content_body?: string
       /**
-       * @description URI of the resource. Required when `content_type` is `external_ref`; optional for `markdown` content.
+       * @description URI of the resource. Required when `content_type` is `external_ref`, `pdf`, `image`, `video`, or remote `html`.
        * @example https://vimeo.com/123456789
        */
       content_uri?: string
@@ -4652,23 +6535,23 @@ export interface components {
         [key: string]: unknown
       }
     }
-    /** @description Response shape for a single content item. The presence of `content_body` vs `content_uri` depends on `content_type`: `markdown` includes `content_body`; `external_ref` includes `content_uri` (the external URI) and optionally `external_identifier`. */
+    /** @description Response shape for a single content item. The presence of `content_body` vs `content_uri` depends on `content_type` and storage mode: `markdown`, `brokered`, and inline `html` include `content_body`; `external_ref`, `pdf`, `image`, `video`, and remote `html` include `content_uri`. */
     ContentResponse: {
       id: string
       /**
-       * @description The type of content.
+       * @description The type of content. `pdf`, `image`, and `video` are remote-only types; `content_uri` is withheld until purchase. `brokered` is system-managed (e.g. Tollbit-sourced) and cannot be created directly via this API.
        * @enum {string}
        */
-      content_type: 'markdown' | 'external_ref'
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
       /** @description Content title */
       title: string
       /**
        * Format: byte
-       * @description Full article body in markdown, base64 encoded. Present when `content_type` is `markdown`. Must be base64-decoded before rendering (e.g. `atob(content.content_body ?? '')`).
+       * @description Full article body, base64 encoded. Present when `content_type` is `markdown` or inline `html`. Must be base64-decoded before rendering (e.g. `atob(content.content_body ?? '')`). Note: HTML special characters (`<`, `>`, `&`) must be unicode-escaped when embedding the JSON in a `<script>` tag.
        */
       content_body?: string | null
       /**
-       * @description URI of the external resource. Present when `content_type` is `external_ref`.
+       * @description URI of the external resource. Present when `content_type` is `external_ref`, `pdf`, `image`, `video`, or remote `html`.
        * @example https://vimeo.com/123456789
        */
       content_uri?: string | null
@@ -4772,7 +6655,7 @@ export interface components {
     ContentListItem: {
       id: string
       /** @enum {string} */
-      content_type: 'markdown' | 'external_ref'
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
       title: string
       price_cents: number
       /**
@@ -4794,7 +6677,7 @@ export interface components {
     /**
      * @description Full content detail plus real-time access and wallet context for a specific user. Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
      *
-     *     **URI gating for `external_ref` content:** `content_uri` (the external URI) is only present in the response when `access_info.has_purchased` is `true`. For all other states (unauthenticated, insufficient funds, not yet purchased) it is omitted, ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource without completing a purchase.
+     *     **URI gating for remote content:** `content_uri` is only present in the response when `access_info.has_purchased` is `true`. This applies to `external_ref` content and remote-mode `html` content (where the payload is a URI rather than an inline body). For all other states (unauthenticated, insufficient funds, not yet purchased) it is omitted, ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource without completing a purchase.
      */
     ContentWithAccessResponse: components['schemas']['ContentResponse'] & {
       access_info: components['schemas']['ContentAccessInfo']
@@ -4830,6 +6713,17 @@ export interface components {
       /** Format: date-time */
       timestamp: string
       status: components['schemas']['PurchaseStatus']
+      /**
+       * @description The delivered work, present **only** on the response to `POST /v1/purchases` and only when the deliverable is something we hold. It is the delivery, not a field of the purchase record: the same purchase read back from `GET /v1/purchases/{id}` or listed from `GET /v1/purchases` does not carry it, and there is no route that serves it again.
+       *
+       *     That asymmetry is the rule rather than an omission. A Buyer keeps what they were given — single use is non-transferable, not read-once — but LedeWire does not hand the same bytes over a second time without a second grant, and every read from LedeWire is a purchase.
+       */
+      content_body?: string
+      /**
+       * Format: uri
+       * @description Where the work lives, in place of `content_body`, for a deliverable hosted elsewhere. Same rule: present only on the response to the purchase that paid for it.
+       */
+      content_uri?: string
     }
     MerchantSaleResponse: {
       id: string
@@ -4886,7 +6780,7 @@ export interface components {
         has_sufficient_funds?: boolean | null
         has_purchased: boolean
         /** @enum {string} */
-        next_required_action: 'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+        next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
       }
     }
     WalletPaymentStatusResponse: {
@@ -4914,14 +6808,45 @@ export interface components {
         }
       }
     }
-    /** @description Response body returned by the x402 content endpoint on a successful `200`. Delivers the purchased content directly in the settlement response. `content_body` is present when `content_type` is `markdown`; `content_uri` is present when `content_type` is `external_ref`. `purchase_id` is the UUID of the settled Purchase record (null for free content). */
+    /** @description A single x402 v2 resource entry returned by the Bazaar discovery endpoint. */
+    X402BazaarResource: {
+      /** @description Canonical URL for this content. Equal to `resource_url` when the content has one; otherwise constructed as `{base_url}/v1/x402/contents/{id}`. */
+      resource: string
+      /** @enum {string} */
+      type: 'http'
+      /** @enum {integer} */
+      x402Version: 2
+      accepts: {
+        /** @example ledewire-wallet */
+        scheme: string
+        /** @example ledewire:v1 */
+        network: string
+      }[]
+      /** @description Unix timestamp (seconds) of the content's last update. */
+      lastUpdated: number
+      metadata: {
+        title: string
+        /** @description Plain UTF-8 preview text. Never base64. */
+        teaser: string
+        store_name: string
+        /** @description `metadata["category"]` when present; otherwise falls back to `content_type`. Never null. */
+        category: string
+      }
+    }
+    /** @description Response from the x402 Bazaar discovery endpoint. */
+    X402BazaarDiscoveryResponse: {
+      /** @description Total number of public resources (ignores pagination). */
+      total: number
+      resources: components['schemas']['X402BazaarResource'][]
+    }
+    /** @description Response body returned by the x402 content endpoint on a successful `200`. Delivers the purchased content directly in the settlement response. `content_body` is present when `content_type` is `markdown`, `brokered`, or inline `html`; `content_uri` is present when `content_type` is `external_ref`, `pdf`, `image`, `video`, or remote `html`. `purchase_id` is the UUID of the settled Purchase record (null for free content). */
     X402ContentResponse: {
       id: string
       /** @enum {string} */
-      content_type: 'markdown' | 'external_ref'
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
       title: string
       price_cents: number
-      /** Format: byte */
+      /** @description Plain UTF-8 text preview. */
       teaser: string
       /** @enum {string} */
       visibility: 'public' | 'unlisted' | 'private'
@@ -4933,12 +6858,9 @@ export interface components {
       purchase_id?: string | null
       /** @description Canonical URL of this content on its origin site. Set when content was registered via a pricing rule or manual resource_url assignment. */
       resource_url?: string | null
-      /**
-       * Format: byte
-       * @description Full article body in markdown. Present when content_type is markdown.
-       */
+      /** @description Full article body in plain UTF-8 markdown. Present when content_type is markdown. */
       content_body?: string | null
-      /** @description URI of the external resource. Present when content_type is external_ref. */
+      /** @description URI of the external resource. Present when content_type is `external_ref`, `pdf`, `image`, or `video`. */
       content_uri?: string | null
     }
     /** @description Returned when the URL matches a registered Ledewire content item. */
@@ -4974,6 +6896,304 @@ export interface components {
         n: string
         /** @description RSA public exponent (Base64url-encoded). */
         e: string
+      }[]
+    }
+    /**
+     * @description One work in a Selection, and what happened to it. Every submitted row appears, including the ones we refused — a malformed line and a duplicate spelling are dispositions rather than omissions, and a row that vanished silently between upload and quote is the failure the acknowledgement step exists to prevent.
+     *
+     *     `line_state`, `purchased` and `delivery_state` answer three different questions and none implies another. A work can be quoted and never reached, purchased and not delivered, or excluded and therefore never attempted.
+     */
+    AcquisitionWork: {
+      /** @description 1-based place in the submitted file, so a Buyer can find the row they wrote. */
+      position: number
+      /** @description The address exactly as submitted. */
+      submitted_url: string
+      /** @description The address after canonicalization — the identity function for a brokered work. Two rows that differ only in `www.`, a query string or a fragment name one work, and the second is excluded as a duplicate rather than bought twice. */
+      canonical_url?: string | null
+      /**
+       * @description What the quote said. `firm` was priced from a rate the broker answered with; `estimated` from a rate we already held because the broker could not be asked; `excluded` will not be bought.
+       * @enum {string}
+       */
+      line_state: 'pending' | 'firm' | 'estimated' | 'excluded'
+      /**
+       * @description Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason.
+       * @enum {string|null}
+       */
+      exclusion_reason?:
+        | 'excluded_malformed'
+        | 'excluded_duplicate'
+        | 'excluded_no_rate'
+        | 'excluded_free_not_supported'
+        | 'excluded_not_deliverable'
+        | 'excluded_insufficient_rights'
+        | 'excluded_above_price_ceiling'
+        | 'excluded_rate_unavailable'
+        | null
+      /** @description What this work was quoted at, in micros. **Never published in cents.** Per-work cents are display-only and non-summable for a Bulk acquisition — the authoritative figure is micros and the acquisition total is what reconciles, so a client is given nothing here that invites adding up to the charge. */
+      price_micros?: number | null
+      /**
+       * @description Whether a Purchase was made for this work.
+       *
+       *     **History, not access.** Under single use a completed Purchase is a receipt for a delivery that has already happened; it grants nothing further, and is never a reason to serve a body again. Reported so a Buyer can tell "we bought this and the bytes did not arrive" — a delivery we owe — from "we never bought it".
+       */
+      purchased: boolean
+      /**
+       * @description What the run did. `pending` means not yet attempted — which is also what an excluded work reads, because it was never attempted and `undelivered` would claim we tried and failed. Those are different answers to a Buyer and only the second is worth a retry.
+       * @enum {string}
+       */
+      delivery_state: 'pending' | 'delivered' | 'undelivered'
+      /**
+       * @description Why an attempted work did not arrive, as a type rather than prose. Only `retrieval_failed` is transient; the rest fail identically on every attempt, so retrying one spends a run's budget on works that need re-pricing, a fix, or money.
+       * @enum {string|null}
+       */
+      failure_reason?:
+        | 'retrieval_failed'
+        | 'not_licensable'
+        | 'price_drifted'
+        | 'client_error'
+        | 'insufficient_funds'
+        | 'cap_refused'
+        | null
+      /** @description How many times retrieval was tried, the successful attempt included. */
+      attempts?: number | null
+    }
+    /**
+     * @description A Publication a Buyer can license from — the title a Bulk acquisition is organised around. Listed from our own registry, which is reconciled daily against the Broker's directory, rather than from a live call.
+     *
+     *     Licensability is a rights answer, not a quality one. A publication that publishes no `FULL_USE` rate is still listed, with `bulk_licensable: false`: its works can be bought one at a time but are excluded from a corpus as `excluded_insufficient_rights`.
+     */
+    Publication: {
+      /** Format: uuid */
+      id: string
+      /** @description The Broker's display name for the publication. */
+      name: string
+      /** @description The domains the publication is listed under, spelled as the Broker spells them — including a `www.` prefix where it has one. */
+      domains: string[]
+      /** @description Whether works from this publication can come back in a Bulk acquisition's corpus — true when it publishes a `FULL_USE` rate. */
+      bulk_licensable: boolean
+    }
+    /** @description Every Publication the Broker reports as ready to license, paginated. */
+    PublicationListResponse: {
+      data: components['schemas']['Publication'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    /** @description The MCP `list_publications` result: one page of the Publications a Buyer can license from, paged by offset and limit as `search_content` is. */
+    McpListPublicationsResult: {
+      publications: components['schemas']['Publication'][]
+      total_count: number
+      offset: number
+      limit: number
+    }
+    /** @description A work a Publication has available to license, as the Broker's catalog lists it. `url` is exactly what a Selection takes. */
+    PublicationWork: {
+      /** Format: uri */
+      url: string
+      /**
+       * Format: date-time
+       * @description When the Broker says the work was last modified. Null where it supplies none, which on some publications is every work.
+       */
+      last_mod: string | null
+    }
+    /** @description One page of a Publication's works, read live from the Broker's catalog. Unpriced: pricing happens when a Selection of these URLs is quoted. */
+    PublicationWorkListResponse: {
+      /** Format: uuid */
+      publication_id: string
+      /** @description The Publication domain this page was read from, in the Broker's spelling. A publication with several domains is walked one domain after another. Null only when the publication has no live domain to read. */
+      domain: string | null
+      /**
+       * @description How `from`/`to` applied to this page's domain. `applied` means the Broker filtered and every work is in range. `unsupported` means the filtered query returned nothing while the same domain unfiltered does not: the domain's catalog carries no modification dates, so the range cannot be answered. That is not the same as having no works in the range. The unfiltered works are deliberately not returned in their place, because they are not known to fall inside the range.
+       * @enum {string}
+       */
+      date_filter: 'not_requested' | 'applied' | 'unsupported'
+      works: components['schemas']['PublicationWork'][]
+      /** @description Opaque. Pass it back as `cursor` with the same `from`/`to` for the next page. Null means the walk is over; an empty page with a cursor is not the end. */
+      next_cursor: string | null
+    }
+    /** @description The MCP `list_publication_works` result. It is the same page as `GET /v1/publications/{id}/works` returns, by reference, so the two cannot drift. */
+    McpListPublicationWorksResult: components['schemas']['PublicationWorkListResponse']
+    /** @description Per-work dispositions for a Bulk acquisition, paginated. Its own endpoint rather than a field on the acquisition because a Selection may name 10,000 works and the acquisition resource has to stay cheap enough to poll for hours. */
+    PaginatedAcquisitionWorkList: {
+      data: components['schemas']['AcquisitionWork'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    /**
+     * @description A Bulk acquisition — the one resource the whole flow hangs off. The Buyer holds this id from the moment they submit a Selection, and every later step reads or advances it: the quote arrives on it, the acknowledgement is a timestamp on it, the hold is sized from its total, and the run writes its outcome back to it.
+     *
+     *     `status` and `quote_state` are two independent state machines and are not collapsible. `status` is the money — `quoted` holds nothing, `authorized` and `acquiring` hold funds, and every terminal state releases what is left. `quote_state` is whether the prices are in. A `quoted` acquisition whose quote is still `pending` has a snapshot and no prices, and a client that read one field would mis-read exactly that case.
+     */
+    AcquisitionResponse: {
+      /** Format: uuid */
+      id: string
+      /**
+       * @description Where the money is. `quoted` reserves nothing; `authorized` and `acquiring` hold the stated maximum chargeable total; `settled`, `cancelled` and `failed` are terminal and have released whatever was not captured.
+       * @enum {string}
+       */
+      status: 'quoted' | 'authorized' | 'acquiring' | 'settled' | 'cancelled' | 'failed'
+      /**
+       * @description Whether the Selection has been priced. Pricing is asynchronous — resolving rates for 10,000 works is ~200 upstream batch calls under undocumented limits — so a submitted Selection comes back `pending` and the client polls this.
+       * @enum {string}
+       */
+      quote_state: 'pending' | 'ready' | 'failed'
+      /** @description How many distinct publications the Selection spans. Nothing in a Bulk acquisition is keyed on a single publication. */
+      publication_count: number
+      /** @description How many rows the upload named and we accepted. Published alongside `work_count` because until pricing finishes the two differ and only this one is known: nothing carries a price while `quote_state` is `pending`, so a freshly submitted 10,000-row Selection reports `work_count: 0` and would otherwise read exactly like an empty one. */
+      submitted_work_count: number
+      /** @description Works that carry a price — firm or estimated. Excluded rows are not counted here, and neither is anything still waiting to be priced. */
+      work_count: number
+      quote: components['schemas']['AcquisitionQuote']
+      /** @description What we cannot sell, grouped by reason and counted. Grouped rather than enumerated because a 10,000-work Selection can exclude thousands of rows and the acknowledgement step asks the Buyer to register what kinds of thing are not coming; the per-work detail is `GET /v1/acquisitions/{id}/works`, which paginates. */
+      exclusions: {
+        /**
+         * @description Six of these are the Buyer's to act on and one is ours. `excluded_rate_unavailable` is the only transient one — it says we could not reach the broker to ask, and is the only reason here worth asking us to retry. `excluded_not_deliverable` is a broker failure we observed; `excluded_insufficient_rights` is a rights decision we made; `excluded_above_price_ceiling` is a price we declined. Those three are the ones most easily collapsed and must not be.
+         * @enum {string}
+         */
+        reason:
+          | 'excluded_malformed'
+          | 'excluded_duplicate'
+          | 'excluded_no_rate'
+          | 'excluded_free_not_supported'
+          | 'excluded_not_deliverable'
+          | 'excluded_insufficient_rights'
+          | 'excluded_above_price_ceiling'
+          | 'excluded_rate_unavailable'
+        count: number
+      }[]
+      /** @description What the run has done. `purchased` and `delivered` are separate facts and both are reported, because a Purchase can complete and its body fail to arrive — a delivery LedeWire owes, and not a reason to charge again. An acquisition with 10,000 purchases and 9,700 deliveries has 300 outstanding, which no single number says. */
+      delivery: {
+        /** @description Works a Purchase was made for. History, not an entitlement to re-read. */
+        purchased: number
+        delivered: number
+        /** @description Attempted and not delivered. An excluded work is not counted here — it was never attempted, and "not in your corpus because we refused to quote it" is a different answer from "not in your corpus because retrieval failed". */
+        undelivered: number
+        /** @description Quoted and not yet reached. What a resumed run will attempt. */
+        outstanding: number
+      }
+      /** Format: date-time */
+      created_at: string
+    }
+    /** @description The priced Selection, and the promise made about it. */
+    AcquisitionQuote: {
+      /** @enum {string} */
+      state: 'pending' | 'ready' | 'failed'
+      /** @description Subtotal of works priced from a rate the broker answered with, in micros (millionths of a dollar). */
+      firm_micros: number
+      /** @description Subtotal of works priced from a rate we already held, because the broker could not be asked. Estimated, never firm — the price may have moved, and observed broker prices move materially in both directions. What protects the Buyer is `maximum_chargeable_total_cents`. */
+      estimated_micros: number
+      /**
+       * @description The most this acquisition can charge. Settlement clamps captures to it and absorbs any drift above it from margin, so it is a ceiling rather than an estimate — an acquisition that cannot deliver every work charges less.
+       *
+       *     Subtotals are published in micros and the ceiling in cents deliberately: rounding happens **once**, on the total. Two rounded cent subtotals would not reliably sum to the rounded total, and publishing them that way would invite a client to add them up and disagree with the figure we charge. Per-work prices never sum to this either.
+       */
+      maximum_chargeable_total_cents: number
+      /** Format: date-time */
+      quoted_at?: string | null
+      /**
+       * Format: date-time
+       * @description When the stated maximum chargeable total stops standing — 24 hours after pricing. Published rather than left to the client to compute, so the window is not hard-coded against a constant of ours. Re-pricing is cheap: it re-prices the snapshot without re-resolving it, so the Buyer gets the same works at today's prices without uploading anything again.
+       */
+      expires_at?: string | null
+      /**
+       * Format: date-time
+       * @description When the Buyer registered what we cannot sell them. Withdrawn on every re-quote, so it always refers to the current set of exclusions and never to a previous one — an acknowledgement carried forward would be a Buyer authorizing a list they never saw.
+       */
+      exclusions_acknowledged_at?: string | null
+    }
+    /**
+     * @description Where a Bulk acquisition's Corpus is — a **state**, never an error.
+     *
+     *     A corpus is a rendering of Purchases the Buyer already holds, not an entitlement of its own, which is what makes everything about it cheap: it can be discarded and rebuilt, and rebuilding grants nothing that was not already granted. So a blob past its 30-day retention answers `rebuild_required` at 200 rather than 404 or 410 — those would tell the Buyer something was lost, and nothing was.
+     *
+     *     `rebuild_required` covers "never assembled" as well as "expired", on purpose: from the Buyer's side they are one situation — there is no file, ask for one — and splitting them would put our bookkeeping into their contract.
+     */
+    CorpusResponse: {
+      /**
+       * @description `ready` is downloadable now. `assembling` means a run is in flight and `pending` that one is queued — poll either. `rebuild_required` means ask for it again, with `POST /v1/acquisitions/{id}/corpus`. `failed` carries a reason.
+       * @enum {string}
+       */
+      state: 'pending' | 'assembling' | 'ready' | 'rebuild_required' | 'failed'
+      /**
+       * @description The archive rendering. There is no size-conditional switching — a client never branches on how big its corpus is.
+       * @enum {string|null}
+       */
+      format?: 'tar_gz' | 'jsonl_gz' | null
+      /** @description Size of the assembled archive. Null unless `ready`. */
+      byte_size?: number | null
+      /**
+       * Format: date-time
+       * @description When the blob is retired, 30 days after assembly. The signed Manifest has no expiry and is served separately from `/v1/acquisitions/{id}/manifest`, because an auditor years later must be able to obtain the record without the corpus.
+       */
+      expires_at?: string | null
+      /** @description Why assembly broke. Present only when `state` is `failed`. */
+      failure_reason?: string | null
+      /**
+       * @description Where to fetch the archive, relative to this API, and null in every state but `ready`.
+       *
+       *     An authenticated route of ours rather than a presigned store URL. Fetch it with the same bearer token as this request and the response is the archive itself — there is no redirect to follow and no second URL to capture. A link to the object store handed out here would stand whether or not its reader could authenticate, and a client may log, cache or forward a poll response. The corpus is the most sensitive thing this API serves, so the authorization decision belongs on every request for it.
+       */
+      download_url?: string | null
+    }
+    /**
+     * @description The signed Manifest of a Bulk acquisition — the audit record itself, not a summary of one. There is no separate receipt: two representations of the same facts eventually disagree, and a manifest that disagrees with the signed record is worse than no manifest.
+     *
+     *     Served verbatim from the bytes stored at first assembly. It is **not** re-derived from the rows it was generated from, because the signature covers bytes rather than meaning — a re-derived document would read the same, hash differently, and fail its own signature. A row edited in 2029 therefore cannot change a document written in 2026.
+     *
+     *     Permanent. The corpus blob expires 30 days after assembly; this does not, because an auditor years later must be able to obtain the record without the corpus.
+     */
+    CorpusManifestResponse: {
+      /** @description The manifest document. Every work in the Selection appears with a disposition — `delivered`, `undelivered`, or the name of its exclusion reason — because silent omission is a defect. A delivered entry additionally carries a content hash computed at capture, the licence asked for and the licence granted with its permission set, the captured licence document's path and hash, and what the Buyer was charged in micros. Cost columns are never in here. */
+      manifest: {
+        [key: string]: unknown
+      }
+      /** @description A detached JWS (RFC 7515 with RFC 7797 `b64:false`) over the manifest's exact canonical bytes — a protected header, two dots and a signature. Detached so the manifest stays a plain readable file that a compliance tool can ingest without a crypto library. */
+      signature: string
+      /** @description SHA-256 of the canonical manifest bytes, hex-encoded. */
+      digest: string
+      /** @description Which key history entry to resolve. An index, never a credential — it is a 96-bit truncation, so a verifier matches on all 32 raw public-key bytes. */
+      signing_kid: string
+      /** @description The head of the key history at signing time. A verifier checks that this digest appears somewhere in the chain being served — not that it equals the present head, since the history grows. What it catches is truncation or a fork since this manifest was issued, which needs no key at all, only control of the document. */
+      key_history_head_digest: string
+      /**
+       * Format: date-time
+       * @description When the manifest was signed. Our own assertion until #989's RFC 3161 token lands, and the compromise rule is only as trustworthy as this field.
+       */
+      signed_at: string
+      /** @description Where a verifier resolves `signing_kid`. */
+      key_history_url?: string
+    }
+    /**
+     * @description The append-only, hash-chained log of every Ed25519 key that has signed an audit-export manifest. This is the trust anchor a verifier resolves a manifest's `kid` through.
+     *     It is a log of *events*, not a table of keys: there is no `valid_until` or `retired_reason` field. A key's window closes at the `valid_from` of the next `activate` entry, and it is compromised if a `revoke` entry names it. Those are derived by the reader, because an entry that could be edited after a later one chained to it would break the chain. See docs/audit-export-key-history.md.
+     */
+    SigningKeyHistoryResponse: {
+      /** @description Bumped when the document's shape changes in a way a reader must notice. */
+      schema_version: number
+      /** @description Every entry, in chain order, starting at sequence 0. */
+      entries: {
+        /**
+         * @description `activate` brings a key into service and carries `public_key` and `valid_from`. `revoke` records that the key named by `kid` was stolen and carries `compromised_at`.
+         * @enum {string}
+         */
+        kind: 'activate' | 'revoke'
+        /** @description base64url(SHA-256(raw public key))[0, 16]. An index into this document, never a credential — it is a 96-bit truncation, so a verifier matches on all 32 raw public-key bytes instead. */
+        kid: string
+        /** @description Monotonic and gapless, starting at 0. */
+        sequence: number
+        /** @description The raw 32-byte Ed25519 public key, base64url-encoded without padding. Present on `activate` entries only. */
+        public_key?: string
+        /**
+         * Format: date-time
+         * @description When this key entered service. Present on `activate` entries only.
+         */
+        valid_from?: string
+        /**
+         * Format: date-time
+         * @description When the key named by `kid` is believed to have been stolen — ordinarily earlier than when it was discovered. Signatures dated before it stand; those at or after it are void. Present on `revoke` entries only.
+         */
+        compromised_at?: string
+        /** @description SHA-256 (hex) of the previous entry's RFC 8785 canonical JSON, including its signature. Absent on the root entry alone. */
+        previous_entry_digest?: string
+        /** @description base64url Ed25519 signature over this entry's canonical JSON excluding this field, made by the key in service before it — which, for a `revoke`, is not the key it names. Absent on the root entry alone. */
+        signature?: string
       }[]
     }
     /** @description x402 v2 settlement result. Base64-encoded JSON returned in the `PAYMENT-RESPONSE` header on a successful `200`. `accessToken` is present when an RS256 signing key is configured; omitted in environments without credentials. */
@@ -5034,6 +7254,69 @@ export interface components {
       /** Format: date-time */
       created_at: string
     }
+    /** @description RFC 8414 Authorization Server Metadata. MCP clients fetch this to discover the authorization flow. `registration_endpoint` is what tells a client that Dynamic Client Registration is available at all — without it, clients that do not speak CIMD fall back to asking a human for a client id. */
+    OauthAuthorizationServerMetadata: {
+      issuer: string
+      authorization_endpoint: string
+      token_endpoint: string
+      revocation_endpoint?: string
+      /** @description RFC 7591 Dynamic Client Registration endpoint. */
+      registration_endpoint: string
+      scopes_supported: string[]
+      response_types_supported: string[]
+      code_challenge_methods_supported: string[]
+      client_id_metadata_document_supported?: boolean
+      token_endpoint_auth_methods_supported?: string[]
+    }
+    /** @description RFC 7591 client metadata. Only `redirect_uris` is required; unrecognised members are ignored rather than rejected, so clients sending extensions this server does not implement still register successfully. */
+    OauthClientRegistrationRequest: {
+      /** @description Must be https, or http on a loopback host (`localhost`, `127.0.0.1`, `[::1]`). Fragments are not permitted. These become the allowlist for the issued client_id. */
+      redirect_uris: string[]
+      client_name?: string
+      client_uri?: string
+      logo_uri?: string
+      tos_uri?: string
+      policy_uri?: string
+      contacts?: string[]
+      software_id?: string
+      software_version?: string
+      /** @description Space-delimited. Scopes this server does not support are filtered out, and the response omits `scope` entirely when none was requested — registration decides nothing about what a token later grants. */
+      scope?: string
+      grant_types?: ('authorization_code' | 'refresh_token')[]
+      response_types?: 'code'[]
+      /**
+       * @description Optional, and may only be `none`. Registered clients are public — no client_secret is issued, and PKCE protects the code exchange.
+       * @enum {string}
+       */
+      token_endpoint_auth_method?: 'none'
+    }
+    /** @description RFC 7591 §3.2.1 client information response. Carries no `client_secret`: a registered client is public and authenticates at the token endpoint with PKCE alone. */
+    OauthClientRegistrationResponse: {
+      /** @description Server-assigned, opaque, `lwc_`-prefixed. Deliberately not a URL, so it is never mistaken for a Client ID Metadata Document. */
+      client_id: string
+      /** @description Seconds since the Unix epoch. */
+      client_id_issued_at: number
+      redirect_uris: string[]
+      /** @enum {string} */
+      token_endpoint_auth_method: 'none'
+      grant_types?: string[]
+      response_types?: string[]
+      scope?: string
+      client_name?: string
+      client_uri?: string
+      logo_uri?: string
+      tos_uri?: string
+      policy_uri?: string
+      contacts?: string[]
+      software_id?: string
+      software_version?: string
+    }
+    /** @description RFC 7591 §3.2.2 client registration error response. */
+    OauthClientRegistrationErrorResponse: {
+      /** @enum {string} */
+      error: 'invalid_redirect_uri' | 'invalid_client_metadata'
+      error_description?: string
+    }
   }
   responses: never
   parameters: never
@@ -5042,4 +7325,213 @@ export interface components {
   pathItems: never
 }
 export type $defs = Record<string, never>
-export type operations = Record<string, never>
+export interface operations {
+  mcpCall: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json':
+          | components['schemas']['McpJsonRpcRequest']
+          | components['schemas']['McpJsonRpcRequest'][]
+      }
+    }
+    responses: {
+      /**
+       * @description All MCP responses — including errors — are returned as HTTP 200 with a JSON-RPC 2.0 envelope. Inspect `result` (success) or `error` (failure). A batch request is answered with an array of these envelopes.
+       *
+       *     On `tools/call`, the tool's payload appears twice: as a JSON string inside `result.content[0].text` (parse it to access tool-specific fields), and as the already-parsed object in `result.structuredContent`. The text block is the older of the two and every existing client parses it, so it is not going away.
+       *
+       *     The two carry the same payload for all sixteen tools, so either may be read.
+       *
+       *     `get_content_sales` and `get_buyer_insights` were the exception until #603: their text block carried a bare array while `structuredContent` nested it under a collection key. Both now return a pagination envelope — `{ content_sales | buyer_insights, total_count, offset, limit }` — through both channels. A client reading either tool's text block as an array must read `.content_sales` / `.buyer_insights` instead.
+       *
+       *     Exception: `get_content` on unpurchased content returns `result.isError: true` + `result.structuredContent` containing x402 payment requirements (this is x402-MCP spec compliant).
+       *
+       *     A tool called without the scope its tier requires also returns `result.isError: true` — with a payload carrying `required_scopes` and the OAuth URL to upgrade at — rather than a JSON-RPC error, so an agent can relay the upgrade path to its user as text.
+       *
+       *     Every tool's `inputSchema` sets `additionalProperties: false`, so an argument the tool does not declare is rejected with `result.isError: true` naming the offending property. Passing an undeclared argument is a caller error, never a server one — drop it and retry rather than treating the response as an outage.
+       */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            jsonrpc: '2.0'
+            /** @description Echoed from the request. */
+            id: number | string
+            /** @description Present on success. */
+            result?: Record<string, never>
+            /** @description Present on failure. */
+            error?: {
+              /** @description JSON-RPC error codes: `-32700` malformed JSON, `-32600` invalid request envelope, `-32601` method not found, `-32602` invalid params (also an unknown `resources/read` URI, and a missing required `prompts/get` argument), `-32001` authorization failure (accompanies a `403`; unauthenticated calls get a `401` with a `WWW-Authenticate` challenge instead). */
+              code: number
+              message: string
+            }
+          }
+        }
+      }
+      /** @description A notification was accepted. Notifications carry no `id`, so there is nothing to respond to and the body is empty. `notifications/initialized` is the only one this server expects. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Auth-required tool called without credentials, or with credentials that failed authentication (revoked, expired, or wrong secret). Always carries a `WWW-Authenticate` challenge so RFC 9728 clients know to re-run the OAuth flow. */
+      401: {
+        headers: {
+          /**
+           * @description RFC 9728 / RFC 6750 challenge naming the PRM document and required scope.
+           * @example Bearer error="invalid_token", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp", scope="mcp:search"
+           */
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            /** @example insufficient_scope */
+            error: string
+            /**
+             * @description Scope the calling key must hold to invoke the requested tool.
+             * @example mcp:search
+             */
+            scope: string
+          }
+        }
+      }
+      /** @description Authenticated but insufficient permissions (e.g. `can_purchase: false` attempting payment). */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Rate limit exceeded (15/min unauthenticated, 60/min authenticated). */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  listMcpKeys: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Array of active MCP API keys (no secrets). */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpApiKey'][]
+        }
+      }
+      /** @description Missing or invalid buyer JWT. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
+  createMcpKey: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['McpApiKeyCreateRequest']
+      }
+    }
+    responses: {
+      /** @description Key created. The `secret` is shown once — store it immediately. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpApiKeyCreateResponse']
+        }
+      }
+      /** @description Missing or invalid buyer JWT. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Validation error (e.g. missing label). */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
+  revokeMcpKey: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description UUID of the MCP API key to revoke. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Key revoked successfully. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Missing or invalid buyer JWT. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description Key not found or does not belong to the authenticated user. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+    }
+  }
+}

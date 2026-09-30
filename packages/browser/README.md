@@ -16,7 +16,7 @@ Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) con
   // Determine what the visitor needs to do next
   const state = await lw.checkout.state('content-id')
   // state.checkout_state.next_required_action:
-  //   'authenticate' | 'fund_wallet' | 'purchase' | 'view_content'
+  //   'authenticate' | 'fund_wallet' | 'purchase'
 </script>
 ```
 
@@ -63,6 +63,11 @@ google.accounts.id.renderButton(document.getElementById('signin-btn'), { theme: 
 
 ## Example: Full Checkout Flow
 
+Purchases are single-use: a completed purchase does not by itself grant access
+again later. `has_purchased` means only "has ever bought" — buying delivers the
+content directly in the `purchases.create()` response, and that response is the
+only place `content_body` / `content_uri` ever appear for a purchase.
+
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
@@ -76,20 +81,36 @@ switch (checkout_state.next_required_action) {
     const session = await lw.wallet.createPaymentSession({ amount_cents: 500 })
     // redirect to session.payment_url
     break
-  case 'purchase':
-    await lw.purchases.create({ content_id: 'article-123' })
-    break
-  case 'view_content':
-    const { content_type, content_body, content_uri } =
-      await lw.content.getWithAccess('article-123')
-    if (content_type === 'markdown') {
-      // content_body is plain text — the SDK decodes base64 automatically
-      renderMarkdown(content_body)
-    } else {
-      // redirect to the gated external URI (Vimeo, PDF, etc.)
-      window.location.href = content_uri
+  case 'purchase': {
+    // Buying is how the buyer receives the content — the delivery comes back
+    // directly in this response, never from a later GET. Persist it now:
+    // there is no route that serves the same delivery again.
+    const purchase = await lw.purchases.create({ content_id: 'article-123' })
+    await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
+
+    if (purchase.content_body) {
+      // content_body is always plain UTF-8 text on the wire — never
+      // base64-encoded — so no decoding step is needed. What it contains
+      // depends on purchase.content.content_type.
+      if (purchase.content.content_type === 'markdown') {
+        renderMarkdown(purchase.content_body)
+      } else if (purchase.content.content_type === 'html') {
+        // Inline HTML content is seller-supplied and must be sanitised
+        // before insertion — never assign it to innerHTML directly.
+        container.innerHTML = DOMPurify.sanitize(purchase.content_body)
+      }
+    } else if (purchase.content_uri) {
+      // content_uri points at a remote resource (video, PDF, image, or
+      // remote HTML). Check the scheme before navigating or linking to it —
+      // the URI is seller-supplied and a non-http(s) scheme should not be
+      // followed automatically.
+      const uri = new URL(purchase.content_uri)
+      if (['https:', 'http:'].includes(uri.protocol)) {
+        window.location.href = purchase.content_uri
+      }
     }
     break
+  }
 }
 ```
 

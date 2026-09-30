@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, NotFoundError } from '@ledewire/core'
+import { AuthError, NotFoundError, SpendCapReachedError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { errorResponseFixture, purchaseResponseFixture } from '@ledewire/core/test-utils'
+import {
+  errorResponseFixture,
+  purchaseResponseFixture,
+  spendCapReachedErrorFixture,
+} from '@ledewire/core/test-utils'
 import { init } from '../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -57,6 +61,52 @@ describe('purchases.create', () => {
     await expect(
       makeClient().purchases.create({ content_id: 'missing', price_cents: 100 }),
     ).rejects.toThrow(NotFoundError)
+  })
+
+  it('returns content_body verbatim — plain UTF-8 text, never base64-decoded', async () => {
+    const body = 'Café résumé — 日本語のテキスト'
+    const fixture = purchaseResponseFixture({ content_body: body })
+    server.use(http.post(`${BASE}/v1/purchases`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().purchases.create({
+      content_id: 'content-id-1',
+      price_cents: 500,
+    })
+
+    expect(result.content_body).toBe(body)
+  })
+
+  it('returns content_uri for a remotely-hosted deliverable', async () => {
+    const fixture = purchaseResponseFixture({
+      content_uri: 'https://cdn.example.com/videos/content-id-1.mp4',
+    })
+    delete (fixture as { content_body?: string }).content_body
+    server.use(http.post(`${BASE}/v1/purchases`, () => HttpResponse.json(fixture)))
+
+    const result = await makeClient().purchases.create({
+      content_id: 'content-id-1',
+      price_cents: 500,
+    })
+
+    expect(result.content_uri).toBe('https://cdn.example.com/videos/content-id-1.mp4')
+    expect(result.content_body).toBeUndefined()
+  })
+
+  it('throws SpendCapReachedError with the cap fields populated on a 402', async () => {
+    const fixture = spendCapReachedErrorFixture()
+    server.use(http.post(`${BASE}/v1/purchases`, () => HttpResponse.json(fixture, { status: 402 })))
+
+    const err = await makeClient()
+      .purchases.create({ content_id: 'content-id-1', price_cents: 500 })
+      .catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(SpendCapReachedError)
+    const spendCapErr = err as SpendCapReachedError
+    expect(spendCapErr.capCents).toBe(fixture.cap_cents)
+    expect(spendCapErr.spentCents).toBe(fixture.spent_cents)
+    expect(spendCapErr.remainingCents).toBe(fixture.remaining_cents)
+    expect(spendCapErr.resetsAt).toBe(fixture.resets_at)
+    expect(spendCapErr.bulkExempt).toBe(fixture.bulk_exempt)
   })
 })
 

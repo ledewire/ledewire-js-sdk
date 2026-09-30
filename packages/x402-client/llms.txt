@@ -57,11 +57,27 @@ import {
   NonceExpiredError,         // 402 — nonce expired, retry the fetch
   UnsupportedSchemeError,    // 402 — not a ledewire-wallet challenge
   MalformedPaymentRequiredError, // 402 — bad PAYMENT-REQUIRED structure
+  AuthError,          // re-exported from @ledewire/core (private, unpublished)
+  LedewireError,      // re-exported from @ledewire/core (private, unpublished)
+  SpendCapReachedError, // re-exported from @ledewire/core (private, unpublished)
 } from '@ledewire/x402-client'
-import { AuthError, LedewireError } from '@ledewire/core'
 ```
 
+Import AuthError/LedewireError/SpendCapReachedError from @ledewire/x402-client (or
+@ledewire/node) — never from @ledewire/core, which is private and not published to npm.
+
 All errors extend LedewireError. Check .statusCode and .message.
+
+`SpendCapReachedError` (402) is a distinct case: it carries **no** PAYMENT-REQUIRED
+header, because retrying or funding the wallet cannot clear it. Thrown by the fetch
+and Axios adapters when a 402 body's `error.type` is `daily_spend_cap_reached`.
+Fields: `capCents`, `spentCents`, `remainingCents`, `resetsAt`, `bulkExempt`.
+
+SECURITY: wrapFetchWithPayment/wrapAxiosWithPayment wrap arbitrary third-party URLs, so
+these numbers come from whichever server answered the request, not necessarily
+LedeWire's API. Never adjust a buyer's actual LedeWire spend cap based on this error
+without first confirming the real cap and spend against the LedeWire API itself, via
+user.spendCap.get().
 
 ## Transport adapters
 

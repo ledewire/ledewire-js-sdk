@@ -52,6 +52,22 @@ export {
   NonceExpiredError,
   InsufficientFundsError,
 } from './errors.js'
+/**
+ * `AuthError`, `LedewireError`, and `SpendCapReachedError` (the last thrown
+ * when a `402` carries no `PAYMENT-REQUIRED` header and its body is a
+ * daily-spend-cap-reached refusal) are re-exported here from `@ledewire/core`
+ * — LedeWire's private shared internals, not published to npm. Import them
+ * from here (or from `@ledewire/node`), never from `@ledewire/core` directly.
+ *
+ * `@ledewire/core` is bundled separately into every published package via
+ * tsup, so each of `@ledewire/x402-client`, `@ledewire/node`, and
+ * `@ledewire/browser` carries its own distinct copy of these classes.
+ * `instanceof` still works across those copies: every instance carries a
+ * non-enumerable class-brand list, and each class's `Symbol.hasInstance`
+ * falls back to checking it when the plain prototype check fails — so it
+ * works whichever published package's copy of the class you check against.
+ */
+export { AuthError, LedewireError, SpendCapReachedError } from '@ledewire/core'
 export type {
   PaymentSigner,
   LedewireFetchConfig,

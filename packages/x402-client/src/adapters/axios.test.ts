@@ -6,7 +6,7 @@ import { wrapAxiosWithPayment } from './axios.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
 import { InsufficientFundsError } from '../errors.js'
-import { LedewireError } from '@ledewire/core'
+import { LedewireError, SpendCapReachedError } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const ORIGIN_URL = 'https://blog.example.com/posts/article'
@@ -168,6 +168,29 @@ describe('wrapAxiosWithPayment', () => {
     const instance = wrapAxiosWithPayment(axios.create(), makeClient())
     // Without a payment-required header the interceptor rejects with the original error
     await expect(instance.get(ORIGIN_URL)).rejects.toMatchObject({ response: { status: 402 } })
+  })
+
+  it('throws SpendCapReachedError on a 402 with no payment-required header and a daily-spend-cap-reached body', async () => {
+    const capBody = {
+      error: { code: 402, message: 'Daily spend cap reached.', type: 'daily_spend_cap_reached' },
+      cap_cents: 5000,
+      spent_cents: 5000,
+      remaining_cents: 0,
+      resets_at: '2099-01-02T00:00:00Z',
+      bulk_exempt: false,
+    }
+    server.use(http.get(ORIGIN_URL, () => HttpResponse.json(capBody, { status: 402 })))
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+
+    const err = await instance.get(ORIGIN_URL).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(SpendCapReachedError)
+    const spendCapErr = err as SpendCapReachedError
+    expect(spendCapErr.capCents).toBe(5000)
+    expect(spendCapErr.spentCents).toBe(5000)
+    expect(spendCapErr.remainingCents).toBe(0)
+    expect(spendCapErr.resetsAt).toBe('2099-01-02T00:00:00Z')
+    expect(spendCapErr.bulkExempt).toBe(false)
   })
 
   it('uses a fallback message when retry error body has no string error field', async () => {
