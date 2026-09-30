@@ -46,10 +46,15 @@ const client = createClient({
 - `lw.wallet.transactions()` → list of wallet transactions
 - `lw.wallet.createPaymentSession({ amount_cents })` → Stripe payment session
 - `lw.wallet.getPaymentStatus(sessionId)` → payment status
-- `lw.purchases.create({ content_id })` → create purchase
-- `lw.purchases.list()` → list purchases
-- `lw.purchases.get(id)` → single purchase
+- `lw.purchases.create({ content_id })` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `lw.purchases.list()` → list purchases (no delivered content)
+- `lw.purchases.get(id)` → single purchase (no delivered content)
 - `lw.content.getWithAccess(contentId)` → content + access info (authenticated user implicit from token)
+- `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
+- `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
+- `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
+- `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
 - `lw.seller.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
 - `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
 - `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
@@ -73,9 +78,27 @@ const client = createClient({
 - `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; requires merchant auth)
 - `client.seller.content.*` — content CRUD + search
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
-- `client.purchases.*` — create, list, get
+- `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `client.purchases.list()` / `client.purchases.get(id)` — no delivered content
 - `client.content.getWithAccess(contentId, userId?)` → content + access info (`userId` for merchant proxy lookups)
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
+- `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
+- `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
+- `client.publications.list(pagination?)` → `PublicationListResponse` — publications available to bulk-license (public, no auth)
+- `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
+- `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
+- `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress
+- `client.acquisitions.requote(id)` → `AcquisitionResponse` (202) — re-price at today's rates
+- `client.acquisitions.acknowledgeExclusions(id)` → `AcquisitionResponse` — required before `authorize`
+- `client.acquisitions.authorize(id)` → `AcquisitionResponse` (202) — places the hold and starts the run; throws `SpendCapReachedError` (402)
+- `client.acquisitions.listWorks(id, pagination?)` → `PaginatedAcquisitionWorkList` — per-work disposition, refused rows included
+- `client.acquisitions.getCorpus(id)` / `.buildCorpus(id)` → `CorpusResponse` — corpus state / request assembly
+- `client.acquisitions.downloadCorpus(id)` → `{ ready: true, body, response } | { ready: false, corpus }` — streamed gzip archive, no `Content-Length`
+- `client.acquisitions.getManifest(id)` → `CorpusManifestResponse` — signed audit manifest (409 until first assembly)
+- `client.acquisitions.signingKeyHistory()` → `SigningKeyHistoryResponse` — public, verifies `manifest.signing_kid`
+- `client.x402.discoverResources({ limit?, offset? })` → `X402BazaarDiscoveryResponse` — public x402 Bazaar catalog
+- `createAgentClient({ key, secret })` → buyer-scoped client also exposing `publications`, `acquisitions`, `x402` (plus `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`)
 
 ## Key types (packages/core)
 
@@ -92,12 +115,35 @@ interface CheckoutStateResponse {
   }
 }
 
-// All SDK errors extend LedewireError
-class LedewireError extends Error { statusCode: number; code: number | undefined }
+// All SDK errors extend LedewireError. `instanceof` works across the
+// separately bundled copies of @ledewire/core in each published package.
+class LedewireError extends Error {
+  statusCode: number
+  code: number | undefined
+  type: ErrorTypeValue | undefined // machine-readable reason, e.g. 'daily_spend_cap_reached'
+  details: Readonly<Record<string, unknown>> | undefined // extra top-level error-body fields
+}
 class AuthError extends LedewireError {}       // statusCode 401 — bad credentials or expired token
 class ForbiddenError extends LedewireError {}  // statusCode 403 — authenticated but wrong role
 class NotFoundError extends LedewireError {}   // statusCode 404
 class PurchaseError extends LedewireError {}   // statusCode 409/422
+class SpendCapReachedError extends LedewireError {
+  // statusCode 402, type 'daily_spend_cap_reached' — thrown by purchases.create(),
+  // the x402 content gate, and acquisitions.authorize(). Funding the wallet does
+  // NOT clear this — it resets at `resetsAt` or via user.spendCap.update().
+  capCents: number
+  spentCents: number
+  remainingCents: number
+  resetsAt: string // ISO 8601
+  bulkExempt: boolean
+}
+
+interface WalletBalanceResponse {
+  balance_cents: number   // == spendable_cents
+  spendable_cents: number
+  held_cents: number      // committed to active bulk acquisitions, not yet spent/released
+  holds: Array<{ acquisition_id: string; held_cents: number; authorized_at: string }>
+}
 ```
 
 ## Merchant auth error distinction (important)

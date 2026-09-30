@@ -41,34 +41,34 @@ function isJsonContentType(contentType: string): boolean {
 }
 
 /**
- * Request body for {@link AcquisitionsNamespace.create}.
+ * Request body for `client.acquisitions.create()`.
  */
 export interface AcquisitionCreateRequest {
   /**
    * The works to license, in the order they should be recorded (a Selection).
    * Every row gets a disposition, refused ones included — a row that vanished
    * silently between upload and quote is exactly the failure the
-   * {@link AcquisitionsNamespace.acknowledgeExclusions} step exists to prevent.
+   * `client.acquisitions.acknowledgeExclusions()` step exists to prevent.
    * Typically the `url`s from one or more pages of
-   * {@link PublicationsNamespace.listWorks}.
+   * `client.publications.listWorks()`.
    */
   urls: string[]
 }
 
 /**
- * Result of {@link AcquisitionsNamespace.downloadCorpus} — a discriminated union
+ * Result of `client.acquisitions.downloadCorpus()` — a discriminated union
  * on `ready`.
  *
  * - `ready: true` — the archive is streaming now, as `body`.
  * - `ready: false` — nothing to stream yet; `corpus` carries the same state
- *   {@link AcquisitionsNamespace.getCorpus} would report (e.g. `assembling`,
+ *   `client.acquisitions.getCorpus()` would report (e.g. `assembling`,
  *   `pending`, `rebuild_required`, or `failed`).
  */
 export type CorpusDownloadResult =
   | {
       /** The corpus archive is ready and streaming. */
       ready: true
-      /** The gzip archive body. Read it to completion and verify its size against `byte_size` from {@link AcquisitionsNamespace.getCorpus} — the download carries no `Content-Length`. */
+      /** The gzip archive body. Read it to completion and verify its size against `byte_size` from `client.acquisitions.getCorpus()` — the download carries no `Content-Length`. */
       body: ReadableStream<Uint8Array>
       /** The raw `Response`, for callers that need headers or want to read the body a different way (`.blob()`, `.arrayBuffer()`, etc.). */
       response: Response
@@ -76,7 +76,7 @@ export type CorpusDownloadResult =
   | {
       /** Nothing is downloadable yet. */
       ready: false
-      /** The corpus state, exactly as {@link AcquisitionsNamespace.getCorpus} would report it. */
+      /** The corpus state, exactly as `client.acquisitions.getCorpus()` would report it. */
       corpus: CorpusResponse
     }
 

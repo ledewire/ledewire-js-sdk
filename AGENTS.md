@@ -43,12 +43,16 @@ packages/core/src/
   api.gen.ts       ← generated OpenAPI response types (do not edit)
 
 packages/node/src/
-  client.ts              ← createClient() factory
+  client.ts              ← createClient() / createAgentClient() factories
   resources/
     auth.ts              ← buyer auth
     merchant/{auth,users,sales,buyers,config}.ts
     seller/content.ts
     wallet.ts / purchases.ts / content.ts / checkout.ts
+    acquisitions.ts      ← bulk licensing: quote, authorize, corpus, signed manifest
+    publications.ts      ← bulk-licensing catalog (public)
+    x402.ts               ← x402 Bazaar resource discovery (public)
+    user/{api-keys,spend-cap,mcp-keys}.ts
 
 packages/browser/src/
   client.ts              ← init() factory + BrowserClient
@@ -56,6 +60,12 @@ packages/browser/src/
   session-storage-adapter.ts
   web-storage-adapter.ts ← shared impl (not exported publicly)
   resources/{auth,wallet,purchases,content,checkout}.ts
+  resources/user/{api-keys,spend-cap,mcp-keys}.ts
+
+packages/x402-client/src/
+  index.ts               ← createLedewireFetch() — x402 402-challenge fetch wrapper
+  payment-client.ts      ← LedewirePaymentClient — builds PAYMENT-SIGNATURE
+  adapters/{fetch,axios}.ts
 ```
 
 See `.github/AGENTS.md` for the full client namespace map, critical patterns,

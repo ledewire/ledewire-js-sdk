@@ -48,6 +48,8 @@ const lw = init({
 | `lw.purchases`      | List and create content purchases                                               |
 | `lw.content`        | Fetch content with buyer access info                                            |
 | `lw.checkout`       | Checkout state — what action is required next                                   |
+| `lw.user.spendCap`  | Buyer's daily spend cap — read and update the ceiling                           |
+| `lw.user.mcpKeys`   | Manage buyer MCP API keys for the Ledewire MCP server                           |
 | `lw.seller.content` | List, search, and get store content (API key auth)                              |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
@@ -112,6 +114,25 @@ switch (checkout_state.next_required_action) {
     break
   }
 }
+```
+
+## Example: Spend Cap & MCP API Keys
+
+```ts
+// Every buyer starts with a default daily spend cap governing every wallet
+// debit. Exceeding it throws SpendCapReachedError (402) from
+// lw.purchases.create() — funding the wallet does not clear it.
+const cap = await lw.user.spendCap.get()
+if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
+  console.warn(`Only ${cap.remaining_cents}c left before the cap resets at ${cap.resets_at}`)
+}
+await lw.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
+
+// MCP API keys authenticate agent requests to the Ledewire MCP server. The
+// secret is shown once at creation — store it immediately.
+const { key, secret } = await lw.user.mcpKeys.create({ label: 'my-agent', can_search: true })
+const keys = await lw.user.mcpKeys.list() // secrets never included
+await lw.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
 ```
 
 ## Example: Seller Content Discovery

@@ -310,7 +310,7 @@ export type UserApiKeyCreateRequest = components['schemas']['UserApiKeyCreateReq
 export type UserApiKeyCreateResponse = components['schemas']['UserApiKeyCreateResponse']
 
 /**
- * Machine-readable reason on an {@link ErrorResponse}, present on refusals that carry one.
+ * Machine-readable reason on an API error envelope, present on refusals that carry one.
  * Branch on this rather than on `message`, which is prose and may be reworded.
  *
  * - `retrieval_failed` — transient; worth retrying.

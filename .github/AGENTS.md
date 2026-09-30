@@ -9,26 +9,30 @@ See `OVERVIEW.md` for the full design rationale and build order.
 
 ## Package Map
 
-| Package            | npm name                  | Purpose                                                 |
-| ------------------ | ------------------------- | ------------------------------------------------------- |
-| `packages/core`    | (private — not published) | HTTP client, token manager, error classes, shared types |
-| `packages/browser` | `@ledewire/browser`       | Buyer-facing SDK for browsers. CDN `<script>` tag + npm |
-| `packages/node`    | `@ledewire/node`          | Full API surface for Node.js. Merchant + seller + buyer |
+| Package                | npm name                  | Purpose                                                                                                            |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `packages/core`        | (private — not published) | HTTP client, token manager, error classes, shared types                                                            |
+| `packages/browser`     | `@ledewire/browser`       | Buyer-facing SDK for browsers. CDN `<script>` tag + npm                                                            |
+| `packages/node`        | `@ledewire/node`          | Full API surface for Node.js. Merchant + seller + buyer                                                            |
+| `packages/x402-client` | `@ledewire/x402-client`   | Runtime-agnostic x402 fetch wrapper — pays `402` content challenges automatically via the `ledewire-wallet` scheme |
 
 ## Key Files
 
-| File                                              | Purpose                                                                     |
-| ------------------------------------------------- | --------------------------------------------------------------------------- |
-| `ledewire.yml`                                    | OpenAPI 3.1 spec — source of truth for all endpoints and types              |
-| `OVERVIEW.md`                                     | Architecture overview, design decisions, build order                        |
-| `packages/core/src/errors.ts`                     | `LedewireError` class hierarchy                                             |
-| `packages/core/src/http-client.ts`                | Fetch wrapper — auth injection, error mapping, 401 retry                    |
-| `packages/core/src/token-manager.ts`              | Proactive + reactive JWT refresh, deduplication                             |
-| `packages/core/src/types.ts`                      | Shared TypeScript types from the OpenAPI spec                               |
-| `packages/node/src/client.ts`                     | `createClient()` factory for Node.js                                        |
-| `packages/browser/src/client.ts`                  | `init()` factory for browsers                                               |
-| `packages/browser/src/local-storage-adapter.ts`   | `localStorage`-backed token storage (persists across tabs/restarts)         |
-| `packages/browser/src/session-storage-adapter.ts` | `sessionStorage`-backed token storage (tab-scoped, recommended for widgets) |
+| File                                              | Purpose                                                                                                               |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ledewire.yml`                                    | OpenAPI 3.1 spec — source of truth for all endpoints and types                                                        |
+| `OVERVIEW.md`                                     | Architecture overview, design decisions, build order                                                                  |
+| `packages/core/src/errors.ts`                     | `LedewireError` class hierarchy                                                                                       |
+| `packages/core/src/http-client.ts`                | Fetch wrapper — auth injection, error mapping, 401 retry                                                              |
+| `packages/core/src/token-manager.ts`              | Proactive + reactive JWT refresh, deduplication                                                                       |
+| `packages/core/src/types.ts`                      | Shared TypeScript types from the OpenAPI spec                                                                         |
+| `packages/node/src/client.ts`                     | `createClient()` factory for Node.js                                                                                  |
+| `packages/browser/src/client.ts`                  | `init()` factory for browsers                                                                                         |
+| `packages/browser/src/local-storage-adapter.ts`   | `localStorage`-backed token storage (persists across tabs/restarts)                                                   |
+| `packages/browser/src/session-storage-adapter.ts` | `sessionStorage`-backed token storage (tab-scoped, recommended for widgets)                                           |
+| `packages/node/src/resources/acquisitions.ts`     | Bulk-licensing flow: quote, authorize, corpus download, signed manifest                                               |
+| `packages/node/src/resources/publications.ts`     | Bulk-licensing catalog: publications and their works (public)                                                         |
+| `packages/core/src/spend-cap.ts`                  | `spendCapErrorFromBody()` — shared 402 body parser to `SpendCapReachedError` (used by `HttpClient` and `x402-client`) |
 
 ## Client Namespace Structure
 
@@ -38,6 +42,8 @@ See `OVERVIEW.md` for the full design rationale and build order.
 client.config.*                 platform public config (no auth required)
 client.auth.*                   buyer auth (email, google, api-key, password reset)
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
+client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
+client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
 client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
 client.merchant.users.*         team management (invite, list, remove, update)
 client.merchant.content.*       content CRUD + search (merchant JWT auth)
@@ -50,11 +56,17 @@ client.seller.content.*         seller content CRUD + search (API key auth)
 client.seller.sales.*           seller sales summary + per-content statistics
 client.seller.buyers.*          anonymized buyer statistics (API key auth)
 client.seller.config.*          store configuration (API key auth)
-client.wallet.*                 balance, payment sessions, transactions
-client.purchases.*              create, list, get, verify purchases
+client.wallet.*                 balance (incl. held_cents/holds), payment sessions, transactions
+client.purchases.*              create (single-use delivery), list, get, verify purchases
 client.content.*                public content with buyer access info
 client.checkout.*               checkout state machine
+client.publications.*           bulk-licensing catalog: publications + their works (public)
+client.acquisitions.*           bulk licensing: quote, authorize, corpus download, signed manifest
+client.x402.*                   public x402 Bazaar resource discovery (no auth required)
 ```
+
+`createAgentClient()` exposes a buyer-scoped subset: `auth`, `wallet`, `purchases`,
+`content`, `checkout`, `user`, `publications`, `acquisitions`, `x402`.
 
 ### Testing utilities (`@ledewire/node/testing`)
 
@@ -71,9 +83,12 @@ import { createMockClient } from '@ledewire/node/testing'
 lw.config.*          platform public config (no auth required)
 lw.auth.*            signup, login (email + google), logout, password reset
 lw.checkout.*        checkout state machine for a content item
-lw.wallet.*          balance, fund (payment session), transactions
-lw.purchases.*       create, list, verify
+lw.wallet.*          balance (incl. held_cents/holds), fund (payment session), transactions
+lw.purchases.*       create (single-use delivery), list, verify
 lw.content.*         content with access info
+lw.user.apiKeys.*    buyer API key management (list, create, revoke)
+lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
+lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
 lw.seller.*          loginWithApiKey (view or full), content list/search/get
 ```
 
@@ -87,7 +102,18 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 ### Errors
 
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
-the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`).
+the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`,
+`SpendCapReachedError`). `LedewireError` also carries an optional `type` (the API
+error body's machine-readable `error.type`, e.g. `'daily_spend_cap_reached'`) and
+`details` (extra top-level error-body fields). `instanceof` works even across the
+separately bundled copies of `@ledewire/core` in `@ledewire/node`, `@ledewire/browser`,
+and `@ledewire/x402-client` (see the brand-list fallback in
+`LedewireError[Symbol.hasInstance]`).
+
+`SpendCapReachedError` (402, `type: 'daily_spend_cap_reached'`) is thrown by
+`purchases.create()`, the x402 content gate, and `acquisitions.authorize()`.
+Funding the wallet does **not** clear it — it resets at `err.resetsAt`, or the
+cap can be raised/removed via `user.spendCap.update()`.
 
 #### Merchant auth role mismatch — `ForbiddenError`, not `AuthError`
 

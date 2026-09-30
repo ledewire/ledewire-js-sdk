@@ -69,11 +69,13 @@ jobs:
           # Only fail on structural changes (added/removed pages).
           # Content-only diffs in navigation.js/search.js are non-deterministic
           # across Node.js versions and are not meaningful signal.
-          STRUCTURAL=$(git diff --name-status docs/api | grep -E '^[AD]' || true)
+          # `git status` rather than `git diff`: a newly generated page is an
+          # untracked file (`??`), which `git diff` never lists.
+          STRUCTURAL=$(git status --porcelain --untracked-files=all docs/api | grep -E '^(\?\?|D | D)' || true)
           if [ -n "$STRUCTURAL" ]; then
             echo ""
             echo "ERROR: docs/api has added or removed pages."
             echo "Run 'pnpm run docs' locally and commit the updated files."
-            git diff --name-status docs/api
+            echo "$STRUCTURAL"
             exit 1
           fi
