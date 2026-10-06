@@ -50,6 +50,7 @@ const lw = init({
 | `lw.checkout`       | Checkout state — what action is required next                                   |
 | `lw.user.spendCap`  | Buyer's daily spend cap — read and update the ceiling                           |
 | `lw.user.mcpKeys`   | Manage buyer MCP API keys for the Ledewire MCP server                           |
+| `lw.company`        | Company wallets: membership, invitations, members, Machine users, top-ups       |
 | `lw.seller.content` | List, search, and get store content (API key auth)                              |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
@@ -134,6 +135,36 @@ const { key, secret } = await lw.user.mcpKeys.create({ label: 'my-agent', can_se
 const keys = await lw.user.mcpKeys.list() // secrets never included
 await lw.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
 ```
+
+## Example: Company Wallets
+
+A Company is a shared wallet that pays for its members' purchases. A member
+**never sees the Company balance**: `wallet.balance()` returns
+`balance_cents: null`, and `remaining_cents` / `company_name` say what they may
+still spend today and whose wallet pays. Handle `null` before rendering or
+doing arithmetic on a balance.
+
+```ts
+const wallet = await lw.wallet.balance()
+const label =
+  wallet.company_name !== null
+    ? `${wallet.company_name} pays — ${wallet.remaining_cents ?? '∞'}c left today`
+    : `Balance: ${wallet.balance_cents}c`
+
+// Accepting an invitation needs the token from the invitation email:
+await lw.company.invitations.accept({ token }) // existing account
+await lw.auth.signup({ email, password, name, company_invitation_token: token }) // new account
+
+// Company admins: members, spend caps, Machine users, top-ups, reports
+const { data: members } = await lw.company.members.list()
+await lw.company.members.update(members[0].id, { daily_spend_limit_cents: 5000 })
+const { data: pending } = await lw.company.wallet.listPendingTopUps()
+```
+
+The full surface (`membership`, `invitations`, `members`, `machineUsers` with
+`buyerKeys` / `mcpKeys`, `wallet`, `purchases`, `spend`) matches
+[`@ledewire/node`](../node/README.md#example-company-wallets). Admin-only
+methods throw `ForbiddenError` for a plain member.
 
 ## Example: Seller Content Discovery
 

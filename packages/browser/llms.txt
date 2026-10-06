@@ -117,6 +117,8 @@ lw.auth.resetPassword({ email, reset_code, password })         → Promise<AuthP
 Tokens are stored automatically after every successful login.
 `loginWithBuyerApiKey` is useful in buyer dashboards where the user has created a
 named API key and wants to authenticate headlessly (without email/password).
+`signup` accepts an optional `company_invitation_token` (from a Company
+invitation email) to sign up and join that Company in one step.
 
 ### lw.checkout
 
@@ -149,10 +151,15 @@ switch (checkout_state.next_required_action) {
 
 ```ts
 lw.wallet.balance()                                    → Promise<WalletBalanceResponse>
-// { balance_cents: number, spendable_cents: number, held_cents: number, holds: Hold[] }
+// { balance_cents: number | null, spendable_cents: number | null, held_cents: number,
+//   holds: Hold[], remaining_cents: number | null, company_name: string | null }
 // balance_cents always equals spendable_cents. held_cents is committed to active
 // bulk acquisitions (node-only feature); holds is one entry per such acquisition:
 // { acquisition_id, held_cents, authorized_at }.
+// COMPANY MEMBERS see no balance: balance_cents/spendable_cents are null,
+// company_name names whose wallet pays, remaining_cents is what they may still
+// spend today. content.getWithAccess().access_info.wallet_balance_cents is null
+// for them too. Handle null before rendering or doing arithmetic.
 
 lw.wallet.transactions(params?: PaginationParams)      → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
 
@@ -160,7 +167,10 @@ lw.wallet.createPaymentSession({ amount_cents: number }) → Promise<WalletPayme
 // { payment_url: string, session_id: string, ... } — redirect user to payment_url
 
 lw.wallet.getPaymentStatus(sessionId: string)          → Promise<WalletPaymentStatusResponse>
-// Poll after return from payment redirect to confirm funding
+// Poll after return from payment redirect to confirm funding.
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
+// completed/failed/cancelled are terminal; ACH can sit in awaiting_verification
+// (microdeposits) then processing for days. Personal top-ups only.
 ```
 
 ### lw.purchases
@@ -213,6 +223,7 @@ interface UserSpendCap {
   resets_at: string               // ISO 8601
   spend_window_timezone: string   // IANA zone, UTC by default
   bulk_exempt: boolean
+  company_name: string | null     // set for a Company member: this is their membership's cap
 }
 
 interface UserSpendCapUpdateRequest {
@@ -222,7 +233,9 @@ interface UserSpendCapUpdateRequest {
 
 Exceeding the cap throws `SpendCapReachedError` (402) from
 `lw.purchases.create()` — funding the wallet does NOT clear it. It clears at
-`resetsAt`, or when the cap is raised/removed here.
+`resetsAt`, or when the cap is raised/removed here. A Company member's cap is
+set by a Company admin (`lw.company.members.update()`); `update()` here throws
+`ForbiddenError` for a member.
 
 #### lw.user.mcpKeys
 
@@ -245,6 +258,31 @@ interface McpApiKeyCreateRequest {
 ```
 
 The `secret` in the create response is shown once — store it alongside `key`.
+
+### lw.company
+
+A Company is a shared wallet that pays for its members' purchases; each member
+spends under their own daily Spend cap and never sees the Company balance.
+`membership.*` and `invitations.accept()` are for any buyer; everything else is
+Company-admin only (`ForbiddenError` for a plain member, `NotFoundError` when
+not in a Company). List methods return `{ data }`.
+
+```ts
+lw.company.membership.get() / .leave()
+lw.company.invitations.list() / .create({ email, role? }) / .accept({ token })
+lw.company.members.list() / .update(membershipId, { role?, daily_spend_limit_cents? }) / .remove(membershipId)
+lw.company.machineUsers.list() / .create({ name, description? }) / .deactivate(id)   // deactivate is permanent
+lw.company.machineUsers.buyerKeys.list(muId) / .create(muId, { name }) / .revoke(muId, keyId)
+lw.company.machineUsers.mcpKeys.list(muId) / .create(muId, { label, scopes }) / .revoke(muId, keyId)
+lw.company.wallet.createPaymentSession({ amount_cents, currency? }) / .listPendingTopUps()
+lw.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })   // paginated
+lw.company.spend.list({ member?, from?, to? })
+```
+
+`members.*` take the membership id (`CompanyMember.id`), not `user_id`. Key
+`secret`s from `machineUsers.*Keys.create()` are shown once. A Company top-up
+is not found by `lw.wallet.getPaymentStatus()` — track it with
+`listPendingTopUps()`, where it drops off once settled.
 
 ### lw.seller
 

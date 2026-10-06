@@ -60,6 +60,8 @@ export class UserApiKeysNamespace {
    *
    * @param body - Name and optional spend ceiling for the new key.
    * @returns The new key's public identifier and one-time secret.
+   * @throws {ForbiddenError} When the caller is a Machine user, whose keys its
+   *   Company's admins manage through `company.machineUsers.buyerKeys`.
    *
    * @example
    * ```ts
@@ -82,6 +84,7 @@ export class UserApiKeysNamespace {
    * token refresh. Revocation takes effect immediately.
    *
    * @param id - UUID of the API key to revoke.
+   * @throws {ForbiddenError} When the caller is a Machine user.
    */
   async revoke(id: string): Promise<void> {
     return this.http.delete(`/v1/user/api-keys/${encodeURIComponent(id)}`)

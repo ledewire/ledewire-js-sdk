@@ -165,6 +165,16 @@ if (purchase.content_body) {
             <code>err.resetsAt</code>, or the buyer can raise it via
             <code>lw.user.spendCap.update()</code>.
           </div>
+          <div class="callout">
+            <strong>Company members:</strong> a buyer whose purchases a
+            Company pays for never sees the Company balance —
+            <code>lw.wallet.balance()</code> returns
+            <code>balance_cents: null</code>, with <code>remaining_cents</code>
+            and <code>company_name</code> instead, and
+            <code>next_required_action</code> is never
+            <code>'fund_wallet'</code>. Their cap is set by a Company admin
+            (<code>lw.company.members.update()</code>).
+          </div>
         </div>
       </div>
 

@@ -55,6 +55,16 @@ components:
         Keys never expire but can be revoked at any time via `DELETE /v1/mcp/keys/{id}`.
         Obtain a key via `POST /v1/mcp/keys` (requires buyer JWT) or inline via the `register` MCP tool (no prior auth needed).
 
+  headers:
+    PollRetryAfter:
+      description: >
+        Seconds to wait before polling again, sent only while a bulk step is still in progress —
+        a quote being priced, a run in flight, a corpus queued or assembling — and equal to the
+        body's `poll_after_seconds`. Absent once there is nothing left to wait for. Sized from the
+        selection: at least 2 and at most 60.
+      schema:
+        type: integer
+        minimum: 2
   schemas:
     PublicConfigResponse:
       type: object
@@ -68,7 +78,15 @@ components:
     ContentAccessInfo:
       type: object
       required:
-        [user_id, has_purchased, has_sufficient_funds, wallet_balance_cents, next_required_action]
+        [
+          user_id,
+          has_purchased,
+          has_sufficient_funds,
+          wallet_balance_cents,
+          next_required_action,
+          remaining_cents,
+          company_name,
+        ]
       properties:
         user_id:
           type: [string, null]
@@ -76,11 +94,25 @@ components:
           type: boolean
         has_sufficient_funds:
           type: boolean
+          description: >
+            Whether the buyer can afford the price. For a Company member, whether their Remaining
+            covers it — the Company balance is never consulted, and a shortfall there surfaces
+            only as the refusal at purchase.
         wallet_balance_cents:
-          type: integer
+          type: [integer, 'null']
+          description: The buyer's wallet balance. null for a Company member, who never sees the Company balance.
         next_required_action:
           type: string
           enum: [authenticate, fund_wallet, purchase]
+          description: Never fund_wallet for a Company member, who cannot fund the Company wallet.
+        remaining_cents:
+          type: [integer, 'null']
+          description: >
+            Spend cap minus spend so far today — for a Company member, their membership's cap.
+            null when the buyer is uncapped or unauthenticated.
+        company_name:
+          type: [string, 'null']
+          description: The buyer's Company, if they hold an open membership.
 
     AuthenticationResponse:
       type: object
@@ -97,7 +129,7 @@ components:
         expires_at:
           type: string
           format: date-time
-          description: When the Access Token expires
+          description: When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
 
     MerchantAuthenticationResponse:
       type: object
@@ -114,6 +146,7 @@ components:
         expires_at:
           type: string
           format: date-time
+          description: When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
         stores:
           type: array
           description: Stores the authenticated user can manage, for store-selection on the client.
@@ -216,6 +249,17 @@ components:
                 `client_error` is ours to fix and must never be retried unchanged;
                 `insufficient_funds` is cleared by funding the wallet and
                 `daily_spend_cap_reached` deliberately is not.
+
+
+                On the Bulk acquisition steps: `exclusions_unacknowledged` means post the
+                acknowledgement first; `quote_not_ready` means keep polling a `pending`
+                quote or re-quote a `failed` one (`quote_state` says which);
+                `quote_expired` and `quote_in_progress` mean re-quote, and wait for the
+                re-quote already running; `invalid_acquisition_state` means re-read the
+                acquisition (`status` and `expected_status` are alongside);
+                `nothing_to_hold` means every work was excluded and a different selection
+                is needed; `run_not_started` means the run could not be queued, so nothing
+                was held and the same authorization is safe to retry.
               enum:
                 - retrieval_failed
                 - not_licensable
@@ -223,6 +267,13 @@ components:
                 - client_error
                 - insufficient_funds
                 - daily_spend_cap_reached
+                - exclusions_unacknowledged
+                - invalid_acquisition_state
+                - quote_not_ready
+                - nothing_to_hold
+                - quote_expired
+                - quote_in_progress
+                - run_not_started
 
     AuthSignupRequest:
       type: object
@@ -234,6 +285,12 @@ components:
           type: string
         name:
           type: string
+        company_invitation_token:
+          type: string
+          description: >
+            The token from a Company invitation email. When it names a pending invitation
+            addressed to this email, signup also accepts it and the new buyer joins the Company.
+            Otherwise the account is created without a membership.
 
     AuthLoginEmailRequest:
       type: object
@@ -342,8 +399,19 @@ components:
         gate — and spend is derived from completed purchases, so a refund returns allowance.
         cap_cents, spent_cents, remaining_cents and resets_at are spelled exactly as they are
         in DailySpendCapReachedError, so a refusal and this resource describe the same numbers.
+        For a Company member it is the membership's cap, read-only, in the Company's timezone,
+        counting only spend paid through the membership; company_name names the Company. The
+        Company balance never appears here.
       required:
-        [cap_cents, spend_window_timezone, spent_cents, remaining_cents, resets_at, bulk_exempt]
+        [
+          cap_cents,
+          spend_window_timezone,
+          spent_cents,
+          remaining_cents,
+          resets_at,
+          bulk_exempt,
+          company_name,
+        ]
       properties:
         cap_cents:
           type: [integer, 'null']
@@ -372,6 +440,465 @@ components:
             spent_cents and remaining_cents describe ordinary spend only — an authorized
             bulk acquisition does not consume them — so a client presenting remaining_cents
             must say which number it is.
+            Always false for a Company member, whose cap binds bulk acquisitions too.
+        company_name:
+          type: [string, 'null']
+          description: >
+            The Company whose cap this is, for a buyer with an open Company membership; null
+            otherwise. A member sees the Company's name, never its balance.
+
+    CompanyInvitation:
+      type: object
+      description: >
+        A pending invitation to join a Company. Joining always waits for the invitee to accept,
+        because it moves their Agents' spending onto the Company wallet. Never carries the signup
+        token, which reaches only the invited address.
+      required: [id, company_id, company_name, email, role, invited_at, expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        email:
+          type: string
+          description: The invited address, lowercased.
+        role:
+          type: string
+          enum: [admin, member]
+        invited_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: Seven days after it was sent. An expired invitation cannot be accepted.
+
+    CompanyInvitationList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyInvitation'
+
+    CompanyInvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+          default: member
+
+    CompanyMember:
+      type: object
+      description: An open membership as a Company admin sees it.
+      required: [id, user_id, name, email, kind, role, joined_at, daily_spend_limit_cents]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The membership id, used by the members/{id} routes.
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: [string, 'null']
+          description: Null for a Machine user, which has no email address.
+        kind:
+          type: string
+          enum: [human, machine]
+          description: >
+            A machine member is a Machine user: it cannot be made an admin, and removing it
+            deactivates it permanently.
+        role:
+          type: string
+          enum: [admin, member]
+        joined_at:
+          type: string
+          format: date-time
+        daily_spend_limit_cents:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: >
+            The member's daily Spend cap, read in the Company's timezone. Never null: a member is
+            never uncapped. Defaults to 1000 ($10) on joining, and again on rejoining.
+
+    CompanyPurchase:
+      type: object
+      description: >
+        One thing the Company paid for, as a Company admin sees it: a purchase or a Bulk
+        acquisition drawn on the Company wallet, attributed to the member who bought it.
+      required: [kind, id, member, status, amount_cents, occurred_at]
+      properties:
+        kind:
+          type: string
+          enum: [purchase, bulk_acquisition]
+        id:
+          type: string
+          format: uuid
+          description: The purchase id, or the acquisition id for a Bulk acquisition.
+        member:
+          $ref: '#/components/schemas/CompanyPurchaseMember'
+        status:
+          type: string
+          description: The purchase's or the acquisition's own status.
+        amount_cents:
+          type: integer
+          description: >
+            A purchase's price. A Bulk acquisition's captured amount once it has settled, failed or
+            been cancelled, and the amount still held while it is authorized or acquiring — so while a
+            Hold is live this is more than the member's `spend_cents`, which counts only what was
+            captured.
+        occurred_at:
+          type: string
+          format: date-time
+          description: >
+            When the purchase was made, or when the Bulk acquisition was authorized — the moment it
+            counts against the member's Spend window.
+
+    CompanyPurchaseMember:
+      type: object
+      description: >
+        The membership that paid. Recorded when it was paid, so it still names the member after
+        they leave; a person who left and rejoined appears under each membership.
+      required: [id, user_id, name, kind, left_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The membership id, which the `member` filter takes.
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [human, machine]
+        left_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the membership closed, or null while it is open.
+
+    CompanyPurchaseList:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyPurchase'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    CompanySpendList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          description: Every membership the Company has had, open or closed, oldest first.
+          items:
+            type: object
+            required: [member, spend_cents]
+            properties:
+              member:
+                $ref: '#/components/schemas/CompanyPurchaseMember'
+              spend_cents:
+                type: integer
+                description: >
+                  What the member has spent of the Company's money in the range, net of refunds, read
+                  from the member's own ledger account. A Bulk acquisition counts what it captured; a
+                  live Hold does not count until it captures.
+
+    CompanyMachineUser:
+      type: object
+      description: >
+        A Machine user as a Company admin sees it: a Buyer with a name and no email, password or
+        login, created as an active non-admin member. Deactivation is permanent.
+      required: [id, user_id, name, description, created_by_user_id, created_at, deactivated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The Machine user id, used by the machine-users/{id} routes.
+        user_id:
+          type: string
+          format: uuid
+          description: Its Buyer id, which attribution and history name it by.
+        name:
+          type: string
+          description: Unique among the Company's active Machine users; a deactivated one's may be reused.
+        description:
+          type: [string, 'null']
+        created_by_user_id:
+          type: [string, 'null']
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        deactivated_at:
+          type: [string, 'null']
+          format: date-time
+
+    CompanyMachineUserList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyMachineUser'
+
+    CompanyMachineUserRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: [string, 'null']
+
+    CompanyMachineUserBuyerKey:
+      type: object
+      description: >
+        A Machine user's Buyer key as a Company admin sees it. It logs in through
+        POST /v1/auth/login/buyer-api-key. Its limit is the Machine user's membership Spend cap.
+      required: [id, name, key, created_by_user_id, last_used_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          description: Structured public identifier (e.g. bktst_abc123)
+        created_by_user_id:
+          type: [string, 'null']
+          format: uuid
+          description: The Company admin who created it.
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CompanyMachineUserBuyerKeyCreateResponse:
+      description: Returned once only at creation. The secret is not stored and cannot be retrieved again.
+      allOf:
+        - $ref: '#/components/schemas/CompanyMachineUserBuyerKey'
+        - type: object
+          required: [secret]
+          properties:
+            secret:
+              type: string
+              description: 64-char hex authentication secret. Store immediately — shown once only.
+
+    CompanyMachineUserBuyerKeyList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyMachineUserBuyerKey'
+
+    CompanyMachineUserBuyerKeyRequest:
+      type: object
+      required: [name]
+      description: >
+        spending_limit_cents is refused with 400: the Machine user's membership Spend cap is its limit.
+      properties:
+        name:
+          type: string
+          description: Unique among this Machine user's Buyer keys.
+
+    CompanyMachineUserMcpKey:
+      type: object
+      description: >
+        A Machine user's active MCP API Key as a Company admin sees it. Presented as a
+        `key:secret` Bearer token. It carries buyer Scopes only, never a Store, and does not
+        expire; revoke it instead.
+      required: [id, label, key, scopes, created_by_user_id, expires_at, last_used_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        key:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [mcp:search, mcp:purchase]
+        created_by_user_id:
+          type: [string, 'null']
+          format: uuid
+          description: The Company admin who created it.
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Always null for a key an admin created.
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CompanyMachineUserMcpKeyCreateResponse:
+      description: Returned once only at creation. The secret cannot be retrieved again.
+      allOf:
+        - $ref: '#/components/schemas/CompanyMachineUserMcpKey'
+        - type: object
+          required: [secret]
+          properties:
+            secret:
+              type: string
+              description: Authentication secret. Store immediately — shown once only.
+
+    CompanyMachineUserMcpKeyList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyMachineUserMcpKey'
+
+    CompanyMachineUserMcpKeyRequest:
+      type: object
+      required: [label, scopes]
+      description: >
+        Any Scope other than mcp:search and mcp:purchase, or a store_id, is refused with 400.
+      properties:
+        label:
+          type: string
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [mcp:search, mcp:purchase]
+
+    CompanyMemberList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyMember'
+
+    CompanyPendingTopUp:
+      type: object
+      description: A Company wallet top-up that has not yet settled, as a Company admin sees it.
+      required:
+        [
+          id,
+          session_id,
+          amount_cents,
+          status,
+          initiated_by_user_id,
+          created_at,
+          expected_debit_date,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: [string, 'null']
+          description: The payment session id returned when the top-up was started.
+        amount_cents:
+          type: integer
+        status:
+          type: string
+          enum: [pending, awaiting_verification, processing]
+        initiated_by_user_id:
+          type: string
+          format: uuid
+          description: The admin who started the top-up.
+        created_at:
+          type: string
+          format: date-time
+        expected_debit_date:
+          type: [string, 'null']
+          format: date
+          description: >
+            The payment provider's estimate of when an ACH debit lands. Not guaranteed, and null
+            until the provider can determine it, and always for a card.
+
+    CompanyPendingTopUpList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyPendingTopUp'
+
+    CompanyInvitationAcceptRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: The token from the invitation email.
+
+    CompanyMemberRoleRequest:
+      type: object
+      description: At least one of role and daily_spend_limit_cents.
+      minProperties: 1
+      properties:
+        role:
+          type: string
+          enum: [admin, member]
+        daily_spend_limit_cents:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: >
+            The member's daily Spend cap in cents. Any admin may set any member's, their own
+            included. null is refused — a member is never uncapped. Writes an AuditEvent.
+
+    CompanyMembership:
+      type: object
+      description: >
+        The authenticated buyer's own open Company membership. Names the Company but never its
+        balance.
+      required: [id, company_id, company_name, role, joined_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+        joined_at:
+          type: string
+          format: date-time
 
     UserSpendCapUpdateRequest:
       type: object
@@ -407,10 +934,16 @@ components:
           description: Scopes the key to a specific store. User must be an owner or author of that store.
         can_manage_content:
           type: boolean
-          description: Grants access to seller content management tools. Defaults to false.
+          description: >
+            Grants access to seller content management tools. Defaults to false. Requires a
+            `store_id` for which the user is an owner or author; otherwise the request is refused
+            with 403. Re-checked on every use, so a key stops working if the holder loses the role.
         can_read_analytics:
           type: boolean
-          description: Grants access to seller analytics tools. Defaults to false.
+          description: >
+            Grants access to seller analytics tools. Defaults to false. Requires a `store_id` for
+            which the user is an owner or author; an author's analytics cover only their own
+            content. Otherwise refused with 403, and re-checked on every use.
 
     McpApiKeyCreateResponse:
       type: object
@@ -543,7 +1076,7 @@ components:
           description: Academic citation count from source metadata. Null for non-academic content or unknown values.
 
     McpSellerContent:
-      description: Content returned to a store team member (owner or author) accessing their own content without a purchase.
+      description: Content returned without a purchase to a store team member reading their own store's content — any of it for an owner, only what they wrote for an author.
       allOf:
         - $ref: '#/components/schemas/McpContentSearchResult'
         - type: object
@@ -669,11 +1202,21 @@ components:
 
     McpGetWalletBalanceResult:
       type: object
-      required: [wallet_balance_cents]
+      required: [wallet_balance_cents, remaining_cents, company_name]
       properties:
         wallet_balance_cents:
-          type: integer
-          description: Current wallet balance in cents for the authenticated MCP key owner.
+          type: [integer, 'null']
+          description: >
+            Current wallet balance in cents for the authenticated MCP key owner. null for a
+            Company member, who never sees the Company balance; read remaining_cents instead.
+        remaining_cents:
+          type: [integer, 'null']
+          description: >
+            Spend cap minus spend so far today — for a Company member, their membership's cap,
+            never reduced by the Company balance. null when uncapped.
+        company_name:
+          type: [string, 'null']
+          description: The Company whose wallet pays, for a member; null otherwise.
 
     McpRegisterResult:
       type: object
@@ -694,7 +1237,7 @@ components:
 
     McpGetContentDetailsResult:
       type: object
-      required: [content, has_purchased, wallet_balance_cents]
+      required: [content, has_purchased, wallet_balance_cents, remaining_cents, company_name]
       properties:
         content:
           $ref: '#/components/schemas/McpContentSearchResult'
@@ -702,8 +1245,16 @@ components:
           type: boolean
           description: Whether the authenticated user has a completed purchase for this content.
         wallet_balance_cents:
-          type: integer
-          description: Current wallet balance in cents for the authenticated MCP key owner.
+          type: [integer, 'null']
+          description: >
+            Current wallet balance in cents for the authenticated MCP key owner. null for a
+            Company member, who never sees the Company balance.
+        remaining_cents:
+          type: [integer, 'null']
+          description: Spend cap minus spend so far today; a member's membership cap. null when uncapped.
+        company_name:
+          type: [string, 'null']
+          description: The Company whose wallet pays, for a member; null otherwise.
 
     McpListPurchasesResult:
       type: object
@@ -730,7 +1281,8 @@ components:
       type: object
       description: >
         Returned as structuredContent when a get_content payment attempt fails due to
-        insufficient wallet balance. Always accompanied by isError: true.
+        insufficient wallet balance. Always accompanied by isError: true. A Company member
+        instead receives McpCompanyInsufficientFundsError, with the same error code.
       required: [error, wallet_balance_cents, required_cents, shortfall_cents, funding_url]
       properties:
         error:
@@ -749,6 +1301,24 @@ components:
           type: string
           format: uri
           description: Direct link to the Ledewire wallet funding page, pre-filled with the shortfall amount.
+
+    McpCompanyInsufficientFundsError:
+      type: object
+      description: >
+        A Company member's get_content payment the Company wallet cannot cover. Always
+        accompanied by isError: true. Same error code as McpInsufficientFundsError, but no
+        balance, shortfall or funding_url: a member never sees the Company balance and cannot
+        fund the Company wallet. The remedy is to ask a Company admin.
+      required: [error, required_cents, message]
+      properties:
+        error:
+          type: string
+          enum: [insufficient_funds]
+        required_cents:
+          type: integer
+          description: Price of the content in cents.
+        message:
+          type: string
 
     McpDailySpendCapReachedError:
       type: object
@@ -787,6 +1357,12 @@ components:
             spent_cents and remaining_cents describe ordinary spend only — an authorized
             bulk acquisition does not consume them — so a client presenting remaining_cents
             must say which number it is.
+            Always false for a Company member, whose cap binds bulk acquisitions too.
+        message:
+          type: string
+          description: >
+            The remedy in words. A Company member is told to ask a Company admin, who sets
+            their cap; anyone else, that the daily cap is reached.
 
     DailySpendCapReachedError:
       type: object
@@ -827,6 +1403,11 @@ components:
           description: >
             Whether this buyer's bulk acquisitions are exempt from the cap. When true,
             spent_cents and remaining_cents describe ordinary spend only.
+        message:
+          type: string
+          description: >
+            The remedy in words. A Company member is told to ask a Company admin, who sets
+            their cap; anyone else, that the daily cap is reached.
 
     McpFundWalletResult:
       type: object
@@ -1286,18 +1867,25 @@ components:
         will be — balance_cents has always meant "what you can spend", and money committed to
         a bulk acquisition is a hold, which moves it out of the wallet rather than annotating
         it. held_cents and holds exist so a buyer mid-acquisition can see why their balance is
-        lower than their purchase history explains.
-      required: [balance_cents, spendable_cents, held_cents, holds]
+        lower than their purchase history explains. For a Company member the balances are
+        null — a member never sees the Company balance — and remaining_cents and company_name
+        say what they may still spend and whose wallet pays.
+      required: [balance_cents, spendable_cents, held_cents, holds, remaining_cents, company_name]
       properties:
         balance_cents:
-          type: integer
-          description: Spendable balance in cents. Excludes funds held against a bulk acquisition.
+          type: [integer, 'null']
+          description: >-
+            Spendable balance in cents. Excludes held funds — those held against a bulk acquisition,
+            and a brokered purchase's price while its content is being retrieved.
         spendable_cents:
-          type: integer
-          description: The same figure as balance_cents, named in the vocabulary holds require.
+          type: [integer, 'null']
+          description: The same figure as balance_cents, named in the vocabulary holds require. null for a Company member.
         held_cents:
           type: integer
-          description: Total committed to active bulk acquisitions and not yet spent or released.
+          description: >-
+            Total held and not yet spent or released. Includes, for the few seconds its content is
+            being retrieved, the price of a brokered purchase in progress, which has no entry in
+            holds.
         holds:
           type: array
           description: One entry per bulk acquisition currently holding funds. Empty when none is.
@@ -1315,6 +1903,14 @@ components:
                 type: string
                 format: date-time
                 description: When the hold was placed.
+        remaining_cents:
+          type: [integer, 'null']
+          description: >
+            Spend cap minus spend so far today — for a Company member, their membership's cap,
+            never reduced by the Company balance. null when uncapped.
+        company_name:
+          type: [string, 'null']
+          description: The Company whose wallet pays, for a member; null otherwise.
 
     WalletTransactionItem:
       type: object
@@ -2235,12 +2831,13 @@ components:
       properties:
         status:
           type: string
-          enum: [pending, completed, failed]
+          enum: [pending, awaiting_verification, processing, completed, failed, cancelled]
         updated_at:
           type: string
           format: date-time
         balance_cents:
-          type: integer
+          type: [integer, 'null']
+          description: The wallet balance. null for a Company member, as on GET /v1/wallet/balance.
 
     SalesSummaryResponse:
       type: object
@@ -2480,7 +3077,10 @@ components:
             - excluded_above_price_ceiling
             - excluded_rate_unavailable
             - null
-          description: Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason.
+          description: >
+            Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason.
+            `excluded_free_not_supported` is retired — a work published at zero is now included at no
+            cost — and appears only on lines quoted before that; a re-quote prices them back in.
         price_micros:
           type: [integer, 'null']
           description: >
@@ -2536,7 +3136,7 @@ components:
         Licensability is a rights answer, not a quality one. A publication that publishes no
         `FULL_USE` rate is still listed, with `bulk_licensable: false`: its works can be bought
         one at a time but are excluded from a corpus as `excluded_insufficient_rights`.
-      required: [id, name, domains, bulk_licensable]
+      required: [id, name, domains, bulk_licensable, coverage_horizon]
       properties:
         id:
           type: string
@@ -2556,6 +3156,33 @@ components:
           description: >
             Whether works from this publication can come back in a Bulk acquisition's corpus —
             true when it publishes a `FULL_USE` rate.
+        coverage_horizon:
+          type: [object, 'null']
+          description: >-
+            The oldest date we have swept this publication back to, when that was true as of, and
+            where we looked. Coverage is stated this way and never as a
+            percentage. Null means "no horizon established yet" — it is not a horizon of zero, and
+            is never sent as an object of nulls.
+          required: [horizon_at, as_of, sources]
+          properties:
+            horizon_at:
+              type: string
+              format: date-time
+              description: The oldest date swept back to.
+              example: '2019-03-01T00:00:00Z'
+            as_of:
+              type: string
+              format: date-time
+              description: >-
+                When the sweep behind the horizon began. The Broker adds works behind a horizon
+                after the fact, so the horizon holds only of the catalog as it stood at this time.
+              example: '2026-09-27T04:30:00Z'
+            sources:
+              type: array
+              description: Where the sweep looked — today always the Broker's catalog.
+              items:
+                type: string
+              example: [catalog]
 
     PublicationListResponse:
       type: object
@@ -2706,7 +3333,8 @@ components:
           description: >
             Whether the Selection has been priced. Pricing is asynchronous — resolving rates for
             10,000 works is ~200 upstream batch calls under undocumented limits — so a submitted
-            Selection comes back `pending` and the client polls this.
+            Selection comes back `pending` and the client polls this. Stop polling once `status`
+            leaves `quoted`: a quote cancelled while still being priced stays `pending`.
         publication_count:
           type: integer
           description: >
@@ -2780,6 +3408,15 @@ components:
             outstanding:
               type: integer
               description: Quoted and not yet reached. What a resumed run will attempt.
+        poll_after_seconds:
+          type: integer
+          minimum: 2
+          description: >
+            Seconds to wait before polling again, also sent as `Retry-After`. Present only while
+            there is something to wait for — `quote_state` is `pending` on a `quoted`
+            acquisition, or `status` is `authorized` or `acquiring` — and absent otherwise, so a
+            client can poll for as long as the field is there. Grows with the size of the
+            Selection, from 2 seconds to at most 60.
         created_at:
           type: string
           format: date-time
@@ -2853,6 +3490,13 @@ components:
         `rebuild_required` covers "never assembled" as well as "expired", on purpose: from the
         Buyer's side they are one situation — there is no file, ask for one — and splitting them
         would put our bookkeeping into their contract.
+
+
+        **Assembly starts by itself when the acquisition settles** with at least one work
+        delivered, so a client polls the acquisition until `settled` and then polls this until
+        `ready` — there is nothing to ask for in between. `POST` is for a corpus that has expired
+        or failed. An acquisition that delivered nothing has nothing to render and reads
+        `rebuild_required`.
       required: [state]
       properties:
         state:
@@ -2861,7 +3505,10 @@ components:
           description: >
             `ready` is downloadable now. `assembling` means a run is in flight and `pending` that
             one is queued — poll either. `rebuild_required` means ask for it again, with
-            `POST /v1/acquisitions/{id}/corpus`. `failed` carries a reason.
+            `POST /v1/acquisitions/{id}/corpus`, and is also what a run abandoned mid-assembly
+            (a worker that died) reads as once it has gone two hours without progress. `failed`
+            carries a reason; a POST retries one that failed transiently, and leaves one that
+            failed because our records disagree with the signed manifest as it is.
         format:
           type: [string, 'null']
           enum: [tar_gz, jsonl_gz, null]
@@ -2881,6 +3528,14 @@ components:
         failure_reason:
           type: [string, 'null']
           description: Why assembly broke. Present only when `state` is `failed`.
+        poll_after_seconds:
+          type: integer
+          minimum: 2
+          description: >
+            Seconds to wait before polling again, also sent as `Retry-After`. Present only while
+            `state` is `pending` or `assembling`; `ready`, `failed` and `rebuild_required` carry
+            neither, since nothing changes until the Buyer acts. Grows with the number of works
+            the corpus renders, from 2 seconds to at most 60.
         download_url:
           type: [string, 'null']
           description: >
@@ -3637,6 +4292,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserApiKeyCreateResponse'
+        '403':
+          description: The caller is a Machine user, whose keys its Company's admins manage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         default:
           description: Error response
           content:
@@ -3661,6 +4322,12 @@ paths:
       responses:
         '204':
           description: Key revoked
+        '403':
+          description: The caller is a Machine user, whose keys its Company's admins manage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Key not found
           content:
@@ -3728,6 +4395,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The buyer holds an open Company membership. A member's cap is set by a Company admin
+            through PATCH /v1/company/members/{id}, admins' own included.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Cap is negative, fractional, non-integer, or the field was omitted
           content:
@@ -3741,6 +4416,1046 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/company/invitations:
+    get:
+      summary: List the Company's pending invitations
+      description: >
+        Company admins only. Pending means not accepted, withdrawn or expired.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending invitations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyInvitationList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the target was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Invite someone to the Company
+      description: >
+        Company admins only. Every invitation emails a token that accepting requires: an existing user accepts with it, a new address signs up with it. Nobody joins until they accept. Inviting someone who belongs to another Company succeeds; their accept is refused.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyInvitationRequest'
+      responses:
+        '201':
+          description: The invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyInvitation'
+        '400':
+          description: No email given
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the target was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already a member, or an invitation to this address is already pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unknown role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/invitations/accept:
+    post:
+      summary: Accept an invitation
+      description: >
+        Opens a membership with the invited role. Requires the token from the invitation email,
+        for existing users as well as new ones: an account's address is not verified, so being
+        signed in as the invited address is not enough. The token must belong to an invitation
+        addressed to one of the buyer's addresses. Refused while the buyer holds an open
+        membership of another Company; they must leave it first.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyInvitationAcceptRequest'
+      responses:
+        '201':
+          description: The new membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMembership'
+        '400':
+          description: No token given
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No invitation with this token addressed to this buyer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already accepted, or the buyer already belongs to a Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: Expired or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/machine-users:
+    get:
+      summary: List the Company's Machine users
+      description: >
+        Company admins only. Active and deactivated, oldest first.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Machine users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUserList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a Machine user
+      description: >
+        Company admins only. Creates a Buyer with a name and no email, password or login, joined at
+        once as an active non-admin member with the default daily Spend cap. Every human-only flow
+        (login, Google sign-in, OAuth consent, password reset, accepting or leaving a membership)
+        refuses it.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyMachineUserRequest'
+      responses:
+        '201':
+          description: The Machine user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUser'
+        '400':
+          description: No name given
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: An active Machine user in the Company already has this name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The name is blank or longer than 100 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/machine-users/{id}:
+    delete:
+      summary: Deactivate a Machine user, permanently
+      description: >
+        Company admins only. In one transaction closes its membership, revokes every key it holds and
+        ends its sessions. It cannot be reactivated; create a new one, which may reuse the name.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The deactivated Machine user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUser'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/buyer-keys:
+    get:
+      summary: List a Machine user's Buyer keys
+      description: >
+        Company admins only. The secrets are never returned here.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The keys, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUserBuyerKeyList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a Buyer key for a Machine user
+      description: >
+        Company admins only. The secret appears in this response and nowhere else. A Machine user
+        may hold several, so a key is rotated by creating its replacement before revoking it.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyMachineUserBuyerKeyRequest'
+      responses:
+        '201':
+          description: The key, with its secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUserBuyerKeyCreateResponse'
+        '400':
+          description: Invalid parameters, or a refused field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The Machine user is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The key failed validation, e.g. a duplicate name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/buyer-keys/{id}:
+    delete:
+      summary: Revoke a Machine user's Buyer key
+      description: >
+        Company admins only. The key is deleted. An audit event names the admin.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Key revoked
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such Machine user in the caller's Company, or no such active key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/mcp-keys:
+    get:
+      summary: List a Machine user's MCP API Keys
+      description: >
+        Company admins only. The secrets are never returned here.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The keys, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUserMcpKeyList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a MCP API Key for a Machine user
+      description: >
+        Company admins only. The secret appears in this response and nowhere else. A Machine user
+        may hold several, so a key is rotated by creating its replacement before revoking it.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyMachineUserMcpKeyRequest'
+      responses:
+        '201':
+          description: The key, with its secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUserMcpKeyCreateResponse'
+        '400':
+          description: Invalid parameters, or a refused field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The Machine user is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The key failed validation, e.g. a duplicate name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/mcp-keys/{id}:
+    delete:
+      summary: Revoke a Machine user's MCP API Key
+      description: >
+        Company admins only. The key is marked revoked and stops authenticating. An audit event names the admin.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Key revoked
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such Machine user in the caller's Company, or no such active key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/members:
+    get:
+      summary: List the Company's members
+      description: >
+        Company admins only. Open memberships.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMemberList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the target was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/purchases:
+    get:
+      summary: List everything the Company paid for
+      description: >
+        Company admins only. Every purchase and Bulk acquisition drawn on the Company wallet, newest
+        first, each attributed to the member who bought it — including members who have since left.
+        A Bulk acquisition's per-work purchases are not listed separately, and a failed purchase,
+        which bought nothing, is not listed. A Bulk acquisition's Corpus and Manifest are reached
+        through `/v1/acquisitions/{acquisition_id}/corpus` and `/manifest` with its id.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based).
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Number of items per page. Maximum 100.
+        - name: member
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: >
+            A membership id (`member.id`), open or closed. A person who left and rejoined has one per
+            membership.
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: >
+            The first day to include, `YYYY-MM-DD`, read in the Company's timezone — the same days
+            its Spend window counts.
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: The last day to include, `YYYY-MM-DD`, read in the Company's timezone.
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [purchase, bulk_acquisition]
+          description: Only purchases, or only Bulk acquisitions. Both by default.
+      responses:
+        '200':
+          description: Company purchases
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyPurchaseList'
+        '400':
+          description: Invalid filter or pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/spend:
+    get:
+      summary: Report what each member has spent of the Company's money
+      description: >
+        Company admins only. One row per membership, including members who have left, with what each
+        has spent in the range — lifetime when neither `from` nor `to` is given.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: member
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: >
+            A membership id (`member.id`), open or closed. A person who left and rejoined has one per
+            membership.
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: >
+            The first day to include, `YYYY-MM-DD`, read in the Company's timezone — the same days
+            its Spend window counts.
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: The last day to include, `YYYY-MM-DD`, read in the Company's timezone.
+      responses:
+        '200':
+          description: Spend per member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySpendList'
+        '400':
+          description: Invalid filter parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/members/{id}:
+    patch:
+      summary: Change a member's role or daily Spend cap
+      description: >
+        Company admins only. Promote a member or demote an admin, including yourself, so long as the Company keeps at least one admin.
+        Set any member's daily Spend cap, including your own. A Machine user cannot be made an admin (422).
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyMemberRoleRequest'
+      responses:
+        '200':
+          description: The updated member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMember'
+        '400':
+          description: Neither role nor daily_spend_limit_cents given, or the cap is null or negative
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the target was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unknown role, or it would leave the Company with no admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Remove a member
+      description: >
+        Company admins only. Closes the membership; the member's ledger accounts stay with the Company. The last admin cannot be removed.
+        Removing a Machine user deactivates it permanently, as DELETE /v1/company/machine-users/{id} does.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Removed
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the target was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: It would leave the Company with no admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/membership:
+    get:
+      summary: Read the authenticated buyer's own membership
+      description: >
+        The session token names the buyer, and a buyer belongs to at most one Company.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMembership'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The buyer belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Leave the Company
+      description: >
+        Closes the buyer's own membership. Their purchases are paid from their personal wallet again afterwards. The last admin cannot leave.
+        A Machine user cannot leave (403); an admin deactivates it instead.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Left
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The buyer belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The buyer is the Company's last admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/wallet/payment-session:
+    post:
+      summary: Start a Company wallet top-up
+      description: >
+        Company admins only. Creates a payment session that funds the Company wallet, by card or ACH
+        (us_bank_account). Confirm it client-side with the returned client_secret, as for a personal
+        top-up. The top-up is spendable only once it settles: a card usually settles at once, an ACH
+        debit after about four business days. Starting another top-up never cancels an ACH debit
+        already processing.
+      tags:
+        - Company Wallet
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletPaymentSessionRequest'
+      responses:
+        '200':
+          description: Payment session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletPaymentSessionResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '402':
+          description: The payment provider refused to create the session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/wallet/pending-top-ups:
+    get:
+      summary: List the Company's top-ups that are not yet spendable
+      description: >
+        Company admins only. Newest first. `pending` is a session not yet paid;
+        `awaiting_verification` is a bank account whose microdeposits are not yet confirmed (up to
+        ten days); `processing` is an ACH debit under way.
+      tags:
+        - Company Wallet
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending top-ups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyPendingTopUpList'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/auth/login/api-key:
     post:
       summary: Log in using API key and secret
@@ -7103,6 +8818,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: >
+            Too many requests from this address — 15 a minute per source IP, because every request
+            is a live call to the Broker. Waiting `Retry-After` seconds is always enough.
+          headers:
+            Retry-After:
+              description: >
+                Seconds to wait. Always the full window (60), so an upper bound: the window opened
+                at this address's first request and may close sooner.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '502':
           description: The Broker's catalog could not be read, even after retrying
           content:
@@ -7152,6 +8882,9 @@ paths:
       responses:
         '201':
           description: The acquisition, with its quote not yet priced
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7211,6 +8944,9 @@ paths:
       responses:
         '200':
           description: The acquisition
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7261,6 +8997,9 @@ paths:
       responses:
         '202':
           description: Re-pricing started. Poll the acquisition until `quote_state` is `ready`.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7281,7 +9020,8 @@ paths:
           description: >
             Refused. `error.type` is `quote_in_progress` when a re-pricing is already running —
             pricing is expensive upstream, so a client polling and re-quoting in one loop is not
-            allowed to queue one per iteration. Otherwise the hold is already placed: a re-quote
+            allowed to queue one per iteration. Otherwise it is `invalid_acquisition_state`, with
+            `status` and `expected_status`: the hold is already placed, and a re-quote
             moves the total the funds are reserved against, so it is refused once the money is
             committed. A `failed` quote is re-quotable, and asking again is the remedy for it.
           content:
@@ -7334,9 +9074,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: >
-            Nothing to acknowledge yet, or a quote too old to stand behind. `error.type` is
-            `quote_expired` in the second case, and carries `quoted_at` and `valid_for_seconds`;
-            the remedy is a re-quote.
+            Nothing to acknowledge yet, or a quote too old to stand behind. `error.type` names
+            which: `quote_not_ready` carries `quote_state` (`pending` — keep polling; `failed` —
+            re-quote), and `quote_expired` carries `quoted_at` and `valid_for_seconds`, with a
+            re-quote as the remedy. `invalid_acquisition_state` (with `status` and
+            `expected_status`) means the acquisition is no longer `quoted` — cancelled, or past
+            its hold.
           content:
             application/json:
               schema:
@@ -7376,6 +9119,9 @@ paths:
       responses:
         '202':
           description: Hold placed, run started. Poll the acquisition.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7405,11 +9151,96 @@ paths:
         '422':
           description: >
             The hold was refused and the quote survives, so it can be acknowledged or re-priced
-            and authorized again. Either the exclusions are unacknowledged, or the quote expired
-            between acknowledgement and here, or the wallet is short, or the acquisition is not
-            in a state that can be authorized. Insufficient funds answers here rather than at
+            and authorized again. `error.type` names the condition:
+            `exclusions_unacknowledged` (post the acknowledgement first), `quote_not_ready` (with
+            `quote_state`), `quote_expired` (with `quoted_at` and `valid_for_seconds`; re-quote),
+            `invalid_acquisition_state` (with `status` and `expected_status` — already
+            authorized, cancelled, failed or settled), `nothing_to_hold` (every work was
+            excluded), or `insufficient_funds`. Insufficient funds answers here rather than at
             402 — the existing contract for this API — which is what keeps it distinct from a
             cap refusal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: >
+            `run_not_started`: the run could not be queued. The hold is placed and the run
+            queued together or not at all, so nothing was held, the acquisition is still
+            `quoted`, and the same authorization is safe to retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/acquisitions/{acquisition_id}/cancellation:
+    parameters:
+      - name: acquisition_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: >
+          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid for by a
+          Company the caller is an open admin of.
+    post:
+      summary: Withdraw a quote, or stop a held acquisition the Company pays for
+      description: >
+        Moves a `quoted` acquisition to `cancelled`. Quoting is how a Buyer learns what a
+        Selection costs, and the usual next step is to trim it and submit the remainder as a new
+        acquisition; this withdraws the first so it does not sit as an expired quote.
+
+
+        Allowed whatever the quote's state — still `pending`, `ready` or `failed`, expired or
+        not, acknowledged or not. No hold exists yet, so **no money moves**: the wallet's
+        balance, held and spendable amounts are unchanged. Pricing still running stops without
+        writing to it, and a cancelled acquisition can be neither acknowledged nor authorized.
+
+
+        **A held acquisition** (`authorized` or `acquiring`) paid for by a Company can be
+        cancelled by an open admin of that Company, whether or not the membership that paid is
+        still open. What was already captured is charged; the rest of the hold is released to
+        the Company wallet. That is a release, not a refund: delivered works stay bought. A run in
+        progress starts no further work, and assembles the corpus for what it delivered. The
+        cancel is recorded as `company.acquisition.cancelled` in the audit trail. A Buyer who is
+        not an admin of that Company cannot cancel a held acquisition, their own included.
+
+
+        Idempotent: an acquisition already `cancelled` answers 200 with its current body and is
+        not changed.
+
+
+        **Authorization:** buyer JWT. A quote must be the caller's own; a held acquisition must
+        be Company-paid, and the caller an open admin of that Company.
+      tags:
+        - bulk-licensing
+      responses:
+        '200':
+          description: Cancelled, or already was.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcquisitionResponse'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: >
+            No such acquisition for this caller — the same answer for one that exists and is
+            neither the caller's nor paid for by a Company they are an open admin of.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >
+            The acquisition is not in a state this caller can cancel: the Buyer's own acquisition
+            once it is past its quote, or a Company admin's once it has settled or failed.
+            `error.type` is `invalid_acquisition_state`, with `status` and `expected_status`
+            alongside. Nothing is changed.
           content:
             application/json:
               schema:
@@ -7433,6 +9264,38 @@ paths:
         required: false
         schema:
           type: integer
+      - name: delivery_state
+        in: query
+        required: false
+        description: >
+          Only works the run left in this state. `undelivered` is what was attempted and failed;
+          an excluded work is never attempted and stays `pending`.
+        schema:
+          type: string
+          enum: [pending, delivered, undelivered]
+      - name: line_state
+        in: query
+        required: false
+        description: Only works the quote left in this state.
+        schema:
+          type: string
+          enum: [pending, firm, estimated, excluded]
+      - name: exclusion_reason
+        in: query
+        required: false
+        description: >
+          Only works excluded for this reason, so only `excluded` lines.
+        schema:
+          type: string
+          enum:
+            - excluded_malformed
+            - excluded_duplicate
+            - excluded_no_rate
+            - excluded_free_not_supported
+            - excluded_not_deliverable
+            - excluded_insufficient_rights
+            - excluded_above_price_ceiling
+            - excluded_rate_unavailable
     get:
       summary: Per-work dispositions
       description: >
@@ -7443,6 +9306,12 @@ paths:
         **Partial failure is read from here, not caught.** An acquisition where 300 of 10,000
         works failed is ordinary — it does not fail the request and it is not an exception — so
         each outcome is a line item carrying its typed reason.
+
+
+        **Filters** answer "what didn't I get, and why?" without reading every page.
+        `delivery_state`, `line_state` and `exclusion_reason` are optional and combine with AND;
+        results stay in submission order, and `pagination` counts the filtered set. An unknown
+        value is a 400, not an empty page.
 
 
         **Authorization:** buyer JWT. The acquisition must be the caller's own.
@@ -7456,7 +9325,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAcquisitionWorkList'
         '400':
-          description: Invalid pagination parameters
+          description: Invalid pagination parameters, or a filter value outside its enum
           content:
             application/json:
               schema:
@@ -7481,7 +9350,9 @@ paths:
         required: true
         schema:
           type: string
-        description: Bulk acquisition UUID. Must belong to the authenticated Buyer.
+        description:
+          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+          Company wallet of a Company the caller is an admin of.
     get:
       summary: Where the corpus is
       description: >
@@ -7491,7 +9362,10 @@ paths:
         something was lost, and nothing was.
 
 
-        Reading the state never starts work. Use `POST` to ask for an assembly.
+        Reading the state never starts work. It does not need to: assembly is queued when the
+        acquisition settles with something delivered, so a settled acquisition's corpus reads
+        `pending`, `assembling` or `ready` without being asked for. Use `POST` to ask for a
+        rebuild once it has expired, or to retry a failure.
 
 
         **Authorization:** buyer JWT. The acquisition must be the caller's own.
@@ -7500,6 +9374,9 @@ paths:
       responses:
         '200':
           description: The corpus state, whatever it is
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7511,7 +9388,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No such acquisition for this Buyer
+          description: No such acquisition for this Buyer or Company admin
           content:
             application/json:
               schema:
@@ -7519,9 +9396,16 @@ paths:
     post:
       summary: Build the corpus, if there is nothing to serve
       description: >
-        Starts an assembly when the state is `rebuild_required`, and does nothing when a corpus
-        is already downloadable — re-assembling one that is sitting there spends minutes of a
-        worker for a file the Buyer can already have.
+        Starts an assembly when the state is `rebuild_required`, or when it is `failed` for a
+        transient reason such as object storage being unavailable — the request is the retry,
+        and is answered as `pending` with 202. Does nothing when a corpus is already
+        downloadable — re-assembling one that is sitting there spends minutes of a worker for a
+        file the Buyer can already have — nor while a run is `assembling`, nor for a failure a
+        rebuild would only repeat.
+
+
+        Not needed for a first build: settlement queues one, and a `POST` that arrives before it
+        starts is answered `pending` with 200 rather than queuing a second.
 
 
         A separate verb from `GET` rather than a flag on it, because a Buyer polling every few
@@ -7533,13 +9417,21 @@ paths:
         - bulk-licensing
       responses:
         '200':
-          description: Nothing to do — a corpus is already downloadable.
+          description: >
+            Nothing started — a corpus is already downloadable, a run is queued (`pending`) or in
+            flight, or the failure is not one a rebuild can fix. The state says which.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CorpusResponse'
         '202':
-          description: Assembly started. Poll the GET until `ready`.
+          description: Assembly started, and answered `pending`. Poll the GET until `ready`.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/json:
               schema:
@@ -7551,7 +9443,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No such acquisition for this Buyer
+          description: No such acquisition for this Buyer or Company admin
           content:
             application/json:
               schema:
@@ -7564,7 +9456,9 @@ paths:
         required: true
         schema:
           type: string
-        description: Bulk acquisition UUID. Must belong to the authenticated Buyer.
+        description:
+          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+          Company wallet of a Company the caller is an admin of.
     get:
       summary: Download the corpus
       description: >
@@ -7594,6 +9488,9 @@ paths:
         '200':
           description: >
             The archive, or — when there is nothing to serve — the corpus state as JSON.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/PollRetryAfter'
           content:
             application/gzip:
               schema:
@@ -7609,7 +9506,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No such acquisition for this Buyer
+          description: No such acquisition for this Buyer or Company admin
           content:
             application/json:
               schema:
@@ -7622,7 +9519,9 @@ paths:
         required: true
         schema:
           type: string
-        description: Bulk acquisition UUID. Must belong to the authenticated Buyer.
+        description:
+          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+          Company wallet of a Company the caller is an admin of.
     get:
       summary: The signed manifest of a Bulk acquisition
       description: >
@@ -7656,7 +9555,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: >
-            No such acquisition for this Buyer. Deliberately the same answer as "not yours": a 403
+            No such acquisition for this Buyer or Company admin. Deliberately the same answer as "not yours": a 403
             distinguishing them would confirm to a stranger that a named Buyer ran a bulk
             acquisition, which is the one fact this product's customers care about keeping quiet.
           content:
@@ -7666,7 +9565,10 @@ paths:
         '409':
           description: >
             The acquisition exists and has no manifest yet. The manifest is written once, at first
-            assembly, so this says "ask for the corpus" rather than "there is nothing here".
+            assembly, which starts by itself when the acquisition settles with at least one work
+            delivered. So this answers while the run or that first assembly is still under way,
+            and for an acquisition that delivered nothing — "not yet", rather than "there is
+            nothing here".
           content:
             application/json:
               schema:
@@ -8206,9 +10108,14 @@ paths:
 
 
         Brokered results from partner marketplaces are an overlay on the requested page rather
-        than part of it: they are fetched in one unpaginated slice per call, so `results` may
-        hold more than `limit` entries and the same brokered rows recur on every page. If you
-        accumulate pages, deduplicate by `id`.
+        than part of it, so `results` may hold more than `limit` entries. They page separately,
+        by cursor: each response carries `tollbit_cursor`, and passing it back with the same
+        `query` returns the next brokered page with none of the brokered rows already returned.
+        `tollbit_exhausted: true` (with a null cursor) means there are no more. A call without
+        `tollbit_cursor` starts the brokered results again from their first page, whatever
+        `offset` is, so to walk both, advance `offset` and pass the latest `tollbit_cursor` on
+        each call. If the brokered catalog is unavailable, the cursor you sent comes back
+        unchanged and `tollbit_exhausted` is false: retry with it.
 
 
         **`search_content` completeness:** `unavailable_providers` names the catalogs that could
@@ -8527,7 +10434,7 @@ paths:
                     result:
                       content:
                         - type: text
-                          text: '{"results":[{"id":"550e8400...","title":"Quantum Guide","teaser":"...","price_cents":1500,"content_type":"markdown","store_id":"...","store_name":"Science Store","tags":["quantum"]}],"total_count":1,"offset":0,"limit":10,"unavailable_providers":[]}'
+                          text: '{"results":[{"id":"550e8400...","title":"Quantum Guide","teaser":"...","price_cents":1500,"content_type":"markdown","store_id":"...","store_name":"Science Store","tags":["quantum"]}],"total_count":1,"offset":0,"limit":10,"unavailable_providers":[],"tollbit_cursor":null,"tollbit_exhausted":true}'
                 payment_required:
                   summary: get_content — payment required (isError)
                   value:
@@ -8647,6 +10554,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The user is not an owner or author of `store_id`. Plain members cannot hold a
+            store-scoped key, with or without `can_manage_content` or `can_read_analytics`.
+            Also refused to a Machine user, whose keys its Company's admins manage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation error (e.g. missing label).
           content:
@@ -8679,6 +10595,12 @@ paths:
           description: Key revoked successfully.
         '401':
           description: Missing or invalid buyer JWT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is a Machine user, whose keys its Company's admins manage.
           content:
             application/json:
               schema:

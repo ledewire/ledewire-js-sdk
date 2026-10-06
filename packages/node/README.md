@@ -41,6 +41,7 @@ const stores = await client.merchant.auth.listStores()
 | `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                                                   |
 | `client.user.spendCap`         | Buyer's daily spend cap — read and update the ceiling                                         |
 | `client.user.mcpKeys`          | Manage buyer MCP API keys for the Ledewire MCP server                                         |
+| `client.company`               | Company wallets: membership, invitations, members, Machine users, top-ups, spend reports      |
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
 | `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
@@ -265,13 +266,70 @@ const keys = await client.user.mcpKeys.list() // secrets never included
 await client.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
 ```
 
+## Example: Company Wallets
+
+A Company is a shared wallet that pays for its members' purchases. Each member
+spends under their own daily Spend cap, set by a Company admin, and **never
+sees the Company balance**: for a member, `wallet.balance()` returns
+`balance_cents: null` / `spendable_cents: null`, `content.getWithAccess()`
+returns `wallet_balance_cents: null`, and `remaining_cents` / `company_name`
+say what they may still spend today and whose wallet pays. Handle `null`
+before doing arithmetic on a balance.
+
+```ts
+// Any buyer: am I in a Company?
+const wallet = await client.wallet.balance()
+if (wallet.company_name !== null) {
+  console.log(`${wallet.company_name} pays; ${wallet.remaining_cents}c left today`)
+}
+const membership = await client.company.membership.get() // NotFoundError if none
+
+// Admin: invite someone. Nobody joins until they accept with the emailed token —
+// an existing buyer via invitations.accept(), a new one via auth.signup().
+await client.company.invitations.create({ email: 'analyst@example.com' }) // role defaults to 'member'
+await client.company.invitations.accept({ token }) // invitee, existing account
+await client.auth.signup({ email, password, name, company_invitation_token: token }) // invitee, new account
+
+// Admin: set a member's daily Spend cap (by membership id; never null).
+const { data: members } = await client.company.members.list()
+await client.company.members.update(members[0].id, { daily_spend_limit_cents: 5000 })
+
+// Admin: a Machine user is an agent identity with no login, spending the Company's money.
+const bot = await client.company.machineUsers.create({ name: 'research-agent' })
+const { key, secret } = await client.company.machineUsers.buyerKeys.create(bot.id, {
+  name: 'production',
+})
+const agent = createAgentClient({ key, secret }) // authenticates as the Machine user
+await client.company.machineUsers.mcpKeys.create(bot.id, {
+  label: 'research-agent',
+  scopes: ['mcp:search', 'mcp:purchase'],
+})
+await client.company.machineUsers.deactivate(bot.id) // permanent; revokes every key
+
+// Admin: fund the Company wallet (card or ACH) and track unsettled top-ups.
+// wallet.getPaymentStatus() covers personal top-ups only — it does not find a Company session.
+await client.company.wallet.createPaymentSession({ amount_cents: 50000, currency: 'usd' })
+const { data: pending } = await client.company.wallet.listPendingTopUps()
+
+// Admin: what the Company paid for, and what each member spent.
+const { data: purchases } = await client.company.purchases.list({ kind: 'bulk_acquisition' })
+const { data: spend } = await client.company.spend.list({ from: '2026-09-01', to: '2026-09-30' })
+```
+
+Everything except `membership` and `invitations.accept()` is Company-admin only
+and throws `ForbiddenError` for a plain member. A member cannot change their own
+cap with `user.spendCap.update()` (403) — an admin sets it via
+`company.members.update()`. A Machine user cannot manage its own keys through
+`user.apiKeys` / `user.mcpKeys` (403).
+
 ## Example: Bulk Licensing (Acquisitions)
 
 Buy a publication's entire catalog (or a date-bounded slice of it) in one
 transaction instead of purchasing works one at a time:
 
 ```ts
-// 1. Browse the catalog and pull a page of work URLs.
+// 1. Browse the catalog and pull a page of work URLs. coverage_horizon says how
+// far back LedeWire has swept a publication (null = not established yet).
 const { data: publications } = await client.publications.list()
 const publication = publications.find((p) => p.bulk_licensable)
 const { data: urls } = await client.publications.listWorks(publication.id, {
@@ -279,12 +337,16 @@ const { data: urls } = await client.publications.listWorks(publication.id, {
   to: '2026-01-31',
 })
 
-// 2. Submit the Selection. Quoting is asynchronous.
+// 2. Submit the Selection. Quoting is asynchronous: poll for as long as the
+// response carries poll_after_seconds (2–60s, sized from the Selection).
+const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
 let acquisition = await client.acquisitions.create({ urls: urls.map((w) => w.url) })
-while (acquisition.quote_state === 'pending') {
-  await new Promise((r) => setTimeout(r, 2000))
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
+// Changed your mind? A quote can be withdrawn — no money moves:
+// await client.acquisitions.cancel(acquisition.id)
 
 // 3. Acknowledge whatever cannot be sold — required before authorizing.
 acquisition = await client.acquisitions.acknowledgeExclusions(acquisition.id)
@@ -301,13 +363,14 @@ try {
   throw err
 }
 
-// 5. Poll until the run settles, then check for partial failure.
-while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
-  await new Promise((r) => setTimeout(r, 5000))
+// 5. Poll until the run settles, then page through only the failures.
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
-const { data: works } = await client.acquisitions.listWorks(acquisition.id)
-const failed = works.filter((w) => w.delivery_state === 'undelivered')
+const { data: failed } = await client.acquisitions.listWorks(acquisition.id, {
+  delivery_state: 'undelivered', // also: line_state, exclusion_reason
+})
 
 // 6. Stream the corpus archive to a file.
 import { createWriteStream } from 'node:fs'
@@ -379,7 +442,11 @@ try {
 
 Every `LedewireError` also carries `type` (the API error body's machine-readable
 `error.type`, e.g. `'daily_spend_cap_reached'`, `'insufficient_funds'`) and
-`details` (any extra top-level fields on the error body). `instanceof` checks
+`details` (any extra top-level fields on the error body). The bulk acquisition
+steps refuse with `exclusions_unacknowledged`, `quote_not_ready`,
+`quote_expired`, `quote_in_progress`, `invalid_acquisition_state` (with
+`status` / `expected_status` in `details`), `nothing_to_hold`, and
+`run_not_started` (503 — nothing was held; safe to retry). `instanceof` checks
 work even across the separately bundled copies of `@ledewire/core` inside
 `@ledewire/node`, `@ledewire/browser`, and `@ledewire/x402-client` — an error
 thrown by the x402-client is still recognized by `SpendCapReachedError`

@@ -2,10 +2,10 @@ import type { HttpClient } from '@ledewire/core'
 import { LedewireError } from '@ledewire/core'
 import type {
   AcquisitionResponse,
+  AcquisitionWorksParams,
   CorpusManifestResponse,
   CorpusResponse,
   PaginatedAcquisitionWorkList,
-  PaginationParams,
   SigningKeyHistoryResponse,
 } from '@ledewire/core'
 
@@ -88,16 +88,24 @@ export type CorpusDownloadResult =
  * Every method requires a buyer JWT, except {@link signingKeyHistory}, which is
  * public.
  *
+ * **Polling:** while a step is still in progress — a quote being priced, a run
+ * in flight, a corpus queued or assembling — the response carries
+ * `poll_after_seconds` (2–60, sized from the Selection, also sent as
+ * `Retry-After`). Wait that long before polling again; the field is absent once
+ * there is nothing left to wait for.
+ *
  * @example
  * ```ts
+ * const wait = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+ *
  * // 1. Submit a Selection and open the acquisition.
  * let acquisition = await client.acquisitions.create({
  *   urls: ['https://example.com/articles/1', 'https://example.com/articles/2'],
  * })
  *
- * // 2. Quoting is asynchronous — poll until quote_state is 'ready'.
- * while (acquisition.quote_state === 'pending') {
- *   await new Promise((resolve) => setTimeout(resolve, 2000))
+ * // 2. Quoting is asynchronous — poll for as long as the server says to.
+ * while (acquisition.poll_after_seconds !== undefined) {
+ *   await wait(acquisition.poll_after_seconds)
  *   acquisition = await client.acquisitions.get(acquisition.id)
  * }
  *
@@ -123,14 +131,15 @@ export type CorpusDownloadResult =
  * }
  *
  * // 6. Poll until the run settles.
- * while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
- *   await new Promise((resolve) => setTimeout(resolve, 5000))
+ * while (acquisition.poll_after_seconds !== undefined) {
+ *   await wait(acquisition.poll_after_seconds)
  *   acquisition = await client.acquisitions.get(acquisition.id)
  * }
  *
  * // 7. Partial failure is read from the per-work list, not caught as an exception.
- * const { data: works } = await client.acquisitions.listWorks(acquisition.id)
- * const failed = works.filter((w) => w.delivery_state === 'undelivered')
+ * const { data: failed } = await client.acquisitions.listWorks(acquisition.id, {
+ *   delivery_state: 'undelivered',
+ * })
  *
  * // 8. Download the corpus.
  * const result = await client.acquisitions.downloadCorpus(acquisition.id)
@@ -149,7 +158,8 @@ export class AcquisitionsNamespace {
    * **Quoting is asynchronous.** Resolving rates for 10,000 works is roughly
    * 200 upstream batch calls, so the response comes back with
    * `quote_state: 'pending'` and a snapshot the buyer can already read while
-   * pricing runs behind it. Poll {@link get} until `quote_state` is `'ready'`.
+   * pricing runs behind it. Poll {@link get} every `poll_after_seconds` until
+   * `quote_state` is `'ready'`.
    *
    * @param body - The Selection to license.
    * @returns The acquisition, with its quote not yet priced (201).
@@ -167,7 +177,9 @@ export class AcquisitionsNamespace {
    * rather than rows. Per-work detail is {@link listWorks}.
    *
    * @param id - The acquisition ID.
-   * @returns The current acquisition state.
+   * @returns The current acquisition state. `poll_after_seconds` is present
+   *   while there is something to wait for (a quote pricing, or a run
+   *   `authorized`/`acquiring`) and says how long to wait before the next poll.
    */
   async get(id: string): Promise<AcquisitionResponse> {
     return this.http.get<AcquisitionResponse>(`/v1/acquisitions/${encodeURIComponent(id)}`)
@@ -228,10 +240,54 @@ export class AcquisitionsNamespace {
    *   this acquisition (402). Deliberately carries no funding URL — adding
    *   money cannot clear a cap. Distinct from a `422` insufficient-funds
    *   refusal, where the quote survives and the buyer can retry after funding.
+   *   For a Company member, the cap is their membership's and the error's
+   *   message says to ask a Company admin.
+   * @throws {LedewireError} With `statusCode === 422` for a quote that is not
+   *   authorizable yet — `type` is one of `exclusions_unacknowledged`,
+   *   `quote_not_ready`, `quote_expired`, `quote_in_progress`,
+   *   `invalid_acquisition_state`, or `nothing_to_hold` (see {@link ErrorType}).
+   * @throws {LedewireError} With `statusCode === 503` and
+   *   `type === 'run_not_started'` when the run could not be queued. Nothing was
+   *   held and the acquisition is still `quoted`, so the same call is safe to
+   *   retry.
    */
   async authorize(id: string): Promise<AcquisitionResponse> {
     return this.http.post<AcquisitionResponse>(
       `/v1/acquisitions/${encodeURIComponent(id)}/authorization`,
+    )
+  }
+
+  /**
+   * Cancels an acquisition, moving it to `status: 'cancelled'`.
+   *
+   * **A quote** (`status: 'quoted'`, in any quote state, expired or not) is
+   * the buyer's own to withdraw. No hold exists yet, so no money moves. The
+   * usual reason: quoting showed what a Selection costs, and the buyer trims it
+   * and submits the remainder as a new acquisition — cancelling the first keeps
+   * it from sitting as an expired quote.
+   *
+   * **A held acquisition** (`authorized` or `acquiring`) can be cancelled only
+   * when a Company paid for it, and only by an admin of that Company. What was
+   * already captured is charged and the rest of the hold is released to the
+   * Company wallet — a release, not a refund: delivered works stay bought. A run
+   * in progress starts no further work and assembles the corpus for what it
+   * delivered.
+   *
+   * Idempotent: an acquisition already `cancelled` is returned unchanged.
+   *
+   * @param id - The acquisition ID.
+   * @returns The cancelled acquisition.
+   * @throws {NotFoundError} When the acquisition is neither the caller's nor
+   *   paid for by a Company they administer.
+   * @throws {LedewireError} With `statusCode === 422` and
+   *   `type === 'invalid_acquisition_state'` when it is past the point this
+   *   caller can cancel — a buyer's own acquisition once it is past its quote,
+   *   or a Company admin's once it has settled or failed. `details` carries
+   *   `status` and `expected_status`.
+   */
+  async cancel(id: string): Promise<AcquisitionResponse> {
+    return this.http.post<AcquisitionResponse>(
+      `/v1/acquisitions/${encodeURIComponent(id)}/cancellation`,
     )
   }
 
@@ -242,13 +298,19 @@ export class AcquisitionsNamespace {
    * **Partial failure is read from here, not caught.** An acquisition where
    * 300 of 10,000 works failed is ordinary — it does not fail the request and
    * is not an exception — so each outcome is a line item carrying its typed
-   * `failure_reason`.
+   * `failure_reason`. Filter by `delivery_state: 'undelivered'` to page through
+   * only the failures, or by `line_state: 'excluded'` / `exclusion_reason` to
+   * see what was refused.
    *
    * @param id - The acquisition ID.
-   * @param params - Optional pagination parameters.
+   * @param params - Optional pagination and filters (`delivery_state`,
+   *   `line_state`, `exclusion_reason`). Filters combine with AND.
    * @returns A paginated list of per-work dispositions.
    */
-  async listWorks(id: string, params?: PaginationParams): Promise<PaginatedAcquisitionWorkList> {
+  async listWorks(
+    id: string,
+    params?: AcquisitionWorksParams,
+  ): Promise<PaginatedAcquisitionWorkList> {
     return this.http.get<PaginatedAcquisitionWorkList>(
       `/v1/acquisitions/${encodeURIComponent(id)}/works`,
       params,

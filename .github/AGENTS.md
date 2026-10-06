@@ -32,6 +32,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 | `packages/browser/src/session-storage-adapter.ts` | `sessionStorage`-backed token storage (tab-scoped, recommended for widgets)                                           |
 | `packages/node/src/resources/acquisitions.ts`     | Bulk-licensing flow: quote, authorize, corpus download, signed manifest                                               |
 | `packages/node/src/resources/publications.ts`     | Bulk-licensing catalog: publications and their works (public)                                                         |
+| `packages/node/src/resources/company/`            | Company wallets: membership, invitations, members, Machine users, top-ups, reports (copied verbatim into browser)     |
 | `packages/core/src/spend-cap.ts`                  | `spendCapErrorFromBody()` — shared 402 body parser to `SpendCapReachedError` (used by `HttpClient` and `x402-client`) |
 
 ## Client Namespace Structure
@@ -44,6 +45,13 @@ client.auth.*                   buyer auth (email, google, api-key, password res
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
 client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
 client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
+client.company.membership.*     the buyer's own Company membership (get, leave)
+client.company.invitations.*    invite (admin), list (admin), accept (invitee, with emailed token)
+client.company.members.*        list, update role / daily Spend cap, remove (admin; membership ids)
+client.company.machineUsers.*   Machine users (list, create, deactivate) + .buyerKeys / .mcpKeys (admin)
+client.company.wallet.*         Company top-up payment session, pending top-ups (admin)
+client.company.purchases.*      everything the Company paid for, per member (admin, paginated)
+client.company.spend.*          spend per membership over a date range (admin)
 client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
 client.merchant.users.*         team management (invite, list, remove, update)
 client.merchant.content.*       content CRUD + search (merchant JWT auth)
@@ -56,17 +64,21 @@ client.seller.content.*         seller content CRUD + search (API key auth)
 client.seller.sales.*           seller sales summary + per-content statistics
 client.seller.buyers.*          anonymized buyer statistics (API key auth)
 client.seller.config.*          store configuration (API key auth)
-client.wallet.*                 balance (incl. held_cents/holds), payment sessions, transactions
+client.wallet.*                 balance (incl. held_cents/holds; null for a Company member), payment sessions, transactions
 client.purchases.*              create (single-use delivery), list, get, verify purchases
 client.content.*                public content with buyer access info
 client.checkout.*               checkout state machine
 client.publications.*           bulk-licensing catalog: publications + their works (public)
-client.acquisitions.*           bulk licensing: quote, authorize, corpus download, signed manifest
+client.acquisitions.*           bulk licensing: quote, cancel, authorize, corpus download, signed manifest
 client.x402.*                   public x402 Bazaar resource discovery (no auth required)
 ```
 
 `createAgentClient()` exposes a buyer-scoped subset: `auth`, `wallet`, `purchases`,
-`content`, `checkout`, `user`, `publications`, `acquisitions`, `x402`.
+`content`, `checkout`, `user`, `company`, `publications`, `acquisitions`, `x402`.
+
+`createMockClient()` stubs are hand-listed in `packages/node/src/testing.ts`; a
+test in `testing.test.ts` walks a real `NodeClient` and fails if any public
+method is missing a stub, so add the stub whenever you add a method.
 
 ### Testing utilities (`@ledewire/node/testing`)
 
@@ -89,6 +101,7 @@ lw.content.*         content with access info
 lw.user.apiKeys.*    buyer API key management (list, create, revoke)
 lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
 lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
+lw.company.*         Company wallets — same surface as client.company.*
 lw.seller.*          loginWithApiKey (view or full), content list/search/get
 ```
 
@@ -113,7 +126,15 @@ and `@ledewire/x402-client` (see the brand-list fallback in
 `SpendCapReachedError` (402, `type: 'daily_spend_cap_reached'`) is thrown by
 `purchases.create()`, the x402 content gate, and `acquisitions.authorize()`.
 Funding the wallet does **not** clear it — it resets at `err.resetsAt`, or the
-cap can be raised/removed via `user.spendCap.update()`.
+cap can be raised/removed via `user.spendCap.update()` (for a Company member,
+only by an admin via `company.members.update()`).
+
+#### Company members never see the Company balance
+
+For a buyer with an open Company membership, `balance_cents` / `spendable_cents`
+(wallet), `wallet_balance_cents` (content access info), and `balance_cents`
+(payment status) are `null`; `remaining_cents` and `company_name` say what they
+may still spend and whose wallet pays. Never assume a balance is a number.
 
 #### Merchant auth role mismatch — `ForbiddenError`, not `AuthError`
 

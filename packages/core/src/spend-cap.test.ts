@@ -41,6 +41,22 @@ describe('spendCapErrorFromBody', () => {
     expect(err?.code).toBeUndefined()
   })
 
+  it("falls back to the body's top-level remedy message when the envelope has none", () => {
+    const body = {
+      error: { type: 'daily_spend_cap_reached' },
+      cap_cents: 1000,
+      spent_cents: 1000,
+      remaining_cents: 0,
+      resets_at: '2099-01-01T00:00:00Z',
+      bulk_exempt: false,
+      message: 'Ask a Company admin to raise your daily spend cap.',
+    }
+
+    const err = spendCapErrorFromBody(body)
+
+    expect(err?.message).toBe('Ask a Company admin to raise your daily spend cap.')
+  })
+
   it('returns null for a body with a different error.type', () => {
     expect(spendCapErrorFromBody({ error: { type: 'insufficient_funds' } })).toBeNull()
   })
