@@ -241,6 +241,93 @@ describe('acquisitions.listWorks', () => {
 
     await makeNamespace().listWorks('acq-id-1', { page: 3, per_page: 50 })
   })
+
+  it('sends delivery_state, line_state and exclusion_reason filters as query parameters', async () => {
+    let query: URLSearchParams | undefined
+    server.use(
+      http.get(`${BASE}/v1/acquisitions/acq-id-1/works`, ({ request }) => {
+        query = new URL(request.url).searchParams
+        return HttpResponse.json({
+          data: [],
+          pagination: { total: 0, per_page: 25, current_page: 1, total_pages: 0 },
+        })
+      }),
+    )
+
+    await makeNamespace().listWorks('acq-id-1', {
+      delivery_state: 'undelivered',
+      line_state: 'excluded',
+      exclusion_reason: 'excluded_no_rate',
+    })
+
+    expect(Object.fromEntries(query ?? [])).toEqual({
+      delivery_state: 'undelivered',
+      line_state: 'excluded',
+      exclusion_reason: 'excluded_no_rate',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// acquisitions.cancel
+// ---------------------------------------------------------------------------
+
+describe('acquisitions.cancel', () => {
+  it('POSTs the cancellation and returns the cancelled acquisition', async () => {
+    let method = ''
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/acq-id-1/cancellation`, ({ request }) => {
+        method = request.method
+        return HttpResponse.json(acquisitionFixture({ status: 'cancelled' }))
+      }),
+    )
+
+    const result = await makeNamespace().cancel('acq-id-1')
+
+    expect(method).toBe('POST')
+    expect(result.status).toBe('cancelled')
+  })
+
+  it('surfaces invalid_acquisition_state with status and expected_status in details', async () => {
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/acq-id-1/cancellation`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 422,
+              message: 'This acquisition is settled, not quoted',
+              type: 'invalid_acquisition_state',
+            },
+            status: 'settled',
+            expected_status: 'quoted',
+          },
+          { status: 422 },
+        ),
+      ),
+    )
+
+    const err = await makeNamespace()
+      .cancel('acq-id-1')
+      .catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).statusCode).toBe(422)
+    expect((err as LedewireError).type).toBe('invalid_acquisition_state')
+    expect((err as LedewireError).details).toEqual({
+      status: 'settled',
+      expected_status: 'quoted',
+    })
+  })
+
+  it('throws NotFoundError for an acquisition the caller cannot see', async () => {
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/acq-id-1/cancellation`, () =>
+        HttpResponse.json(errorResponseFixture(404, 'Not found'), { status: 404 }),
+      ),
+    )
+
+    await expect(makeNamespace().cancel('acq-id-1')).rejects.toThrow(NotFoundError)
+  })
 })
 
 // ---------------------------------------------------------------------------

@@ -45,8 +45,15 @@ export function spendCapErrorFromBody(body: unknown): SpendCapReachedError | nul
     return null
   }
 
+  // The body also carries the remedy at the top level (`message`) — for a
+  // Company member, "ask a Company admin" — which is what MCP clients see in
+  // place of the envelope. Prefer the envelope's, fall back to it.
   const message =
-    typeof errorRecord['message'] === 'string' ? errorRecord['message'] : 'Daily spend cap reached.'
+    typeof errorRecord['message'] === 'string'
+      ? errorRecord['message']
+      : typeof record['message'] === 'string'
+        ? record['message']
+        : 'Daily spend cap reached.'
   const code = typeof errorRecord['code'] === 'number' ? errorRecord['code'] : undefined
 
   return new SpendCapReachedError(

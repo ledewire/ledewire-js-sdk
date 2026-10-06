@@ -13,6 +13,7 @@ import { BrowserPurchasesNamespace } from './resources/purchases.js'
 import { BrowserSellerNamespace } from './resources/seller/index.js'
 import { BrowserWalletNamespace } from './resources/wallet.js'
 import { CheckoutNamespace } from './resources/checkout.js'
+import { CompanyNamespace } from './resources/company/index.js'
 import { UserNamespace } from './resources/user/index.js'
 
 /**
@@ -120,8 +121,11 @@ export class BrowserClient {
   /** Seller operations: API key login, content list/search/get */
   readonly seller: BrowserSellerNamespace
 
-  /** Authenticated buyer account: API key management */
+  /** Authenticated buyer account: API keys, MCP keys, and the daily spend cap */
   readonly user: UserNamespace
+
+  /** Company membership, and Company administration: members, Machine users, wallet, reports */
+  readonly company: CompanyNamespace
 
   /** @internal */
   constructor(
@@ -137,5 +141,6 @@ export class BrowserClient {
     this.content = new BrowserContentNamespace(_http)
     this.seller = new BrowserSellerNamespace(_http, _tokenManager)
     this.user = new UserNamespace(_http)
+    this.company = new CompanyNamespace(_http)
   }
 }

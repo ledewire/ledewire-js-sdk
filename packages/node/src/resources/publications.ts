@@ -39,6 +39,11 @@ export class PublicationsNamespace {
    * Licensability is the only filter: a publication that publishes no `FULL_USE`
    * rate is still listed, flagged `bulk_licensable: false`, rather than omitted.
    *
+   * `coverage_horizon` states how far back LedeWire has swept a publication:
+   * `horizon_at` is the oldest date reached, `as_of` when that sweep began (the
+   * broker can add older works afterwards), and `sources` where it looked.
+   * `null` means no horizon has been established yet — not a horizon of zero.
+   *
    * @param params - Optional pagination parameters.
    * @returns A paginated list of publications.
    */
@@ -68,6 +73,10 @@ export class PublicationsNamespace {
    * @param params - Optional `from`/`to` date bounds (inclusive, `YYYY-MM-DD`),
    *   `cursor` for the next page, and `limit` (defaults to the maximum, 1000).
    * @returns A page of the publication's works.
+   * @throws {LedewireError} With `statusCode === 429` when the endpoint's rate
+   *   limit is exhausted. The SDK does not retry automatically; back off
+   *   before calling again (the API's `Retry-After` header is not surfaced on
+   *   the error).
    */
   async listWorks(
     id: string,

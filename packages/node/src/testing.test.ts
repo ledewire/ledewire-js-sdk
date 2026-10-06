@@ -1,8 +1,57 @@
 import { describe, it, expect, vi } from 'vitest'
+import { createClient } from './client.js'
 import { createMockClient } from './testing.js'
 import type { MockNodeClient } from './testing.js'
 
+/**
+ * Lists every public method path (e.g. `company.machineUsers.buyerKeys.create`)
+ * reachable on a real client, by walking each `*Namespace` instance and its
+ * prototype chain.
+ */
+function methodPaths(target: object, prefix = ''): string[] {
+  const paths: string[] = []
+  for (
+    let proto = Object.getPrototypeOf(target) as object | null;
+    proto && proto !== Object.prototype;
+    proto = Object.getPrototypeOf(proto) as object | null
+  ) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name === 'constructor') continue
+      if (typeof Reflect.get(proto, name) === 'function') paths.push(`${prefix}${name}`)
+    }
+  }
+  for (const [name, value] of Object.entries(target) as [string, object | null][]) {
+    if (value?.constructor.name.endsWith('Namespace')) {
+      paths.push(...methodPaths(value, `${prefix}${name}.`))
+    }
+  }
+  return paths
+}
+
+/** TypeScript-`private` helpers, which reflection cannot tell apart from public methods. */
+const PRIVATE_METHODS = new Set([
+  'auth.storeTokens',
+  'merchant.auth.normalizeTokens',
+  'merchant.auth.storeTokens',
+])
+
 describe('createMockClient', () => {
+  it('stubs every method a real NodeClient exposes', () => {
+    const mock = createMockClient(vi.fn)
+    const publicPaths = methodPaths(createClient()).filter((path) => !PRIVATE_METHODS.has(path))
+    const missing = publicPaths.filter((path) => {
+      const value: unknown = path
+        .split('.')
+        .reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], mock)
+      return typeof value !== 'function'
+    })
+
+    // Guard against a vacuous walk: nested namespaces must be reached.
+    expect(publicPaths).toContain('company.machineUsers.buyerKeys.create')
+    expect(publicPaths).toContain('acquisitions.cancel')
+    expect(missing).toEqual([])
+  })
+
   it('returns an object with all top-level namespaces', () => {
     const client = createMockClient(vi.fn)
 
@@ -15,6 +64,7 @@ describe('createMockClient', () => {
     expect(client).toHaveProperty('checkout')
     expect(client).toHaveProperty('config')
     expect(client).toHaveProperty('user')
+    expect(client).toHaveProperty('company')
     expect(client).toHaveProperty('publications')
     expect(client).toHaveProperty('acquisitions')
     expect(client).toHaveProperty('x402')

@@ -239,6 +239,47 @@ export function createMockClient(
         revoke: stub(),
       },
     },
+    company: {
+      membership: {
+        get: stub(),
+        leave: stub(),
+      },
+      invitations: {
+        list: stub(),
+        create: stub(),
+        accept: stub(),
+      },
+      members: {
+        list: stub(),
+        update: stub(),
+        remove: stub(),
+      },
+      machineUsers: {
+        list: stub(),
+        create: stub(),
+        deactivate: stub(),
+        buyerKeys: {
+          list: stub(),
+          create: stub(),
+          revoke: stub(),
+        },
+        mcpKeys: {
+          list: stub(),
+          create: stub(),
+          revoke: stub(),
+        },
+      },
+      wallet: {
+        createPaymentSession: stub(),
+        listPendingTopUps: stub(),
+      },
+      purchases: {
+        list: stub(),
+      },
+      spend: {
+        list: stub(),
+      },
+    },
     publications: {
       list: stub(),
       listWorks: stub(),
@@ -249,6 +290,7 @@ export function createMockClient(
       requote: stub(),
       acknowledgeExclusions: stub(),
       authorize: stub(),
+      cancel: stub(),
       listWorks: stub(),
       getCorpus: stub(),
       buildCorpus: stub(),

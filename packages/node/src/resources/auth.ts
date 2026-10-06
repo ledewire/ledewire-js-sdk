@@ -37,6 +37,11 @@ export class AuthNamespace {
    * Register a new buyer account with email and password.
    * Tokens are stored automatically after successful signup.
    *
+   * Pass `company_invitation_token` (from a Company invitation email) to sign
+   * up and join the Company in one step. If the token does not name a pending
+   * invitation addressed to this email, the account is still created, without
+   * a membership.
+   *
    * @example
    * ```ts
    * const tokens = await client.auth.signup({

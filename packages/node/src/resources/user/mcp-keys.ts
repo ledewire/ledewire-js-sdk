@@ -65,6 +65,12 @@ export class UserMcpKeysNamespace {
    *
    * @param body - Label and scopes for the new key.
    * @returns The new key's public identifier, scopes, and one-time secret.
+   * @throws {ForbiddenError} When a seller-tier scope or `store_id` names a store
+   *   the user is not an owner or author of (plain store members cannot hold a
+   *   store-scoped key), or when the caller is a Machine user, whose keys its
+   *   Company's admins manage through `company.machineUsers.mcpKeys`. Seller-tier
+   *   scopes are re-checked on every use, so a key stops working if its holder
+   *   loses the role.
    *
    * @example
    * ```ts
@@ -86,6 +92,7 @@ export class UserMcpKeysNamespace {
    * desired scopes — scopes cannot be edited in place.
    *
    * @param id - UUID of the MCP API key to revoke.
+   * @throws {ForbiddenError} When the caller is a Machine user.
    */
   async revoke(id: string): Promise<void> {
     return this.http.delete(`/v1/mcp/keys/${encodeURIComponent(id)}`)

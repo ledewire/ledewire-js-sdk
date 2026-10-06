@@ -320,6 +320,19 @@ export type UserApiKeyCreateResponse = components['schemas']['UserApiKeyCreateRe
  * - `insufficient_funds` — cleared by funding the wallet.
  * - `daily_spend_cap_reached` — deliberately **not** cleared by funding the wallet; see
  *   {@link SpendCapReachedError}.
+ *
+ * On the bulk acquisition steps:
+ *
+ * - `exclusions_unacknowledged` — call `acquisitions.acknowledgeExclusions()` first.
+ * - `quote_not_ready` — keep polling a `pending` quote, or re-quote a `failed` one
+ *   (`quote_state` says which).
+ * - `quote_expired` — re-quote.
+ * - `quote_in_progress` — wait for the re-quote already running.
+ * - `invalid_acquisition_state` — re-read the acquisition; `status` and
+ *   `expected_status` arrive in `LedewireError.details`.
+ * - `nothing_to_hold` — every work was excluded; a different Selection is needed.
+ * - `run_not_started` — the run could not be queued, so nothing was held and the same
+ *   authorization is safe to retry.
  */
 export type ErrorType = NonNullable<components['schemas']['ErrorResponse']['error']['type']>
 
@@ -417,6 +430,25 @@ export type AcquisitionWork = components['schemas']['AcquisitionWork']
 export type PaginatedAcquisitionWorkList = components['schemas']['PaginatedAcquisitionWorkList']
 
 /**
+ * Query parameters accepted by `GET /v1/acquisitions/{acquisition_id}/works`:
+ * pagination plus optional filters. Filters combine with AND, and
+ * `pagination.total` counts only the matching works.
+ */
+export interface AcquisitionWorksParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+  /** Only works in this delivery state, e.g. `'undelivered'` to list what failed. */
+  delivery_state?: AcquisitionWork['delivery_state']
+  /** Only lines in this pricing state, e.g. `'excluded'`. */
+  line_state?: AcquisitionWork['line_state']
+  /** Only excluded lines refused for this reason. */
+  exclusion_reason?: NonNullable<AcquisitionWork['exclusion_reason']>
+  [key: string]: string | number | undefined
+}
+
+/**
  * Where a Bulk acquisition's Corpus is — a state, never an error. A corpus is a
  * rendering of purchases the buyer already holds, not an entitlement of its own, so
  * it can be discarded and rebuilt at no cost to the buyer.
@@ -460,6 +492,165 @@ export interface X402DiscoveryParams {
  * {@link SpendCapReachedError} rather than handing back the JSON body directly.
  */
 export type DailySpendCapReachedErrorBody = components['schemas']['DailySpendCapReachedError']
+
+// ---------------------------------------------------------------------------
+// Companies
+// ---------------------------------------------------------------------------
+
+/** A Company membership role. Only an `admin` can manage the Company. */
+export type CompanyRole = CompanyMembership['role']
+
+/**
+ * The authenticated buyer's own open Company membership. Names the Company but
+ * never its balance: a member sees only what they may still spend.
+ */
+export type CompanyMembership = components['schemas']['CompanyMembership']
+
+/**
+ * A pending invitation to join a Company. Joining always waits for the invitee
+ * to accept, because it moves their spending onto the Company wallet. Never
+ * carries the acceptance token, which reaches only the invited address.
+ */
+export type CompanyInvitation = components['schemas']['CompanyInvitation']
+
+/** The Company's pending invitations. */
+export type CompanyInvitationList = components['schemas']['CompanyInvitationList']
+
+/** Request body for inviting someone to the Company. */
+// openapi-typescript marks `role` (which has a `default:`) as required; the
+// server applies `member` when it is omitted, so make it optional here.
+export type CompanyInvitationRequest = Omit<
+  components['schemas']['CompanyInvitationRequest'],
+  'role'
+> & { role?: CompanyRole }
+
+/** Request body for accepting a Company invitation. */
+export type CompanyInvitationAcceptRequest = components['schemas']['CompanyInvitationAcceptRequest']
+
+/**
+ * An open Company membership as a Company admin sees it. `id` is the membership
+ * id the `company.members` methods take — not the member's `user_id`.
+ */
+export type CompanyMember = components['schemas']['CompanyMember']
+
+/** The Company's open memberships. */
+export type CompanyMemberList = components['schemas']['CompanyMemberList']
+
+/**
+ * Request body for changing a member's role or daily Spend cap — at least one
+ * of the two. `daily_spend_limit_cents` cannot be `null`: a Company member is
+ * never uncapped.
+ */
+export type CompanyMemberUpdateRequest = components['schemas']['CompanyMemberRoleRequest']
+
+/**
+ * A Machine user: a Buyer with a name and no email, password or login, owned by
+ * a Company and joined as a non-admin member. It authenticates only with the
+ * Buyer keys and MCP API keys a Company admin issues it. Deactivation is
+ * permanent.
+ */
+export type CompanyMachineUser = components['schemas']['CompanyMachineUser']
+
+/** The Company's Machine users. */
+export type CompanyMachineUserList = components['schemas']['CompanyMachineUserList']
+
+/** Request body for creating a Machine user. */
+export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMachineUserRequest']
+
+/**
+ * A Machine user's Buyer key (secret never included after creation). It logs in
+ * through `auth.loginWithBuyerApiKey()`; its limit is the Machine user's
+ * membership Spend cap.
+ */
+export type CompanyMachineUserBuyerKey = components['schemas']['CompanyMachineUserBuyerKey']
+
+/** A Machine user's Buyer keys, oldest first. */
+export type CompanyMachineUserBuyerKeyList = components['schemas']['CompanyMachineUserBuyerKeyList']
+
+/** Request body for creating a Machine user's Buyer key. */
+export type CompanyMachineUserBuyerKeyCreateRequest =
+  components['schemas']['CompanyMachineUserBuyerKeyRequest']
+
+/**
+ * Returned once when a Machine user's Buyer key is created. The `secret` is
+ * shown exactly once and cannot be retrieved again.
+ */
+export type CompanyMachineUserBuyerKeyCreateResponse =
+  components['schemas']['CompanyMachineUserBuyerKeyCreateResponse']
+
+/**
+ * A Machine user's active MCP API key. Carries buyer scopes only
+ * (`mcp:search`, `mcp:purchase`), never a store, and does not expire.
+ */
+export type CompanyMachineUserMcpKey = components['schemas']['CompanyMachineUserMcpKey']
+
+/** A Machine user's MCP API keys, oldest first. */
+export type CompanyMachineUserMcpKeyList = components['schemas']['CompanyMachineUserMcpKeyList']
+
+/** Request body for creating a Machine user's MCP API key. */
+export type CompanyMachineUserMcpKeyCreateRequest =
+  components['schemas']['CompanyMachineUserMcpKeyRequest']
+
+/**
+ * Returned once when a Machine user's MCP API key is created. The `secret` is
+ * shown exactly once and cannot be retrieved again.
+ */
+export type CompanyMachineUserMcpKeyCreateResponse =
+  components['schemas']['CompanyMachineUserMcpKeyCreateResponse']
+
+/** A Company wallet top-up that has not settled yet. */
+export type CompanyPendingTopUp = components['schemas']['CompanyPendingTopUp']
+
+/** The Company's unsettled top-ups, newest first. */
+export type CompanyPendingTopUpList = components['schemas']['CompanyPendingTopUpList']
+
+/**
+ * One thing the Company paid for — a purchase or a Bulk acquisition drawn on
+ * the Company wallet — attributed to the membership that bought it.
+ */
+export type CompanyPurchase = components['schemas']['CompanyPurchase']
+
+/**
+ * The membership a {@link CompanyPurchase} or spend row is attributed to.
+ * Recorded at payment time, so it still names a member who has since left.
+ */
+export type CompanyPurchaseMember = components['schemas']['CompanyPurchaseMember']
+
+/** Everything the Company paid for, newest first, paginated. */
+export type CompanyPurchaseList = components['schemas']['CompanyPurchaseList']
+
+/** What each membership, open or closed, has spent of the Company's money. */
+export type CompanySpendList = components['schemas']['CompanySpendList']
+
+/**
+ * Filters shared by the Company purchase and spend reports. `from`/`to` are
+ * inclusive `YYYY-MM-DD` days read in the Company's timezone.
+ */
+export interface CompanyReportFilters {
+  /** A membership id (`member.id`), open or closed. */
+  member?: string
+  /** The first day to include, `YYYY-MM-DD`, in the Company's timezone. */
+  from?: string
+  /** The last day to include, `YYYY-MM-DD`, in the Company's timezone. */
+  to?: string
+  [key: string]: string | number | undefined
+}
+
+/** Query parameters accepted by `GET /v1/company/purchases`. */
+export interface CompanyPurchasesParams extends CompanyReportFilters {
+  /** Only purchases, or only Bulk acquisitions. Both by default. */
+  kind?: CompanyPurchase['kind']
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+}
+
+/**
+ * Query parameters accepted by `GET /v1/company/spend`. Lifetime spend when
+ * neither `from` nor `to` is given.
+ */
+export type CompanySpendParams = CompanyReportFilters
 
 /**
  * Pagination parameters accepted by paginated list endpoints.

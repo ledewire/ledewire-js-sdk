@@ -50,6 +50,12 @@ export class UserSpendCapNamespace {
    * Returns the authenticated buyer's spend cap, read against the current spend
    * window.
    *
+   * For a buyer with an open Company membership this is the membership's cap —
+   * read in the Company's timezone, counting only spend paid through the
+   * membership, never uncapped, and always binding bulk acquisitions
+   * (`bulk_exempt: false`). `company_name` names the Company; it is `null` for
+   * anyone else.
+   *
    * @returns The current spend cap, spend-to-date, and reset time.
    */
   async get(): Promise<UserSpendCap> {
@@ -66,6 +72,9 @@ export class UserSpendCapNamespace {
    *
    * @param body - The new cap in whole cents, or `null` to remove it.
    * @returns The updated spend cap.
+   * @throws {ForbiddenError} When the buyer holds an open Company membership. A
+   *   member's cap — an admin's own included — is set by a Company admin through
+   *   `company.members.update()`.
    */
   async update(body: UserSpendCapUpdateRequest): Promise<UserSpendCap> {
     return this.http.patch<UserSpendCap>('/v1/user/spend-cap', body)
