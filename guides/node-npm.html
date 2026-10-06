@@ -237,10 +237,9 @@ try {
       <p>
         <code>client.purchases.create()</code>, the x402 content gate, and
         <code>client.acquisitions.authorize()</code> can also throw
-        <code>SpendCapReachedError</code> (402) when the buyer's daily spend
-        cap is reached. Funding the wallet does not clear it — the cap resets
-        at <code>err.resetsAt</code>, or can be raised via
-        <code>client.user.spendCap.update()</code>.
+        <code>SpendCapReachedError</code> (402) when the buyer's daily spend cap is reached. Funding
+        the wallet does not clear it — the cap resets at <code>err.resetsAt</code>, or can be raised
+        via <code>client.user.spendCap.update()</code>.
       </p>
       <pre><code>import { SpendCapReachedError } from '@ledewire/node'
 
@@ -315,13 +314,20 @@ try {
             <td>list, create, revoke</td>
           </tr>
           <tr>
+            <td><code>client.company.*</code></td>
+            <td>
+              membership, invitations, members, machineUsers (+ buyerKeys, mcpKeys), wallet,
+              purchases, spend
+            </td>
+          </tr>
+          <tr>
             <td><code>client.publications.*</code></td>
             <td>list, listWorks</td>
           </tr>
           <tr>
             <td><code>client.acquisitions.*</code></td>
             <td>
-              create, get, requote, acknowledgeExclusions, authorize, listWorks, getCorpus,
+              create, get, requote, cancel, acknowledgeExclusions, authorize, listWorks, getCorpus,
               buildCorpus, downloadCorpus, getManifest, signingKeyHistory
             </td>
           </tr>
@@ -337,8 +343,8 @@ try {
         Purchases are single-use: <code>client.purchases.create()</code> delivers the content
         directly in its response (<code>content_body</code> as plain UTF-8, or
         <code>content_uri</code>). Neither field is ever present on <code>list()</code> or
-        <code>get()</code> — persist the delivery immediately, there is no route that serves
-        it a second time.
+        <code>get()</code> — persist the delivery immediately, there is no route that serves it a
+        second time.
       </p>
       <pre><code>const purchase = await client.purchases.create({ content_id: 'content-id' })
 await saveDeliveredContent(purchase) // one-time delivery
@@ -352,30 +358,47 @@ if (purchase.content_body) {
       <h3>Bulk licensing (agents)</h3>
       <p>
         License a publication's entire catalog in one transaction via
-        <code>client.publications</code> and <code>client.acquisitions</code>:
-        submit a Selection of work URLs, poll the quote, acknowledge exclusions, authorize the
-        hold, then download the corpus once the run settles.
+        <code>client.publications</code> and <code>client.acquisitions</code>: submit a Selection of
+        work URLs, poll the quote, acknowledge exclusions, authorize the hold, then download the
+        corpus once the run settles.
       </p>
-      <pre><code>let acquisition = await client.acquisitions.create({ urls })
+      <p>
+        Poll at the interval the server sends in <code>poll_after_seconds</code>, for as long as
+        that field is present.
+      </p>
+      <pre><code>const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
+let acquisition = await client.acquisitions.create({ urls })
 
-while (acquisition.quote_state === 'pending') {
-  await new Promise((r) => setTimeout(r, 2000))
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
 
 acquisition = await client.acquisitions.acknowledgeExclusions(acquisition.id)
 acquisition = await client.acquisitions.authorize(acquisition.id) // may throw SpendCapReachedError
 
-while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
-  await new Promise((r) => setTimeout(r, 5000))
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
 
 const result = await client.acquisitions.downloadCorpus(acquisition.id)
 // result.ready === true → stream result.body to a file</code></pre>
       <p>
-        <code>createAgentClient()</code> exposes <code>publications</code>, <code>acquisitions</code>,
-        and <code>x402</code> alongside the buyer namespaces, for autonomous agents.
+        <code>createAgentClient()</code> exposes <code>company</code>, <code>publications</code>,
+        <code>acquisitions</code>, and <code>x402</code> alongside the buyer namespaces, for
+        autonomous agents.
+      </p>
+
+      <h3>Company wallets</h3>
+      <p>
+        <code>client.company</code> manages a shared wallet that pays for its members' purchases:
+        invitations, members and their daily Spend caps, Machine users (agent identities with no
+        login) and their keys, Company top-ups, and spend reports. A Company member never sees the
+        Company balance — <code>wallet.balance()</code> returns
+        <code>balance_cents: null</code> with <code>remaining_cents</code> and
+        <code>company_name</code> instead, so handle <code>null</code> before doing arithmetic on a
+        balance.
       </p>
 
       <p>
