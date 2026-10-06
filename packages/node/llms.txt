@@ -471,7 +471,7 @@ client.company.machineUsers.mcpKeys.list(machineUserId)             → Promise<
 client.company.machineUsers.mcpKeys.create(machineUserId, { label, scopes }) → Promise<CompanyMachineUserMcpKeyCreateResponse> // scopes: 'mcp:search' | 'mcp:purchase'
 client.company.machineUsers.mcpKeys.revoke(machineUserId, keyId)    → Promise<void>
 
-client.company.wallet.createPaymentSession({ amount_cents, currency }) → Promise<WalletPaymentSessionResponse> // card or ACH
+client.company.wallet.createPaymentSession({ amount_cents, currency? }) → Promise<WalletPaymentSessionResponse> // card or ACH
 client.company.wallet.listPendingTopUps()               → Promise<CompanyPendingTopUpList>
 
 client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? }) → Promise<CompanyPurchaseList> // paginated

@@ -382,7 +382,7 @@ describe('company.machineUsers', () => {
 // ---------------------------------------------------------------------------
 
 describe('company.wallet', () => {
-  it('createPaymentSession() posts to the Company wallet route', async () => {
+  it('createPaymentSession() posts to the Company wallet route, currency optional', async () => {
     const session = walletPaymentSessionFixture()
     let captured: unknown
     server.use(
@@ -392,12 +392,10 @@ describe('company.wallet', () => {
       }),
     )
 
-    const result = await makeClient().company.wallet.createPaymentSession({
-      amount_cents: 50000,
-      currency: 'usd',
-    })
+    // Omitting `currency` must type-check: the server defaults it to usd.
+    const result = await makeClient().company.wallet.createPaymentSession({ amount_cents: 50000 })
 
-    expect(captured).toEqual({ amount_cents: 50000, currency: 'usd' })
+    expect(captured).toEqual({ amount_cents: 50000 })
     expect(result).toEqual(session)
   })
 

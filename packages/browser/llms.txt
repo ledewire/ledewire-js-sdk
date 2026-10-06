@@ -274,7 +274,7 @@ lw.company.members.list() / .update(membershipId, { role?, daily_spend_limit_cen
 lw.company.machineUsers.list() / .create({ name, description? }) / .deactivate(id)   // deactivate is permanent
 lw.company.machineUsers.buyerKeys.list(muId) / .create(muId, { name }) / .revoke(muId, keyId)
 lw.company.machineUsers.mcpKeys.list(muId) / .create(muId, { label, scopes }) / .revoke(muId, keyId)
-lw.company.wallet.createPaymentSession({ amount_cents, currency }) / .listPendingTopUps()
+lw.company.wallet.createPaymentSession({ amount_cents, currency? }) / .listPendingTopUps()
 lw.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })   // paginated
 lw.company.spend.list({ member?, from?, to? })
 ```

@@ -248,8 +248,16 @@ export type ContentResponse = components['schemas']['ContentResponse']
 /** Request body for updating content. */
 export type ContentUpdateRequest = components['schemas']['ContentUpdateRequest']
 
-/** Request body for creating a wallet payment session. */
-export type WalletPaymentSessionRequest = components['schemas']['WalletPaymentSessionRequest']
+/**
+ * Request body for creating a wallet payment session (personal or Company).
+ * `currency` is optional; the server defaults it to `'usd'`.
+ */
+// `currency` has a `default:`, so openapi-typescript marks it required — see
+// MerchantInviteRequest above.
+export type WalletPaymentSessionRequest = Omit<
+  components['schemas']['WalletPaymentSessionRequest'],
+  'currency'
+> & { currency?: string }
 
 /** Response from creating a wallet payment session. */
 export type WalletPaymentSessionResponse = components['schemas']['WalletPaymentSessionResponse']
@@ -517,8 +525,8 @@ export type CompanyInvitation = components['schemas']['CompanyInvitation']
 export type CompanyInvitationList = components['schemas']['CompanyInvitationList']
 
 /** Request body for inviting someone to the Company. */
-// openapi-typescript marks `role` (which has a `default:`) as required; the
-// server applies `member` when it is omitted, so make it optional here.
+// `role` has a `default:` (`member`), so openapi-typescript marks it required —
+// see MerchantInviteRequest above.
 export type CompanyInvitationRequest = Omit<
   components['schemas']['CompanyInvitationRequest'],
   'role'

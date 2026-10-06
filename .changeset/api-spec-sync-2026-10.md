@@ -39,4 +39,6 @@ must handle `null`.
   (ACH top-ups).
 - `SpendCapReachedError` falls back to the refusal body's top-level `message` (for a Company member,
   "ask a Company admin") when the error envelope has none.
+- `WalletPaymentSessionRequest.currency` is optional, as the API always allowed (it defaults to
+  `usd`); the generated type had wrongly required it.
 - `createMockClient()` stubs the new methods, and a test now fails if it misses any public method.

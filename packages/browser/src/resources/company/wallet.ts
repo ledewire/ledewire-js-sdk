@@ -21,10 +21,7 @@ import type {
  *
  * @example
  * ```ts
- * const session = await client.company.wallet.createPaymentSession({
- *   amount_cents: 50000,
- *   currency: 'usd',
- * })
+ * const session = await client.company.wallet.createPaymentSession({ amount_cents: 50000 })
  * // Confirm with session.client_secret in the payment widget, as for a personal top-up.
  *
  * const { data: pending } = await client.company.wallet.listPendingTopUps()
