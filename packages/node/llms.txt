@@ -108,6 +108,11 @@ client.auth.resetPassword({ email, reset_code, password })           → Promise
 authenticate headlessly using a named API key. The token is stored automatically.
 See `client.user.apiKeys.create()` to generate a key.
 
+`signup` accepts an optional `company_invitation_token` (from a Company
+invitation email): when it names a pending invitation addressed to that email,
+the new buyer joins the Company in the same step; otherwise the account is
+created without a membership.
+
 ### client.merchant.auth
 
 ```ts
@@ -253,7 +258,16 @@ client.wallet.balance()                            → Promise<WalletBalanceResp
 client.wallet.transactions(params?)                → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
 client.wallet.createPaymentSession(body)           → Promise<WalletPaymentSessionResponse>
 client.wallet.getPaymentStatus(sessionId)          → Promise<WalletPaymentStatusResponse>
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
+// completed/failed/cancelled are terminal; an ACH top-up can sit in
+// awaiting_verification/processing for days. Personal top-ups only.
 ```
+
+**Company members see no balance.** For a buyer with an open Company
+membership, `balance_cents` / `spendable_cents` (and `wallet_balance_cents` on
+`content.getWithAccess()`, `balance_cents` on `getPaymentStatus()`) are `null`.
+`company_name` names whose wallet pays and `remaining_cents` is what they may
+still spend today. Always handle `null` before doing arithmetic on a balance.
 
 ### client.purchases
 
@@ -354,6 +368,7 @@ interface UserSpendCap {
   resets_at: string               // ISO 8601 — when the window rolls over
   spend_window_timezone: string   // IANA zone, UTC by default
   bulk_exempt: boolean            // true: bulk acquisitions do not count against the cap
+  company_name: string | null     // set for a Company member: this is their membership's cap
 }
 
 interface UserSpendCapUpdateRequest {
@@ -373,6 +388,11 @@ await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove t
 **Exceeding the cap throws `SpendCapReachedError` (402)** from
 `purchases.create()`, the x402 content gate, and `acquisitions.authorize()`.
 Funding the wallet does NOT clear it — see [Error classes](#error-classes).
+
+A Company member's cap is set by a Company admin (`company.members.update()`),
+never uncapped, and always binds bulk acquisitions; `update()` throws
+`ForbiddenError` (403) for a member. A Machine user likewise gets 403 from
+`user.apiKeys` / `user.mcpKeys` create and revoke — its admins manage its keys.
 
 ### client.user.mcpKeys
 
@@ -420,6 +440,70 @@ const { key, secret } = await client.user.mcpKeys.create({
 await secretsManager.put('LEDEWIRE_MCP_CREDENTIAL', `${key}:${secret}`)
 ```
 
+### client.company
+
+A Company is a shared wallet that pays for its members' purchases. Each member
+spends under their own daily Spend cap (default 1000 cents, never `null`) and
+never sees the Company balance. `membership.*` and `invitations.accept()` are
+for any buyer; everything else is Company-admin only (`ForbiddenError` for a
+plain member, `NotFoundError` when the caller belongs to no Company). List
+methods return `{ data }` envelopes.
+
+```ts
+client.company.membership.get()                         → Promise<CompanyMembership>   // 404 if in no Company
+client.company.membership.leave()                       → Promise<void>                // 422 for the last admin; 403 for a Machine user
+
+client.company.invitations.list()                       → Promise<CompanyInvitationList>
+client.company.invitations.create({ email, role? })     → Promise<CompanyInvitation>   // role defaults to 'member'; expires in 7 days
+client.company.invitations.accept({ token })            → Promise<CompanyMembership>   // 409 already in a Company, 410 expired
+
+client.company.members.list()                           → Promise<CompanyMemberList>
+client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>
+client.company.members.remove(membershipId)             → Promise<void>                // 422 if it would leave no admin
+
+client.company.machineUsers.list()                      → Promise<CompanyMachineUserList>
+client.company.machineUsers.create({ name, description? }) → Promise<CompanyMachineUser>
+client.company.machineUsers.deactivate(id)              → Promise<CompanyMachineUser>  // PERMANENT; revokes every key
+client.company.machineUsers.buyerKeys.list(machineUserId)           → Promise<CompanyMachineUserBuyerKeyList>
+client.company.machineUsers.buyerKeys.create(machineUserId, { name }) → Promise<CompanyMachineUserBuyerKeyCreateResponse> // secret once
+client.company.machineUsers.buyerKeys.revoke(machineUserId, keyId)  → Promise<void>
+client.company.machineUsers.mcpKeys.list(machineUserId)             → Promise<CompanyMachineUserMcpKeyList>
+client.company.machineUsers.mcpKeys.create(machineUserId, { label, scopes }) → Promise<CompanyMachineUserMcpKeyCreateResponse> // scopes: 'mcp:search' | 'mcp:purchase'
+client.company.machineUsers.mcpKeys.revoke(machineUserId, keyId)    → Promise<void>
+
+client.company.wallet.createPaymentSession({ amount_cents, currency }) → Promise<WalletPaymentSessionResponse> // card or ACH
+client.company.wallet.listPendingTopUps()               → Promise<CompanyPendingTopUpList>
+
+client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? }) → Promise<CompanyPurchaseList> // paginated
+client.company.spend.list({ member?, from?, to? })      → Promise<CompanySpendList>    // lifetime when no range
+```
+
+- `members.*` take the **membership id** (`CompanyMember.id`), not `user_id`.
+  `member` filters take a membership id too; `from`/`to` are `YYYY-MM-DD` in the
+  Company's timezone.
+- Joining needs the emailed token even for a signed-in buyer: an existing
+  account calls `invitations.accept({ token })`; a new address passes it to
+  `auth.signup({ ..., company_invitation_token })`.
+- A Machine user is a Buyer with no email/password/login, joined as a non-admin
+  member. Its Buyer key logs in via `createAgentClient({ key, secret })`; its
+  spending limit is its membership cap. Every human-only flow refuses it.
+- A Company top-up is spendable only once it settles (card: usually at once;
+  ACH: ~4 business days). `wallet.getPaymentStatus()` does **not** find a
+  Company session — track it with `listPendingTopUps()`, where it drops off
+  once settled.
+- `CompanyPurchase.amount_cents` for a live bulk hold is the amount held; the
+  member's `spend_cents` counts only what was captured.
+
+```ts
+const bot = await client.company.machineUsers.create({ name: 'research-agent' })
+const { key, secret } = await client.company.machineUsers.buyerKeys.create(bot.id, { name: 'prod' })
+await secretsManager.put('LEDEWIRE_AGENT', `${key}:${secret}`) // secret shown once
+await client.company.members.update(
+  (await client.company.members.list()).data.find((m) => m.user_id === bot.user_id)!.id,
+  { daily_spend_limit_cents: 5000 },
+)
+```
+
 ### client.publications
 
 Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
@@ -435,7 +519,12 @@ client.publications.listWorks(id, params?: PublicationWorksParams)      → Prom
 Check `date_filter` ('applied' | 'unsupported') before treating an empty page
 as "nothing in range" — some publications carry no modification dates at all.
 Paginate with `next_cursor`: pass it back as `cursor` with the same `from`/`to`.
-A `null` `next_cursor` means the walk is over.
+A `null` `next_cursor` means the walk is over. `listWorks()` is rate-limited:
+a `429` arrives as a `LedewireError` (the SDK does not retry; back off).
+
+Each `Publication` carries `coverage_horizon: { horizon_at, as_of, sources } | null`
+— the oldest date swept back to, when that sweep began, and where it looked.
+`null` means no horizon established yet, not a horizon of zero.
 
 ```ts
 const { data } = await client.publications.list()
@@ -456,7 +545,9 @@ client.acquisitions.get(id)                          → Promise<AcquisitionResp
 client.acquisitions.requote(id)                      → Promise<AcquisitionResponse>              // 202 — re-price at today's rates
 client.acquisitions.acknowledgeExclusions(id)         → Promise<AcquisitionResponse>              // required before authorize()
 client.acquisitions.authorize(id)                     → Promise<AcquisitionResponse>              // 202 — places the hold, starts the run
-client.acquisitions.listWorks(id, params?: PaginationParams) → Promise<PaginatedAcquisitionWorkList> // per-work disposition, refused rows included
+client.acquisitions.cancel(id)                        → Promise<AcquisitionResponse>              // withdraw a quote; idempotent
+client.acquisitions.listWorks(id, params?: AcquisitionWorksParams) → Promise<PaginatedAcquisitionWorkList> // per-work disposition, refused rows included
+// AcquisitionWorksParams: { page?, per_page?, delivery_state?, line_state?, exclusion_reason? } — filters AND together
 client.acquisitions.getCorpus(id)                     → Promise<CorpusResponse>                  // corpus state — always 200, never errors
 client.acquisitions.buildCorpus(id)                   → Promise<CorpusResponse>                  // 200 if already downloadable, else 202
 client.acquisitions.downloadCorpus(id)                → Promise<CorpusDownloadResult>             // streamed gzip, discriminated on `ready`
@@ -464,17 +555,37 @@ client.acquisitions.getManifest(id)                   → Promise<CorpusManifest
 client.acquisitions.signingKeyHistory()               → Promise<SigningKeyHistoryResponse>        // public — verifies manifest.signing_kid
 ```
 
+**Polling:** while a step is in progress (quote pricing, run in flight, corpus
+assembling) `AcquisitionResponse` / `CorpusResponse` carry `poll_after_seconds`
+(2–60, also sent as `Retry-After`). Wait that long, re-poll, and stop when the
+field is absent. Don't use fixed sleeps.
+
+**Cancel:** `cancel()` withdraws a `quoted` acquisition (any quote state; no
+money moves). A held one (`authorized`/`acquiring`) can be cancelled only if a
+Company paid for it, by an admin of that Company: captured works stay bought,
+the rest of the hold is released. Past that point → 422
+`invalid_acquisition_state` with `status`/`expected_status` in `err.details`.
+
+Refusal types on the bulk steps (`err.type`): `exclusions_unacknowledged`
+(acknowledge first), `quote_not_ready` (keep polling / re-quote a failed one),
+`quote_expired` (re-quote), `quote_in_progress` (wait for the running
+re-quote), `invalid_acquisition_state` (re-read), `nothing_to_hold` (every work
+excluded — new Selection), `run_not_started` (503 from `authorize()`; nothing
+held, safe to retry).
+
 End-to-end flow:
 
 ```ts
+const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
+
 // 1. Submit a Selection and open the acquisition.
 let acquisition = await client.acquisitions.create({
   urls: ['https://example.com/articles/1', 'https://example.com/articles/2'],
 })
 
-// 2. Quoting is async — poll until quote_state is 'ready'.
-while (acquisition.quote_state === 'pending') {
-  await new Promise((r) => setTimeout(r, 2000))
+// 2. Quoting is async — poll for as long as the server says to.
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
 
@@ -497,14 +608,15 @@ try {
 }
 
 // 6. Poll until the run settles.
-while (acquisition.status === 'authorized' || acquisition.status === 'acquiring') {
-  await new Promise((r) => setTimeout(r, 5000))
+while (acquisition.poll_after_seconds !== undefined) {
+  await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
 }
 
 // 7. Partial failure is read from the per-work list, not thrown.
-const { data: works } = await client.acquisitions.listWorks(acquisition.id)
-const failed = works.filter((w) => w.delivery_state === 'undelivered')
+const { data: failed } = await client.acquisitions.listWorks(acquisition.id, {
+  delivery_state: 'undelivered',
+})
 
 // 8. Download the corpus — streamed straight to a file in Node.
 import { createWriteStream } from 'node:fs'
@@ -549,7 +661,9 @@ for (const resource of resources) {
 
 A convenience factory for autonomous (headless) agents. Wraps `createClient()`
 and exposes only the buyer-relevant namespaces: `auth`, `wallet`, `purchases`,
-`content`, `checkout`, `user`, `publications`, `acquisitions`, `x402`.
+`content`, `checkout`, `user`, `company`, `publications`, `acquisitions`, `x402`.
+A Company Machine user's Buyer key works here too — the agent then spends the
+Company's money under the Machine user's membership cap.
 
 ```ts
 import { createAgentClient } from '@ledewire/node'
@@ -573,7 +687,7 @@ const purchase = await agent.purchases.create({ content_id: 'abc123' })
 const article  = await agent.content.getWithAccess(purchase.content_id)
 ```
 
-`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'publications' | 'acquisitions' | 'x402'>`.
+`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'company' | 'publications' | 'acquisitions' | 'x402'>`.
 The `merchant`, `seller`, and `config` namespaces are intentionally absent.
 
 **Serverless warning:** `MemoryTokenStorage` (default) resets on every cold start.
@@ -595,7 +709,9 @@ const { data, pagination } = await client.seller.content.list(storeId, {
 
 // Affected methods: merchant.users.list, merchant.sales.list, merchant.buyers.list,
 // seller.content.list, seller.content.search, merchant.content.list,
-// merchant.content.search, wallet.transactions, purchases.list
+// merchant.content.search, wallet.transactions, purchases.list,
+// acquisitions.listWorks, company.purchases.list
+// (Other company.*.list methods return { data } with no pagination.)
 ```
 
 ## Key types
@@ -645,11 +761,17 @@ interface TokenStorage {
 }
 
 interface WalletBalanceResponse {
-  balance_cents: number    // always equal to spendable_cents
-  spendable_cents: number
-  held_cents: number       // committed to active bulk acquisitions, not yet spent/released
+  balance_cents: number | null    // always equal to spendable_cents; null for a Company member
+  spendable_cents: number | null
+  held_cents: number              // committed to active bulk acquisitions, not yet spent/released
   holds: Array<{ acquisition_id: string, held_cents: number, authorized_at: string }>
+  remaining_cents: number | null  // spend cap headroom today (membership cap for a member); null when uncapped
+  company_name: string | null     // the Company whose wallet pays, for a member
 }
+// ContentAccessInfo (content.getWithAccess().access_info) has the same shape change:
+// wallet_balance_cents: number | null, plus remaining_cents and company_name.
+// For a member, has_sufficient_funds compares the price with remaining_cents and
+// next_required_action is never 'fund_wallet'.
 ```
 
 ## Error classes
@@ -682,7 +804,8 @@ class PurchaseError extends LedewireError {}   // 409/422 — purchase validatio
 // 402 — daily_spend_cap_reached. Thrown by purchases.create(), the x402
 // content gate, and acquisitions.authorize(). Funding the wallet does NOT
 // clear this — it resets at `resetsAt`, or the cap can be raised/removed via
-// `client.user.spendCap.update()`.
+// `client.user.spendCap.update()`. For a Company member, only a Company admin
+// can raise it (company.members.update()), and err.message says so.
 class SpendCapReachedError extends LedewireError {
   capCents: number
   spentCents: number

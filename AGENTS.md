@@ -53,6 +53,8 @@ packages/node/src/
     publications.ts      ← bulk-licensing catalog (public)
     x402.ts               ← x402 Bazaar resource discovery (public)
     user/{api-keys,spend-cap,mcp-keys}.ts
+    company/{index,membership,invitations,members,machine-users,wallet,reports}.ts
+                         ← Company wallets (byte-identical copy in browser)
 
 packages/browser/src/
   client.ts              ← init() factory + BrowserClient
@@ -61,6 +63,7 @@ packages/browser/src/
   web-storage-adapter.ts ← shared impl (not exported publicly)
   resources/{auth,wallet,purchases,content,checkout}.ts
   resources/user/{api-keys,spend-cap,mcp-keys}.ts
+  resources/company/{index,membership,invitations,members,machine-users,wallet,reports}.ts
 
 packages/x402-client/src/
   index.ts               ← createLedewireFetch() — x402 402-challenge fetch wrapper

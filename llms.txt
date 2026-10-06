@@ -42,7 +42,7 @@ const client = createClient({
 - `lw.auth.requestPasswordReset({ email })` → `AuthPasswordResetResponse` — send password reset code to buyer email
 - `lw.auth.resetPassword({ email, reset_code, password })` → `AuthPasswordResetResponse` — complete password reset with code
 - `lw.checkout.state(contentId)` → `CheckoutStateResponse` — next action for content
-- `lw.wallet.balance()` → `{ balance_cents }` — buyer wallet balance
+- `lw.wallet.balance()` → `WalletBalanceResponse` — buyer wallet balance; `balance_cents` is `null` for a Company member (see `remaining_cents` / `company_name`)
 - `lw.wallet.transactions()` → list of wallet transactions
 - `lw.wallet.createPaymentSession({ amount_cents })` → Stripe payment session
 - `lw.wallet.getPaymentStatus(sessionId)` → payment status
@@ -55,6 +55,7 @@ const client = createClient({
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
+- `lw.company.*` — Company wallets (same API as `client.company.*` below)
 - `lw.seller.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
 - `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
 - `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
@@ -85,20 +86,27 @@ const client = createClient({
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
 - `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
-- `client.publications.list(pagination?)` → `PublicationListResponse` — publications available to bulk-license (public, no auth)
+- `client.company.membership.get()` / `.leave()` — the buyer's own Company membership (404 when in none)
+- `client.company.invitations.list()` / `.create({ email, role? })` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` as `company_invitation_token`
+- `client.company.members.list()` / `.update(membershipId, { role?, daily_spend_limit_cents? })` / `.remove(membershipId)` — admin; member caps are never `null`
+- `client.company.machineUsers.list()` / `.create({ name })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
+- `client.company.wallet.createPaymentSession(body)` / `.listPendingTopUps()` — admin; Company top-ups are not found by `wallet.getPaymentStatus()`
+- `client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })` / `client.company.spend.list({ member?, from?, to? })` — admin reports
+- `client.publications.list(pagination?)` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
-- `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress
+- `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present
+- `client.acquisitions.cancel(id)` → `AcquisitionResponse` — withdraw a quote (no money moves), or (Company admin) stop a held Company-paid acquisition
 - `client.acquisitions.requote(id)` → `AcquisitionResponse` (202) — re-price at today's rates
 - `client.acquisitions.acknowledgeExclusions(id)` → `AcquisitionResponse` — required before `authorize`
 - `client.acquisitions.authorize(id)` → `AcquisitionResponse` (202) — places the hold and starts the run; throws `SpendCapReachedError` (402)
-- `client.acquisitions.listWorks(id, pagination?)` → `PaginatedAcquisitionWorkList` — per-work disposition, refused rows included
+- `client.acquisitions.listWorks(id, { page?, per_page?, delivery_state?, line_state?, exclusion_reason? }?)` → `PaginatedAcquisitionWorkList` — per-work disposition, refused rows included
 - `client.acquisitions.getCorpus(id)` / `.buildCorpus(id)` → `CorpusResponse` — corpus state / request assembly
 - `client.acquisitions.downloadCorpus(id)` → `{ ready: true, body, response } | { ready: false, corpus }` — streamed gzip archive, no `Content-Length`
 - `client.acquisitions.getManifest(id)` → `CorpusManifestResponse` — signed audit manifest (409 until first assembly)
 - `client.acquisitions.signingKeyHistory()` → `SigningKeyHistoryResponse` — public, verifies `manifest.signing_kid`
 - `client.x402.discoverResources({ limit?, offset? })` → `X402BazaarDiscoveryResponse` — public x402 Bazaar catalog
-- `createAgentClient({ key, secret })` → buyer-scoped client also exposing `publications`, `acquisitions`, `x402` (plus `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`)
+- `createAgentClient({ key, secret })` → buyer-scoped client also exposing `company`, `publications`, `acquisitions`, `x402` (plus `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`); a Company Machine user's Buyer key works here
 
 ## Key types (packages/core)
 
@@ -121,6 +129,8 @@ class LedewireError extends Error {
   statusCode: number
   code: number | undefined
   type: ErrorTypeValue | undefined // machine-readable reason, e.g. 'daily_spend_cap_reached'
+  // Bulk steps add: exclusions_unacknowledged, quote_not_ready, quote_expired,
+  // quote_in_progress, invalid_acquisition_state, nothing_to_hold, run_not_started
   details: Readonly<Record<string, unknown>> | undefined // extra top-level error-body fields
 }
 class AuthError extends LedewireError {}       // statusCode 401 — bad credentials or expired token
@@ -139,11 +149,14 @@ class SpendCapReachedError extends LedewireError {
 }
 
 interface WalletBalanceResponse {
-  balance_cents: number   // == spendable_cents
-  spendable_cents: number
-  held_cents: number      // committed to active bulk acquisitions, not yet spent/released
+  balance_cents: number | null   // == spendable_cents; null for a Company member
+  spendable_cents: number | null
+  held_cents: number             // committed to active bulk acquisitions, not yet spent/released
   holds: Array<{ acquisition_id: string; held_cents: number; authorized_at: string }>
+  remaining_cents: number | null // spend cap headroom today; null when uncapped
+  company_name: string | null    // the Company whose wallet pays, for a member
 }
+// ContentAccessInfo.wallet_balance_cents is likewise null for a Company member.
 ```
 
 ## Merchant auth error distinction (important)
