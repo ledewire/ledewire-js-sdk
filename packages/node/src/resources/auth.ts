@@ -38,9 +38,16 @@ export class AuthNamespace {
    * Tokens are stored automatically after successful signup.
    *
    * Pass `company_invitation_token` (from a Company invitation email) to sign
-   * up and join the Company in one step. If the token does not name a pending
-   * invitation addressed to this email, the account is still created, without
-   * a membership.
+   * up and join the Company in one step, or `invitation_token` (from a store
+   * invitation email) to join the store. If an invitation can't be accepted,
+   * nothing is created and the signup is refused; with both tokens it joins
+   * both or neither.
+   *
+   * @throws {LedewireError} With `statusCode === 422` and
+   *   `type === 'invitation_not_accepted'` when an invitation token can't be
+   *   accepted. `details.reason` says why (an `InvitationRefusalReason`) and
+   *   `details.invitation` says which (`'store'` or `'company'`). A `409` still
+   *   means only that the email is taken.
    *
    * @example
    * ```ts
@@ -79,9 +86,23 @@ export class AuthNamespace {
    * Log in with a Google ID token obtained from the Google OAuth flow.
    * Tokens are stored automatically after successful login.
    *
+   * Pass `invitation_token` (store) or `company_invitation_token` (Company)
+   * from an invitation email to accept it as you sign in. When this call
+   * creates the account, an invitation that can't be accepted refuses the
+   * whole call with a `422` (`type === 'invitation_not_accepted'`, as for
+   * {@link signup}) and nothing is created. For an account that already
+   * exists, the sign-in succeeds either way and the response's `invitations`
+   * reports what happened to each token sent.
+   *
    * @example
    * ```ts
-   * await client.auth.loginWithGoogle({ id_token: googleIdToken })
+   * const res = await client.auth.loginWithGoogle({
+   *   id_token: googleIdToken,
+   *   company_invitation_token: token,
+   * })
+   * if (res.invitations?.company?.accepted === false) {
+   *   console.warn(res.invitations.company.message)
+   * }
    * ```
    */
   async loginWithGoogle(body: AuthLoginOAuthRequest): Promise<AuthenticationResponse> {

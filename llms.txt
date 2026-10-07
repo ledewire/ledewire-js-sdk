@@ -87,10 +87,10 @@ const client = createClient({
 - `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
 - `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
 - `client.company.membership.get()` / `.leave()` — the buyer's own Company membership (404 when in none)
-- `client.company.invitations.list()` / `.create({ email, role? })` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` as `company_invitation_token`
+- `client.company.invitations.list()` / `.create({ email, role? })` / `.revoke(id)` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` or `auth.loginWithGoogle()` as `company_invitation_token` (a token that can't be accepted refuses the signup: 422 `invitation_not_accepted`, `details.reason`)
 - `client.company.members.list()` / `.update(membershipId, { role?, daily_spend_limit_cents? })` / `.remove(membershipId)` — admin; member caps are never `null`
-- `client.company.machineUsers.list()` / `.create({ name })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
-- `client.company.wallet.createPaymentSession(body)` / `.listPendingTopUps()` — admin; Company top-ups are not found by `wallet.getPaymentStatus()`
+- `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
+- `client.company.wallet.get()` / `.createPaymentSession(body)` / `.listPendingTopUps()` — admin; `get()` is the only place the Company balance appears; Company top-ups are not found by `wallet.getPaymentStatus()`
 - `client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })` / `client.company.spend.list({ member?, from?, to? })` — admin reports
 - `client.publications.list(pagination?)` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)

@@ -12,6 +12,7 @@ import {
   companyPendingTopUpFixture,
   companyPurchaseFixture,
   companyPurchaseMemberFixture,
+  companyWalletFixture,
   createTestServer,
   errorResponseFixture,
   http,
@@ -130,6 +131,34 @@ describe('company.invitations', () => {
     ).rejects.toThrow(ForbiddenError)
   })
 
+  it('revoke() sends DELETE to the URL-encoded invitation id and resolves on 204', async () => {
+    let called = false
+    server.use(
+      http.delete(`${BASE}/v1/company/invitations/invite%2Fid`, () => {
+        called = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    await expect(makeClient().company.invitations.revoke('invite/id')).resolves.toBeUndefined()
+    expect(called).toBe(true)
+  })
+
+  it('revoke() surfaces an invitation that is no longer pending as a 409', async () => {
+    server.use(
+      http.delete(`${BASE}/v1/company/invitations/invitation-id-1`, () =>
+        HttpResponse.json(errorResponseFixture(409, 'Invitation is no longer pending'), {
+          status: 409,
+        }),
+      ),
+    )
+
+    const err = await makeClient()
+      .company.invitations.revoke('invitation-id-1')
+      .catch((e: unknown) => e)
+    expect((err as LedewireError).statusCode).toBe(409)
+  })
+
   it('accept() posts the token and returns the new membership', async () => {
     const membership = companyMembershipFixture({ role: 'member' })
     let captured: unknown
@@ -144,6 +173,27 @@ describe('company.invitations', () => {
 
     expect(captured).toEqual({ token: 'invite-token' })
     expect(result).toEqual(membership)
+  })
+
+  it('accept() exposes the refusal reason on details', async () => {
+    server.use(
+      http.post(`${BASE}/v1/company/invitations/accept`, () =>
+        HttpResponse.json(
+          {
+            ...errorResponseFixture(409, 'Already in a Company', 'invitation_not_accepted'),
+            reason: 'already_in_company',
+          },
+          { status: 409 },
+        ),
+      ),
+    )
+
+    const err = await makeClient()
+      .company.invitations.accept({ token: 'invite-token' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).type).toBe('invitation_not_accepted')
+    expect((err as LedewireError).details).toEqual({ reason: 'already_in_company' })
   })
 
   it('accept() surfaces an expired invitation as a 410 LedewireError', async () => {
@@ -256,6 +306,38 @@ describe('company.machineUsers', () => {
 
     expect(captured).toEqual({ name: 'research-agent', description: 'Nightly research run' })
     expect(result).toEqual(machineUser)
+  })
+
+  it('update() PATCHes the Machine user with the new name and a cleared description', async () => {
+    const renamed = companyMachineUserFixture({ name: 'nightly-agent' })
+    let captured: unknown
+    server.use(
+      http.patch(`${BASE}/v1/company/machine-users/machine-user-id-1`, async ({ request }) => {
+        captured = await request.json()
+        return HttpResponse.json(renamed)
+      }),
+    )
+
+    const result = await makeClient().company.machineUsers.update('machine-user-id-1', {
+      name: 'nightly-agent',
+      description: null,
+    })
+
+    expect(captured).toEqual({ name: 'nightly-agent', description: null })
+    expect(result).toEqual(renamed)
+  })
+
+  it('update() surfaces a name taken by another Machine user as a 409', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/company/machine-users/machine-user-id-1`, () =>
+        HttpResponse.json(errorResponseFixture(409, 'Name already taken'), { status: 409 }),
+      ),
+    )
+
+    const err = await makeClient()
+      .company.machineUsers.update('machine-user-id-1', { name: 'taken' })
+      .catch((e: unknown) => e)
+    expect((err as LedewireError).statusCode).toBe(409)
   })
 
   it('deactivate() sends DELETE and returns the deactivated Machine user', async () => {
@@ -382,6 +464,19 @@ describe('company.machineUsers', () => {
 // ---------------------------------------------------------------------------
 
 describe('company.wallet', () => {
+  it('get() returns the Company wallet', async () => {
+    const wallet = companyWalletFixture({ balance_cents: -500 })
+    server.use(http.get(`${BASE}/v1/company/wallet`, () => HttpResponse.json(wallet)))
+
+    await expect(makeClient().company.wallet.get()).resolves.toEqual(wallet)
+  })
+
+  it('get() throws ForbiddenError for a non-admin', async () => {
+    server.use(http.get(`${BASE}/v1/company/wallet`, forbidden))
+
+    await expect(makeClient().company.wallet.get()).rejects.toThrow(ForbiddenError)
+  })
+
   it('createPaymentSession() posts to the Company wallet route, currency optional', async () => {
     const session = walletPaymentSessionFixture()
     let captured: unknown

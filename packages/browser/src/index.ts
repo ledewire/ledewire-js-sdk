@@ -29,6 +29,8 @@
 // Re-export core types and errors
 export type {
   AuthenticationResponse,
+  InvitationOutcome,
+  InvitationRefusalReason,
   PublicConfigResponse,
   CheckoutNextAction,
   CheckoutState,
@@ -66,6 +68,7 @@ export type {
   CompanyMachineUser,
   CompanyMachineUserList,
   CompanyMachineUserCreateRequest,
+  CompanyMachineUserUpdateRequest,
   CompanyMachineUserBuyerKey,
   CompanyMachineUserBuyerKeyList,
   CompanyMachineUserBuyerKeyCreateRequest,
@@ -76,6 +79,7 @@ export type {
   CompanyMachineUserMcpKeyCreateResponse,
   CompanyPendingTopUp,
   CompanyPendingTopUpList,
+  CompanyWallet,
   CompanyPurchase,
   CompanyPurchaseMember,
   CompanyPurchaseList,

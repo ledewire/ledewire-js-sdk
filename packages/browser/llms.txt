@@ -117,8 +117,13 @@ lw.auth.resetPassword({ email, reset_code, password })         → Promise<AuthP
 Tokens are stored automatically after every successful login.
 `loginWithBuyerApiKey` is useful in buyer dashboards where the user has created a
 named API key and wants to authenticate headlessly (without email/password).
-`signup` accepts an optional `company_invitation_token` (from a Company
-invitation email) to sign up and join that Company in one step.
+`signup` and `loginWithGoogle` accept an optional `company_invitation_token`
+(Company invitation) and `invitation_token` (store invitation) to create the
+account and join in one step. If an invitation can't be accepted, nothing is
+created and the call throws a 422 `LedewireError` with
+`type === 'invitation_not_accepted'` and `details.reason`. For a Google account
+that already exists the sign-in succeeds and `res.invitations` reports each
+outcome.
 
 ### lw.checkout
 
@@ -269,12 +274,12 @@ not in a Company). List methods return `{ data }`.
 
 ```ts
 lw.company.membership.get() / .leave()
-lw.company.invitations.list() / .create({ email, role? }) / .accept({ token })
+lw.company.invitations.list() / .create({ email, role? }) / .revoke(id) / .accept({ token })
 lw.company.members.list() / .update(membershipId, { role?, daily_spend_limit_cents? }) / .remove(membershipId)
-lw.company.machineUsers.list() / .create({ name, description? }) / .deactivate(id)   // deactivate is permanent
+lw.company.machineUsers.list() / .create({ name, description? }) / .update(id, { name?, description? }) / .deactivate(id)   // deactivate is permanent
 lw.company.machineUsers.buyerKeys.list(muId) / .create(muId, { name }) / .revoke(muId, keyId)
 lw.company.machineUsers.mcpKeys.list(muId) / .create(muId, { label, scopes }) / .revoke(muId, keyId)
-lw.company.wallet.createPaymentSession({ amount_cents, currency? }) / .listPendingTopUps()
+lw.company.wallet.get() / .createPaymentSession({ amount_cents, currency? }) / .listPendingTopUps()   // get(): the Company balance, admin only
 lw.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })   // paginated
 lw.company.spend.list({ member?, from?, to? })
 ```

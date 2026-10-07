@@ -158,6 +158,7 @@ await lw.auth.signup({ email, password, name, company_invitation_token: token })
 // Company admins: members, spend caps, Machine users, top-ups, reports
 const { data: members } = await lw.company.members.list()
 await lw.company.members.update(members[0].id, { daily_spend_limit_cents: 5000 })
+const { balance_cents, held_cents } = await lw.company.wallet.get() // the Company balance
 const { data: pending } = await lw.company.wallet.listPendingTopUps()
 ```
 

@@ -16,6 +16,20 @@ import type { components } from './api.gen.js'
 /** JWT bearer token response returned by all buyer authentication endpoints. */
 export type AuthenticationResponse = components['schemas']['AuthenticationResponse']
 
+/**
+ * What happened to one invitation token sent with `auth.loginWithGoogle()` for
+ * an account that already existed. A refused invitation does not refuse the
+ * sign-in; `accepted` is `false` and `reason` says why.
+ */
+export type InvitationOutcome = components['schemas']['InvitationOutcome']
+
+/**
+ * Why a store or Company invitation was not accepted. Carried by an
+ * {@link InvitationOutcome}, and by a refused signup or Google sign-in as
+ * `LedewireError.details.reason` (with `type === 'invitation_not_accepted'`).
+ */
+export type InvitationRefusalReason = components['schemas']['InvitationRefusalReason']
+
 /** Token response for merchant (store owner) authentication. */
 export type MerchantAuthenticationResponse = components['schemas']['MerchantAuthenticationResponse']
 
@@ -566,6 +580,18 @@ export type CompanyMachineUserList = components['schemas']['CompanyMachineUserLi
 export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMachineUserRequest']
 
 /**
+ * Request body for renaming a Machine user or changing its description. Give
+ * at least one of the two. A `null` or blank `description` clears it; `name`
+ * cannot be `null`, and is at most 100 characters.
+ *
+ * Hand-written: the spec expresses "at least one" as an `anyOf`, which the
+ * generator widens to `unknown`.
+ */
+export type CompanyMachineUserUpdateRequest =
+  | { name: string; description?: string | null }
+  | { name?: string; description: string | null }
+
+/**
  * A Machine user's Buyer key (secret never included after creation). It logs in
  * through `auth.loginWithBuyerApiKey()`; its limit is the Machine user's
  * membership Spend cap.
@@ -611,6 +637,13 @@ export type CompanyPendingTopUp = components['schemas']['CompanyPendingTopUp']
 
 /** The Company's unsettled top-ups, newest first. */
 export type CompanyPendingTopUpList = components['schemas']['CompanyPendingTopUpList']
+
+/**
+ * The Company wallet as a Company admin sees it: the spendable balance, what
+ * in-flight Bulk acquisitions hold, and what top-ups are on their way. The only
+ * response that carries the Company balance.
+ */
+export type CompanyWallet = components['schemas']['CompanyWallet']
 
 /**
  * One thing the Company paid for — a purchase or a Bulk acquisition drawn on

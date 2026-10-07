@@ -130,6 +130,73 @@ components:
           type: string
           format: date-time
           description: When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
+        invitations:
+          type: object
+          description: >
+            Present only on `POST /v1/auth/login/google` for an account that already existed, when
+            the call carried `invitation_token` or `company_invitation_token`. One entry per token
+            sent. A refused invitation does not refuse the sign-in; it is reported here instead.
+          properties:
+            store:
+              $ref: '#/components/schemas/InvitationOutcome'
+            company:
+              $ref: '#/components/schemas/InvitationOutcome'
+
+    InvitationOutcome:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+        reason:
+          $ref: '#/components/schemas/InvitationRefusalReason'
+        message:
+          type: string
+          description: The refusal in words, for display. Present when `accepted` is false.
+
+    InvitationRefusalReason:
+      type: string
+      description: >
+        Why an invitation was not accepted. `not_found` also covers a Company invitation addressed
+        to another email, deliberately indistinguishable; `expired` covers a withdrawn one;
+        `wrong_email` is a store invitation sent to another address; `already_in_company` means
+        the account belongs to another Company and must leave it first; `already_member` means
+        it already belongs to the store; `invalid` is an invitation that could not be saved.
+      enum:
+        [
+          not_found,
+          already_accepted,
+          expired,
+          wrong_email,
+          already_in_company,
+          already_member,
+          invalid,
+        ]
+
+    InvitationNotAcceptedError:
+      type: object
+      description: >
+        An invitation refused. Signup and Google sign-in return it with HTTP 422 and name the
+        `invitation`; `POST /v1/company/invitations/accept` returns it with its own status
+        (404, 409 or 410) and no `invitation`.
+      required: [error, reason]
+      properties:
+        error:
+          type: object
+          required: [code, message, type]
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            type:
+              type: string
+              enum: [invitation_not_accepted]
+        reason:
+          $ref: '#/components/schemas/InvitationRefusalReason'
+        invitation:
+          type: string
+          enum: [store, company]
 
     MerchantAuthenticationResponse:
       type: object
@@ -260,6 +327,10 @@ components:
                 `nothing_to_hold` means every work was excluded and a different selection
                 is needed; `run_not_started` means the run could not be queued, so nothing
                 was held and the same authorization is safe to retry.
+
+
+                `invitation_not_accepted` means a store or Company invitation was refused;
+                `reason` alongside says why (see `InvitationNotAcceptedError`).
               enum:
                 - retrieval_failed
                 - not_licensable
@@ -274,6 +345,7 @@ components:
                 - quote_expired
                 - quote_in_progress
                 - run_not_started
+                - invitation_not_accepted
 
     AuthSignupRequest:
       type: object
@@ -285,12 +357,19 @@ components:
           type: string
         name:
           type: string
+        invitation_token:
+          type: string
+          description: >
+            The token from a store invitation email. Signup also accepts it and the new account
+            joins the store. If the invitation can't be accepted, nothing is created and the
+            signup is refused with a 422 (`InvitationNotAcceptedError`).
         company_invitation_token:
           type: string
           description: >
-            The token from a Company invitation email. When it names a pending invitation
-            addressed to this email, signup also accepts it and the new buyer joins the Company.
-            Otherwise the account is created without a membership.
+            The token from a Company invitation email. Signup also accepts it and the new buyer
+            joins the Company. If the invitation can't be accepted (unknown, addressed to another
+            email, expired, withdrawn or already accepted), nothing is created and the signup is
+            refused with a 422. A signup carrying both tokens joins both or neither.
 
     AuthLoginEmailRequest:
       type: object
@@ -305,6 +384,22 @@ components:
       properties:
         id_token:
           type: string
+        invitation_token:
+          type: string
+          description: >
+            The token from a store invitation email. The account joins the store. When this call
+            creates the account and the invitation can't be accepted, nothing is created and the
+            call is refused with a 422. See `company_invitation_token` for an existing account.
+        company_invitation_token:
+          type: string
+          description: >
+            The token from a Company invitation email. When this call creates the account, it
+            also accepts the invitation and the new buyer joins the Company. If the invitation
+            can't be accepted (unknown, addressed to another email, expired, withdrawn or already
+            accepted), nothing is created and the call is refused with a 422. A call creating an
+            account with both tokens joins both or neither. For an account that already exists,
+            each token is accepted if it can be, the sign-in succeeds either way, and the
+            response's `invitations` says what happened to each.
 
     MerchantEmailLoginRequest:
       type: object
@@ -583,6 +678,10 @@ components:
           format: uuid
         name:
           type: string
+          description: >
+            The member's current name, read when the response is built. Renaming a Machine user
+            (PATCH /v1/company/machine-users/{id}) relabels its earlier rows too; the audit trail
+            keeps the old name.
         kind:
           type: string
           enum: [human, machine]
@@ -664,6 +763,21 @@ components:
     CompanyMachineUserRequest:
       type: object
       required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: [string, 'null']
+
+    CompanyMachineUserUpdateRequest:
+      type: object
+      description: >
+        At least one of `name` and `description`. A null or blank `description` clears it; `name`
+        cannot be null.
+      anyOf:
+        - required: [name]
+        - required: [description]
       properties:
         name:
           type: string
@@ -805,6 +919,36 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompanyMember'
+
+    CompanyWallet:
+      type: object
+      description: >
+        The Company wallet, as a Company admin sees it. No member-facing response carries these
+        figures; only this one does.
+      required: [balance_cents, held_cents, pending_top_up_cents, currency, company_name]
+      properties:
+        balance_cents:
+          type: integer
+          description: >
+            Spendable now. Money held by in-flight Bulk acquisitions is already out of it. Negative
+            when a reversed top-up has taken the wallet below zero; a purchase is refused whenever the
+            balance does not cover its price.
+        held_cents:
+          type: integer
+          description: >
+            Committed to Company-paid Bulk acquisitions still in progress, including those started by
+            members who have since left the Company. When an acquisition settles or is cancelled,
+            what it captured is charged and the rest is released back to the balance.
+        pending_top_up_cents:
+          type: integer
+          description: >
+            The sum of top-ups not yet spendable: the same top-ups GET
+            /v1/company/wallet/pending-top-ups lists. Not part of the balance until each settles.
+        currency:
+          type: string
+          example: usd
+        company_name:
+          type: string
 
     CompanyPendingTopUp:
       type: object
@@ -4056,6 +4200,35 @@ paths:
                     access_token: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwOTM1N2MyMi0zODlhLTRmYWItYjE2Ni04MjJlNTJhNWJmNWUiLCJyb2xlIjoiYnV5ZXIiLCJidXllcl9jbGFpbXMiOnsidXNlcl9pZCI6IjA5MzU3YzIyLTM4OWEtNGZhYi1iMTY2LTgyMmU1MmE1YmY1ZSIsImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSJ9LCJpc3MiOiJMZWRlV2lyZSBBUEkiLCJhdWQiOiJ3ZWIiLCJleHAiOjE3NDc0OTk5NzMsImlhdCI6MTc0NzQ5ODE3M30'
                     refresh_token: 'c2a0e1f8a7e53c9d63b1d2f8e4z5x6c7v8b9n0m1a2s3d4f5g6h7j8k9l0'
                     expires_at: '2025-05-17T16:39:33Z'
+        '422':
+          description: >
+            An invitation token was sent and can't be accepted. No account is created. `error.type` is
+            `invitation_not_accepted`; `reason` says why and `invitation` says which. Every
+            invitation refusal is a 422, so a `409` from this route still means only that the
+            email is taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationNotAcceptedError'
+              examples:
+                invitation_not_found:
+                  summary: Unknown token, or a Company invitation addressed to another email
+                  value:
+                    error:
+                      code: 422
+                      message: 'Invitation not found'
+                      type: invitation_not_accepted
+                    reason: not_found
+                    invitation: company
+                expired:
+                  summary: Invitation expired or withdrawn
+                  value:
+                    error:
+                      code: 422
+                      message: 'Invitation has expired or was withdrawn'
+                      type: invitation_not_accepted
+                    reason: expired
+                    invitation: company
         default:
           description: Error response
           content:
@@ -4191,6 +4364,35 @@ paths:
                   summary: Invalid Google ID token
                   value:
                     error: 'Invalid or expired token'
+        '422':
+          description: >
+            An invitation token was sent and can't be accepted. Returned only when this call
+            would create the account, and no account is created. `error.type` is
+            `invitation_not_accepted`; `reason` says why and `invitation` says which. An account
+            that already exists signs in anyway, and `invitations` in the 200 says what happened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationNotAcceptedError'
+              examples:
+                invitation_not_found:
+                  summary: Unknown token, or a Company invitation addressed to another email
+                  value:
+                    error:
+                      code: 422
+                      message: 'Invitation not found'
+                      type: invitation_not_accepted
+                    reason: not_found
+                    invitation: company
+                expired:
+                  summary: Invitation expired or withdrawn
+                  value:
+                    error:
+                      code: 422
+                      message: 'Invitation has expired or was withdrawn'
+                      type: invitation_not_accepted
+                    reason: expired
+                    invitation: company
         '503':
           description: Google service unavailable
           content:
@@ -4507,6 +4709,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/invitations/{id}:
+    delete:
+      summary: Revoke a pending invitation
+      description: >
+        Company admins only. Withdraws an invitation that has not been accepted, revoked or expired,
+        so the address can be invited again at once rather than when this one expires. The emailed
+        token can no longer be accepted.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Revoked
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the invitation is not one of its own
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The invitation is no longer pending (accepted, already revoked or expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/company/invitations/accept:
     post:
       summary: Accept an invitation
@@ -4550,19 +4797,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/InvitationNotAcceptedError'
         '409':
           description: Already accepted, or the buyer already belongs to a Company
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/InvitationNotAcceptedError'
         '410':
           description: Expired or withdrawn
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/InvitationNotAcceptedError'
   /v1/company/machine-users:
     get:
       summary: List the Company's Machine users
@@ -4658,6 +4905,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /v1/company/machine-users/{id}:
+    patch:
+      summary: Rename a Machine user or change its description
+      description: >
+        Company admins only. Changes `name`, `description`, or both, under the same name rules as
+        creating one; keeping its own current name is not a conflict. Its keys and sessions are
+        untouched, so the agent keeps working without being re-issued anything. Attribution reads
+        the name live: GET /v1/company/members, /v1/company/purchases and /v1/company/spend show the
+        new name, on earlier purchases as well as later ones.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyMachineUserUpdateRequest'
+      responses:
+        '200':
+          description: The updated Machine user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyMachineUser'
+        '400':
+          description: Neither name nor description given, or a null name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Another active Machine user in the Company has this name, or this one is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The name is blank or longer than 100 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       summary: Deactivate a Machine user, permanently
       description: >
@@ -5360,6 +5675,42 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: The buyer is the Company's last admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/company/wallet:
+    get:
+      summary: Read the Company wallet
+      description: >
+        Company admins only. The Company wallet's spendable balance, what Company-paid Bulk
+        acquisitions hold, and what top-ups are on their way. Members never see the balance, and
+        GET /v1/wallet/balance reports none even to an admin; this is the only place it appears.
+      tags:
+        - Company Wallet
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The Company wallet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyWallet'
+        '401':
+          description: Missing or invalid buyer session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller is not a Company admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company
           content:
             application/json:
               schema:
