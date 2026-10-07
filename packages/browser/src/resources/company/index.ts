@@ -37,7 +37,7 @@ export class CompanyNamespace {
   /** Machine users and their Buyer keys and MCP API keys (admin). */
   readonly machineUsers: CompanyMachineUsersNamespace
 
-  /** Fund the Company wallet and list unsettled top-ups (admin). */
+  /** Read and fund the Company wallet, and list unsettled top-ups (admin). */
   readonly wallet: CompanyWalletNamespace
 
   /** Everything the Company paid for, attributed to its members (admin). */

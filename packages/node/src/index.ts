@@ -31,6 +31,8 @@
 // Re-export core types and errors for consumers who only install @ledewire/node
 export type {
   AuthenticationResponse,
+  InvitationOutcome,
+  InvitationRefusalReason,
   PublicConfigResponse,
   BuyerStatisticsItem,
   CheckoutNextAction,
@@ -104,6 +106,7 @@ export type {
   CompanyMachineUser,
   CompanyMachineUserList,
   CompanyMachineUserCreateRequest,
+  CompanyMachineUserUpdateRequest,
   CompanyMachineUserBuyerKey,
   CompanyMachineUserBuyerKeyList,
   CompanyMachineUserBuyerKeyCreateRequest,
@@ -114,6 +117,7 @@ export type {
   CompanyMachineUserMcpKeyCreateResponse,
   CompanyPendingTopUp,
   CompanyPendingTopUpList,
+  CompanyWallet,
   CompanyPurchase,
   CompanyPurchaseMember,
   CompanyPurchaseList,

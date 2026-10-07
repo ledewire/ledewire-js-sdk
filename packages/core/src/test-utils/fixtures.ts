@@ -54,6 +54,7 @@ type CompanyMachineUserMcpKeySchema = components['schemas']['CompanyMachineUserM
 type CompanyMachineUserMcpKeyCreateResponseSchema =
   components['schemas']['CompanyMachineUserMcpKeyCreateResponse']
 type CompanyPendingTopUpSchema = components['schemas']['CompanyPendingTopUp']
+type CompanyWalletSchema = components['schemas']['CompanyWallet']
 type CompanyPurchaseSchema = components['schemas']['CompanyPurchase']
 type CompanyPurchaseMemberSchema = components['schemas']['CompanyPurchaseMember']
 
@@ -918,6 +919,22 @@ export function companyPendingTopUpFixture(
     initiated_by_user_id: 'user-id-1',
     created_at: '2099-01-01T00:00:00Z',
     expected_debit_date: '2099-01-07',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a Company wallet fixture, as a Company admin reads it.
+ */
+export function companyWalletFixture(
+  overrides?: Partial<CompanyWalletSchema>,
+): CompanyWalletSchema {
+  return {
+    balance_cents: 125000,
+    held_cents: 20000,
+    pending_top_up_cents: 50000,
+    currency: 'usd',
+    company_name: 'Acme Research',
     ...overrides,
   }
 }

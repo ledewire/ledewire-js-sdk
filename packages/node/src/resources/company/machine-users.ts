@@ -14,6 +14,7 @@ import type {
   CompanyMachineUserMcpKeyCreateRequest,
   CompanyMachineUserMcpKeyCreateResponse,
   CompanyMachineUserMcpKeyList,
+  CompanyMachineUserUpdateRequest,
 } from '@ledewire/core'
 
 function machineUserPath(machineUserId: string): string {
@@ -206,6 +207,25 @@ export class CompanyMachineUsersNamespace {
    */
   async create(body: CompanyMachineUserCreateRequest): Promise<CompanyMachineUser> {
     return this.http.post<CompanyMachineUser>('/v1/company/machine-users', body)
+  }
+
+  /**
+   * Renames a Machine user or changes its description, under the same name
+   * rules as {@link create}. Its keys and sessions are untouched, so the agent
+   * keeps working without being re-issued anything. Company reports read the
+   * name live, so `company.members`, `company.purchases` and `company.spend`
+   * show the new name on earlier rows as well as later ones.
+   *
+   * @param id - The Machine user id (`CompanyMachineUser.id`).
+   * @param body - A new `name`, a new `description` (`null` clears it), or both.
+   * @returns The updated Machine user.
+   * @throws {NotFoundError} When the Machine user is not in the caller's Company.
+   * @throws {LedewireError} With `statusCode === 409` when another active
+   *   Machine user has this name, or this one is deactivated; with
+   *   `statusCode === 422` when the name is blank or too long.
+   */
+  async update(id: string, body: CompanyMachineUserUpdateRequest): Promise<CompanyMachineUser> {
+    return this.http.patch<CompanyMachineUser>(machineUserPath(id), body)
   }
 
   /**

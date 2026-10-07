@@ -247,6 +247,7 @@ export function createMockClient(
       invitations: {
         list: stub(),
         create: stub(),
+        revoke: stub(),
         accept: stub(),
       },
       members: {
@@ -257,6 +258,7 @@ export function createMockClient(
       machineUsers: {
         list: stub(),
         create: stub(),
+        update: stub(),
         deactivate: stub(),
         buyerKeys: {
           list: stub(),
@@ -270,6 +272,7 @@ export function createMockClient(
         },
       },
       wallet: {
+        get: stub(),
         createPaymentSession: stub(),
         listPendingTopUps: stub(),
       },

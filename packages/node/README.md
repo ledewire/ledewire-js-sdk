@@ -285,8 +285,11 @@ if (wallet.company_name !== null) {
 const membership = await client.company.membership.get() // NotFoundError if none
 
 // Admin: invite someone. Nobody joins until they accept with the emailed token —
-// an existing buyer via invitations.accept(), a new one via auth.signup().
-await client.company.invitations.create({ email: 'analyst@example.com' }) // role defaults to 'member'
+// an existing buyer via invitations.accept(), a new one via auth.signup() or
+// auth.loginWithGoogle(). A token that can't be accepted refuses the signup (422,
+// err.type === 'invitation_not_accepted', err.details.reason says why).
+const invitation = await client.company.invitations.create({ email: 'analyst@example.com' }) // role defaults to 'member'
+// await client.company.invitations.revoke(invitation.id) // to withdraw it while still pending
 await client.company.invitations.accept({ token }) // invitee, existing account
 await client.auth.signup({ email, password, name, company_invitation_token: token }) // invitee, new account
 
@@ -304,7 +307,11 @@ await client.company.machineUsers.mcpKeys.create(bot.id, {
   label: 'research-agent',
   scopes: ['mcp:search', 'mcp:purchase'],
 })
+await client.company.machineUsers.update(bot.id, { name: 'nightly-agent' }) // keys keep working
 await client.company.machineUsers.deactivate(bot.id) // permanent; revokes every key
+
+// Admin: read the Company wallet — the only place its balance appears.
+const { balance_cents, held_cents, pending_top_up_cents } = await client.company.wallet.get()
 
 // Admin: fund the Company wallet (card or ACH) and track unsettled top-ups.
 // wallet.getPaymentStatus() covers personal top-ups only — it does not find a Company session.

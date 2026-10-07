@@ -108,10 +108,15 @@ client.auth.resetPassword({ email, reset_code, password })           → Promise
 authenticate headlessly using a named API key. The token is stored automatically.
 See `client.user.apiKeys.create()` to generate a key.
 
-`signup` accepts an optional `company_invitation_token` (from a Company
-invitation email): when it names a pending invitation addressed to that email,
-the new buyer joins the Company in the same step; otherwise the account is
-created without a membership.
+`signup` and `loginWithGoogle` accept an optional `company_invitation_token`
+(from a Company invitation email) and `invitation_token` (from a store
+invitation email). When the call creates the account, it joins in the same
+step; if an invitation can't be accepted, nothing is created and the call
+throws a 422 `LedewireError` with `type === 'invitation_not_accepted'`,
+`details.reason` (an `InvitationRefusalReason`) and `details.invitation`
+(`'store'` | `'company'`). Both tokens join both or neither. For a Google
+account that already exists the sign-in succeeds regardless, and
+`res.invitations?.{store,company}` reports each `InvitationOutcome`.
 
 ### client.merchant.auth
 
@@ -455,7 +460,8 @@ client.company.membership.leave()                       → Promise<void>       
 
 client.company.invitations.list()                       → Promise<CompanyInvitationList>
 client.company.invitations.create({ email, role? })     → Promise<CompanyInvitation>   // role defaults to 'member'; expires in 7 days
-client.company.invitations.accept({ token })            → Promise<CompanyMembership>   // 409 already in a Company, 410 expired
+client.company.invitations.revoke(id)                   → Promise<void>                // 409 if no longer pending
+client.company.invitations.accept({ token })            → Promise<CompanyMembership>   // 409 already in a Company, 410 expired; details.reason says why
 
 client.company.members.list()                           → Promise<CompanyMemberList>
 client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>
@@ -463,6 +469,7 @@ client.company.members.remove(membershipId)             → Promise<void>       
 
 client.company.machineUsers.list()                      → Promise<CompanyMachineUserList>
 client.company.machineUsers.create({ name, description? }) → Promise<CompanyMachineUser>
+client.company.machineUsers.update(id, { name?, description? }) → Promise<CompanyMachineUser> // keys keep working; reports show the new name
 client.company.machineUsers.deactivate(id)              → Promise<CompanyMachineUser>  // PERMANENT; revokes every key
 client.company.machineUsers.buyerKeys.list(machineUserId)           → Promise<CompanyMachineUserBuyerKeyList>
 client.company.machineUsers.buyerKeys.create(machineUserId, { name }) → Promise<CompanyMachineUserBuyerKeyCreateResponse> // secret once
@@ -471,6 +478,7 @@ client.company.machineUsers.mcpKeys.list(machineUserId)             → Promise<
 client.company.machineUsers.mcpKeys.create(machineUserId, { label, scopes }) → Promise<CompanyMachineUserMcpKeyCreateResponse> // scopes: 'mcp:search' | 'mcp:purchase'
 client.company.machineUsers.mcpKeys.revoke(machineUserId, keyId)    → Promise<void>
 
+client.company.wallet.get()                             → Promise<CompanyWallet>       // balance_cents, held_cents, pending_top_up_cents
 client.company.wallet.createPaymentSession({ amount_cents, currency? }) → Promise<WalletPaymentSessionResponse> // card or ACH
 client.company.wallet.listPendingTopUps()               → Promise<CompanyPendingTopUpList>
 
@@ -483,7 +491,12 @@ client.company.spend.list({ member?, from?, to? })      → Promise<CompanySpend
   Company's timezone.
 - Joining needs the emailed token even for a signed-in buyer: an existing
   account calls `invitations.accept({ token })`; a new address passes it to
-  `auth.signup({ ..., company_invitation_token })`.
+  `auth.signup({ ..., company_invitation_token })` or
+  `auth.loginWithGoogle({ id_token, company_invitation_token })`.
+- `company.wallet.get()` is the only place the Company balance appears;
+  `wallet.balance()` reports none, even to an admin. `balance_cents` already
+  excludes what in-flight Bulk acquisitions hold, and can be negative after a
+  reversed top-up.
 - A Machine user is a Buyer with no email/password/login, joined as a non-admin
   member. Its Buyer key logs in via `createAgentClient({ key, secret })`; its
   spending limit is its membership cap. Every human-only flow refuses it.

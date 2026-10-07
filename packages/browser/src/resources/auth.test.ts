@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, MemoryTokenStorage } from '@ledewire/core'
+import { AuthError, LedewireError, MemoryTokenStorage } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import { authTokenFixture, errorResponseFixture } from '@ledewire/core/test-utils'
 import { init } from '../client.js'
@@ -26,6 +26,40 @@ function makeClient() {
 // ---------------------------------------------------------------------------
 
 describe('auth.signup', () => {
+  it('refuses the signup with a 422 naming the invitation and the reason', async () => {
+    let captured: unknown
+    server.use(
+      http.post(`${BASE}/v1/auth/signup`, async ({ request }) => {
+        captured = await request.json()
+        return HttpResponse.json(
+          {
+            ...errorResponseFixture(422, 'Invitation not found', 'invitation_not_accepted'),
+            reason: 'not_found',
+            invitation: 'store',
+          },
+          { status: 422 },
+        )
+      }),
+    )
+
+    const storage = new MemoryTokenStorage()
+    const err = await init({ apiKey: 'test-api-key', storage })
+      .auth.signup({
+        email: 'new@example.com',
+        password: 'pw',
+        name: 'New',
+        invitation_token: 'store-invite',
+      })
+      .catch((e: unknown) => e)
+
+    expect(captured).toMatchObject({ invitation_token: 'store-invite' })
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).statusCode).toBe(422)
+    expect((err as LedewireError).type).toBe('invitation_not_accepted')
+    expect((err as LedewireError).details).toEqual({ reason: 'not_found', invitation: 'store' })
+    expect(storage.getTokens()).toBeNull()
+  })
+
   it('returns the token response', async () => {
     const fixture = authTokenFixture()
     server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
@@ -113,6 +147,38 @@ describe('auth.loginWithEmail', () => {
 // ---------------------------------------------------------------------------
 
 describe('auth.loginWithGoogle', () => {
+  it('sends invitation tokens and returns the per-invitation outcomes', async () => {
+    const fixture = {
+      ...authTokenFixture(),
+      invitations: {
+        company: {
+          accepted: false,
+          reason: 'already_in_company' as const,
+          message: 'Leave your current Company first',
+        },
+      },
+    }
+    let captured: unknown
+    server.use(
+      http.post(`${BASE}/v1/auth/login/google`, async ({ request }) => {
+        captured = await request.json()
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    const result = await makeClient().auth.loginWithGoogle({
+      id_token: 'google-id-token',
+      company_invitation_token: 'company-invite',
+    })
+
+    expect(captured).toEqual({
+      id_token: 'google-id-token',
+      company_invitation_token: 'company-invite',
+    })
+    expect(result.invitations?.company?.accepted).toBe(false)
+    expect(result.invitations?.company?.reason).toBe('already_in_company')
+  })
+
   it('returns the token response', async () => {
     const fixture = authTokenFixture()
     server.use(http.post(`${BASE}/v1/auth/login/google`, () => HttpResponse.json(fixture)))

@@ -177,6 +177,15 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
+        /** @description An invitation token was sent and can't be accepted. No account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. Every invitation refusal is a 422, so a `409` from this route still means only that the email is taken. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
         /** @description Too many requests (throttled by source IP or per-account backoff) */
         429: {
           headers: {
@@ -309,6 +318,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An invitation token was sent and can't be accepted. Returned only when this call would create the account, and no account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. An account that already exists signs in anyway, and `invitations` in the 200 says what happened. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
         /** @description Too many requests (throttled by source IP or per-account backoff) */
@@ -815,6 +833,81 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/company/invitations/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke a pending invitation
+     * @description Company admins only. Withdraws an invitation that has not been accepted, revoked or expired, so the address can be invited again at once rather than when this one expires. The emailed token can no longer be accepted.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Revoked */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the invitation is not one of its own */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The invitation is no longer pending (accepted, already revoked or expired) */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/company/invitations/accept': {
     parameters: {
       query?: never
@@ -874,7 +967,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
         /** @description Already accepted, or the buyer already belongs to a Company */
@@ -883,7 +976,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
         /** @description Expired or withdrawn */
@@ -892,7 +985,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
       }
@@ -1124,7 +1217,90 @@ export interface paths {
     }
     options?: never
     head?: never
-    patch?: never
+    /**
+     * Rename a Machine user or change its description
+     * @description Company admins only. Changes `name`, `description`, or both, under the same name rules as creating one; keeping its own current name is not a conflict. Its keys and sessions are untouched, so the agent keeps working without being re-issued anything. Attribution reads the name live: GET /v1/company/members, /v1/company/purchases and /v1/company/spend show the new name, on earlier purchases as well as later ones.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMachineUserUpdateRequest']
+        }
+      }
+      responses: {
+        /** @description The updated Machine user */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUser']
+          }
+        }
+        /** @description Neither name nor description given, or a null name */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Another active Machine user in the Company has this name, or this one is deactivated */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The name is blank or longer than 100 characters */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
     trace?: never
   }
   '/v1/company/machine-users/{machine_user_id}/buyer-keys': {
@@ -2048,6 +2224,72 @@ export interface paths {
         }
       }
     }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/wallet': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read the Company wallet
+     * @description Company admins only. The Company wallet's spendable balance, what Company-paid Bulk acquisitions hold, and what top-ups are on their way. Members never see the balance, and GET /v1/wallet/balance reports none even to an admin; this is the only place it appears.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The Company wallet */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyWallet']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
     options?: never
     head?: never
     patch?: never
@@ -7242,6 +7484,41 @@ export interface components {
        * @description When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
        */
       expires_at: string
+      /** @description Present only on `POST /v1/auth/login/google` for an account that already existed, when the call carried `invitation_token` or `company_invitation_token`. One entry per token sent. A refused invitation does not refuse the sign-in; it is reported here instead. */
+      invitations?: {
+        store?: components['schemas']['InvitationOutcome']
+        company?: components['schemas']['InvitationOutcome']
+      }
+    }
+    InvitationOutcome: {
+      accepted: boolean
+      reason?: components['schemas']['InvitationRefusalReason']
+      /** @description The refusal in words, for display. Present when `accepted` is false. */
+      message?: string
+    }
+    /**
+     * @description Why an invitation was not accepted. `not_found` also covers a Company invitation addressed to another email, deliberately indistinguishable; `expired` covers a withdrawn one; `wrong_email` is a store invitation sent to another address; `already_in_company` means the account belongs to another Company and must leave it first; `already_member` means it already belongs to the store; `invalid` is an invitation that could not be saved.
+     * @enum {string}
+     */
+    InvitationRefusalReason:
+      | 'not_found'
+      | 'already_accepted'
+      | 'expired'
+      | 'wrong_email'
+      | 'already_in_company'
+      | 'already_member'
+      | 'invalid'
+    /** @description An invitation refused. Signup and Google sign-in return it with HTTP 422 and name the `invitation`; `POST /v1/company/invitations/accept` returns it with its own status (404, 409 or 410) and no `invitation`. */
+    InvitationNotAcceptedError: {
+      error: {
+        code: number
+        message: string
+        /** @enum {string} */
+        type: 'invitation_not_accepted'
+      }
+      reason: components['schemas']['InvitationRefusalReason']
+      /** @enum {string} */
+      invitation?: 'store' | 'company'
     }
     /** @description Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection. */
     MerchantAuthenticationResponse: {
@@ -7309,6 +7586,8 @@ export interface components {
          * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
          *
          *     On the Bulk acquisition steps: `exclusions_unacknowledged` means post the acknowledgement first; `quote_not_ready` means keep polling a `pending` quote or re-quote a `failed` one (`quote_state` says which); `quote_expired` and `quote_in_progress` mean re-quote, and wait for the re-quote already running; `invalid_acquisition_state` means re-read the acquisition (`status` and `expected_status` are alongside); `nothing_to_hold` means every work was excluded and a different selection is needed; `run_not_started` means the run could not be queued, so nothing was held and the same authorization is safe to retry.
+         *
+         *     `invitation_not_accepted` means a store or Company invitation was refused; `reason` alongside says why (see `InvitationNotAcceptedError`).
          * @enum {string}
          */
         type?:
@@ -7325,13 +7604,16 @@ export interface components {
           | 'quote_expired'
           | 'quote_in_progress'
           | 'run_not_started'
+          | 'invitation_not_accepted'
       }
     }
     AuthSignupRequest: {
       email: string
       password: string
       name: string
-      /** @description The token from a Company invitation email. When it names a pending invitation addressed to this email, signup also accepts it and the new buyer joins the Company. Otherwise the account is created without a membership. */
+      /** @description The token from a store invitation email. Signup also accepts it and the new account joins the store. If the invitation can't be accepted, nothing is created and the signup is refused with a 422 (`InvitationNotAcceptedError`). */
+      invitation_token?: string
+      /** @description The token from a Company invitation email. Signup also accepts it and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the signup is refused with a 422. A signup carrying both tokens joins both or neither. */
       company_invitation_token?: string
     }
     AuthLoginEmailRequest: {
@@ -7340,6 +7622,10 @@ export interface components {
     }
     AuthLoginOAuthRequest: {
       id_token?: string
+      /** @description The token from a store invitation email. The account joins the store. When this call creates the account and the invitation can't be accepted, nothing is created and the call is refused with a 422. See `company_invitation_token` for an existing account. */
+      invitation_token?: string
+      /** @description The token from a Company invitation email. When this call creates the account, it also accepts the invitation and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the call is refused with a 422. A call creating an account with both tokens joins both or neither. For an account that already exists, each token is accepted if it can be, the sign-in succeeds either way, and the response's `invitations` says what happened to each. */
+      company_invitation_token?: string
     }
     MerchantEmailLoginRequest: {
       email: string
@@ -7489,6 +7775,7 @@ export interface components {
       id: string
       /** Format: uuid */
       user_id: string
+      /** @description The member's current name, read when the response is built. Renaming a Machine user (PATCH /v1/company/machine-users/{id}) relabels its earlier rows too; the audit trail keeps the old name. */
       name: string
       /** @enum {string} */
       kind: 'human' | 'machine'
@@ -7539,6 +7826,14 @@ export interface components {
       name: string
       description?: string | null
     }
+    /** @description At least one of `name` and `description`. A null or blank `description` clears it; `name` cannot be null. */
+    CompanyMachineUserUpdateRequest:
+      | {
+          name?: string
+          description?: string | null
+        }
+      | unknown
+      | unknown
     /** @description A Machine user's Buyer key as a Company admin sees it. It logs in through POST /v1/auth/login/buyer-api-key. Its limit is the Machine user's membership Spend cap. */
     CompanyMachineUserBuyerKey: {
       /** Format: uuid */
@@ -7606,6 +7901,18 @@ export interface components {
     }
     CompanyMemberList: {
       data: components['schemas']['CompanyMember'][]
+    }
+    /** @description The Company wallet, as a Company admin sees it. No member-facing response carries these figures; only this one does. */
+    CompanyWallet: {
+      /** @description Spendable now. Money held by in-flight Bulk acquisitions is already out of it. Negative when a reversed top-up has taken the wallet below zero; a purchase is refused whenever the balance does not cover its price. */
+      balance_cents: number
+      /** @description Committed to Company-paid Bulk acquisitions still in progress, including those started by members who have since left the Company. When an acquisition settles or is cancelled, what it captured is charged and the rest is released back to the balance. */
+      held_cents: number
+      /** @description The sum of top-ups not yet spendable: the same top-ups GET /v1/company/wallet/pending-top-ups lists. Not part of the balance until each settles. */
+      pending_top_up_cents: number
+      /** @example usd */
+      currency: string
+      company_name: string
     }
     /** @description A Company wallet top-up that has not yet settled, as a Company admin sees it. */
     CompanyPendingTopUp: {
