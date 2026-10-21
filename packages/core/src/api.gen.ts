@@ -177,6 +177,15 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
+        /** @description An invitation token was sent and can't be accepted. No account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. Every invitation refusal is a 422, so a `409` from this route still means only that the email is taken. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
         /** @description Too many requests (throttled by source IP or per-account backoff) */
         429: {
           headers: {
@@ -309,6 +318,24 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Google signed the token but has not verified the account's email address (`email_verified` is false or absent). Refused before any account is looked up, so no account is created, linked or signed in. `error.type` is `email_not_verified`. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An invitation token was sent and can't be accepted. Returned only when this call would create the account, and no account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. An account that already exists signs in anyway, and `invitations` in the 200 says what happened. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
         /** @description Too many requests (throttled by source IP or per-account backoff) */
@@ -468,6 +495,15 @@ export interface paths {
             'application/json': components['schemas']['UserApiKeyCreateResponse']
           }
         }
+        /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Error response */
         default: {
           headers: {
@@ -513,6 +549,15 @@ export interface paths {
             [name: string]: unknown
           }
           content?: never
+        }
+        /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
         }
         /** @description Key not found */
         404: {
@@ -619,6 +664,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description The buyer holds an open Company membership. A member's cap is set by a Company admin through PATCH /v1/company/members/{id}, admins' own included. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Cap is negative, fractional, non-integer, or the field was omitted */
         422: {
           headers: {
@@ -639,6 +693,1769 @@ export interface paths {
         }
       }
     }
+    trace?: never
+  }
+  '/v1/company/invitations': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Company's pending invitations
+     * @description Company admins only. Pending means not accepted, withdrawn or expired.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Pending invitations */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyInvitationList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the target was not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Invite someone to the Company
+     * @description Company admins only. Every invitation emails a token that accepting requires: an existing user accepts with it, a new address signs up with it. Nobody joins until they accept. Inviting someone who belongs to another Company succeeds; their accept is refused.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyInvitationRequest']
+        }
+      }
+      responses: {
+        /** @description The invitation */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyInvitation']
+          }
+        }
+        /** @description No email given */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the target was not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Already a member, or an invitation to this address is already pending */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unknown role */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/invitations/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke a pending invitation
+     * @description Company admins only. Withdraws an invitation that has not been accepted, revoked or expired, so the address can be invited again at once rather than when this one expires. The emailed token can no longer be accepted.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Revoked */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the invitation is not one of its own */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The invitation is no longer pending (accepted, already revoked or expired) */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/invitations/accept': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Accept an invitation
+     * @description Opens a membership with the invited role. Requires the token from the invitation email, for existing users as well as new ones: an account's address is not verified, so being signed in as the invited address is not enough. The token must belong to an invitation addressed to one of the buyer's addresses. Refused while the buyer holds an open membership of another Company; they must leave it first.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyInvitationAcceptRequest']
+        }
+      }
+      responses: {
+        /** @description The new membership */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMembership']
+          }
+        }
+        /** @description No token given */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No invitation with this token addressed to this buyer */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description Already accepted, or the buyer already belongs to a Company */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description Expired or withdrawn */
+        410: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/machine-users': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Company's Machine users
+     * @description Company admins only. Active and deactivated, oldest first.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Machine users */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUserList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a Machine user
+     * @description Company admins only. Creates a Buyer with a name and no email, password or login, joined at once as an active non-admin member with the default daily Spend cap. Every human-only flow (login, Google sign-in, OAuth consent, password reset, accepting or leaving a membership) refuses it.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMachineUserRequest']
+        }
+      }
+      responses: {
+        /** @description The Machine user */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUser']
+          }
+        }
+        /** @description No name given */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An active Machine user in the Company already has this name */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The name is blank or longer than 100 characters */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/machine-users/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Deactivate a Machine user, permanently
+     * @description Company admins only. In one transaction closes its membership, revokes every key it holds and ends its sessions. It cannot be reactivated; create a new one, which may reuse the name.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The deactivated Machine user */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUser']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Already deactivated */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    /**
+     * Rename a Machine user or change its description
+     * @description Company admins only. Changes `name`, `description`, or both, under the same name rules as creating one; keeping its own current name is not a conflict. Its keys and sessions are untouched, so the agent keeps working without being re-issued anything. Attribution reads the name live: GET /v1/company/members, /v1/company/purchases and /v1/company/spend show the new name, on earlier purchases as well as later ones.
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMachineUserUpdateRequest']
+        }
+      }
+      responses: {
+        /** @description The updated Machine user */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUser']
+          }
+        }
+        /** @description Neither name nor description given, or a null name */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Another active Machine user in the Company has this name, or this one is deactivated */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The name is blank or longer than 100 characters */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
+  '/v1/company/machine-users/{machine_user_id}/buyer-keys': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List a Machine user's Buyer keys
+     * @description Company admins only. The secrets are never returned here.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The keys, oldest first */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUserBuyerKeyList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a Buyer key for a Machine user
+     * @description Company admins only. The secret appears in this response and nowhere else. A Machine user may hold several, so a key is rotated by creating its replacement before revoking it.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMachineUserBuyerKeyRequest']
+        }
+      }
+      responses: {
+        /** @description The key, with its secret */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUserBuyerKeyCreateResponse']
+          }
+        }
+        /** @description Invalid parameters, or a refused field */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The Machine user is deactivated */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The key failed validation, e.g. a duplicate name */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/machine-users/{machine_user_id}/buyer-keys/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke a Machine user's Buyer key
+     * @description Company admins only. The key is deleted. An audit event names the admin.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Key revoked */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such Machine user in the caller's Company, or no such active key */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/machine-users/{machine_user_id}/mcp-keys': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List a Machine user's MCP API Keys
+     * @description Company admins only. The secrets are never returned here.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The keys, oldest first */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUserMcpKeyList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * Create a MCP API Key for a Machine user
+     * @description Company admins only. The secret appears in this response and nowhere else. A Machine user may hold several, so a key is rotated by creating its replacement before revoking it.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMachineUserMcpKeyRequest']
+        }
+      }
+      responses: {
+        /** @description The key, with its secret */
+        201: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMachineUserMcpKeyCreateResponse']
+          }
+        }
+        /** @description Invalid parameters, or a refused field */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the Machine user is not in it */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The Machine user is deactivated */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The key failed validation, e.g. a duplicate name */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/machine-users/{machine_user_id}/mcp-keys/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke a Machine user's MCP API Key
+     * @description Company admins only. The key is marked revoked and stops authenticating. An audit event names the admin.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          machine_user_id: string
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Key revoked */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such Machine user in the caller's Company, or no such active key */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Company's members
+     * @description Company admins only. Open memberships.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Members */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMemberList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the target was not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/purchases': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List everything the Company paid for
+     * @description Company admins only. Every purchase and Bulk acquisition drawn on the Company wallet, newest first, each attributed to the member who bought it — including members who have since left. A Bulk acquisition's per-work purchases are not listed separately, and a failed purchase, which bought nothing, is not listed. A Bulk acquisition's Corpus and Manifest are reached through `/v1/acquisitions/{acquisition_id}/corpus` and `/manifest` with its id.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Page number (1-based). */
+          page?: number
+          /** @description Number of items per page. Maximum 100. */
+          per_page?: number
+          /** @description A membership id (`member.id`), open or closed. A person who left and rejoined has one per membership. */
+          member?: string
+          /** @description The first day to include, `YYYY-MM-DD`, read in the Company's timezone — the same days its Spend window counts. */
+          from?: string
+          /** @description The last day to include, `YYYY-MM-DD`, read in the Company's timezone. */
+          to?: string
+          /** @description Only purchases, or only Bulk acquisitions. Both by default. */
+          kind?: 'purchase' | 'bulk_acquisition'
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Company purchases */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyPurchaseList']
+          }
+        }
+        /** @description Invalid filter or pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/spend': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Report what each member has spent of the Company's money
+     * @description Company admins only. One row per membership, including members who have left, with what each has spent in the range — lifetime when neither `from` nor `to` is given.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description A membership id (`member.id`), open or closed. A person who left and rejoined has one per membership. */
+          member?: string
+          /** @description The first day to include, `YYYY-MM-DD`, read in the Company's timezone — the same days its Spend window counts. */
+          from?: string
+          /** @description The last day to include, `YYYY-MM-DD`, read in the Company's timezone. */
+          to?: string
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Spend per member */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanySpendList']
+          }
+        }
+        /** @description Invalid filter parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/members/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Remove a member
+     * @description Company admins only. Closes the membership; the member's ledger accounts stay with the Company. The last admin cannot be removed. Removing a Machine user deactivates it permanently, as DELETE /v1/company/machine-users/{id} does.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Removed */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the target was not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description It would leave the Company with no admin */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    /**
+     * Change a member's role or daily Spend cap
+     * @description Company admins only. Promote a member or demote an admin, including yourself, so long as the Company keeps at least one admin. Set any member's daily Spend cap, including your own. A Machine user cannot be made an admin (422).
+     */
+    patch: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CompanyMemberRoleRequest']
+        }
+      }
+      responses: {
+        /** @description The updated member */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMember']
+          }
+        }
+        /** @description Neither role nor daily_spend_limit_cents given, or the cap is null or negative */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company, or the target was not found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unknown role, or it would leave the Company with no admin */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    trace?: never
+  }
+  '/v1/company/membership': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read the authenticated buyer's own membership
+     * @description The session token names the buyer, and a buyer belongs to at most one Company.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The membership */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyMembership']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The buyer belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    /**
+     * Leave the Company
+     * @description Closes the buyer's own membership. Their purchases are paid from their personal wallet again afterwards. The last admin cannot leave. A Machine user cannot leave (403); an admin deactivates it instead.
+     */
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Left */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The buyer belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The buyer is the Company's last admin */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/wallet': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read the Company wallet
+     * @description Company admins only. The Company wallet's spendable balance, what Company-paid Bulk acquisitions hold, and what top-ups are on their way. Members never see the balance, and GET /v1/wallet/balance reports none even to an admin; this is the only place it appears.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The Company wallet */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyWallet']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/wallet/payment-session': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Start a Company wallet top-up
+     * @description Company admins only. Creates a payment session that funds the Company wallet, by card or ACH (us_bank_account). Confirm it client-side with the returned client_secret, as for a personal top-up. The top-up is spendable only once it settles: a card usually settles at once, an ACH debit after about four business days. Starting another top-up never cancels an ACH debit already processing.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['WalletPaymentSessionRequest']
+        }
+      }
+      responses: {
+        /** @description Payment session created */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['WalletPaymentSessionResponse']
+          }
+        }
+        /** @description Invalid request data */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The payment provider refused to create the session */
+        402: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/company/wallet/pending-top-ups': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Company's top-ups that are not yet spendable
+     * @description Company admins only. Newest first. `pending` is a session not yet paid; `awaiting_verification` is a bank account whose microdeposits are not yet confirmed (up to ten days); `processing` is an ACH debit under way.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Pending top-ups */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CompanyPendingTopUpList']
+          }
+        }
+        /** @description Missing or invalid buyer session token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is not a Company admin */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller belongs to no Company */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   '/v1/auth/login/api-key': {
@@ -953,7 +2770,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store. */
+        /**
+         * @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store.
+         *     Also returned, with `error.type` `email_not_verified`, when Google has not verified the account's email address. That refusal happens before any account is looked up.
+         */
         403: {
           headers: {
             [name: string]: unknown
@@ -2581,6 +4401,102 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/content/search': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Search LedeWire for content from every Store and every Publication
+     * @description A signed-in Buyer's LedeWire search, the same search as MCP `search_content`: works from every Store and brokered works from every Publication, taken in turn, each in its own order of relevance. Each brokered work names its Publication. Unlisted and archived works never appear.
+     *
+     *     Paged by one opaque cursor. Send each page's `next_cursor` back as `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`, until it comes back null. A page never holds more than `limit` rows. A cursor lasts 24 hours. Without a `query`, only Store works are searched.
+     *
+     *     When part of the search cannot be run the call still succeeds, with what could be found and `partial_results: true`. `next_cursor` then still points at what was missed, so sending it asks for it again. `unavailable_providers` is deprecated and always empty.
+     *
+     *     **Authorization:** any Buyer, by session or Buyer key, Machine users included.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ContentSearchRequest']
+        }
+      }
+      responses: {
+        /** @description One page of results */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentSearchResponse']
+          }
+        }
+        /** @description A malformed body, such as a `limit` out of range or `tags` that are not strings */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No valid Buyer credentials */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The credentials are not a Buyer's */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata` or `limit`. Nothing was searched. Start again without one. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many searches from this Buyer — 15 a minute per authenticated user, because a search with a `query` is a live search of brokered works. Counted per Buyer, not per address, and apart from the `GET /v1/publications/{id}/works` budget. Nothing was searched. Waiting `Retry-After` seconds is always enough. */
+        429: {
+          headers: {
+            /** @description Seconds to wait. Always the full window (60), so an upper bound: the window opened at this Buyer's first search and may close sooner. */
+            'Retry-After'?: number
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/checkout/state/{content_id}': {
     parameters: {
       query?: never
@@ -2616,6 +4532,15 @@ export interface paths {
                 next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
               }
             }
+          }
+        }
+        /** @description No work for sale has this id. Answered for an id that names nothing, and for a work that is unlisted or archived. A partner work found by `POST /v1/content/search` that nobody has bought yet resolves like any other, at the price the search quoted. */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -2675,7 +4600,10 @@ export interface paths {
       }
     }
     put?: never
-    /** Complete a content purchase */
+    /**
+     * Complete a content purchase
+     * @description Buys one work and delivers its body on this response. `content_id` and `price_cents` are taken from wherever the Buyer found the work, including a result from `POST /v1/content/search` — a Store work and a partner work alike, whether or not anybody has bought that partner work before.
+     */
     post: {
       parameters: {
         query?: never
@@ -2743,13 +4671,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unprocessable Content - Price mismatch or other validation error */
+        /** @description Unprocessable Content — the wallet cannot cover the price (`InsufficientFundsError`), a price mismatch, or another refusal. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json':
+              | components['schemas']['InsufficientFundsError']
+              | components['schemas']['ErrorResponse']
           }
         }
       }
@@ -3746,13 +5676,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Insufficient wallet balance. */
+        /** @description Insufficient wallet balance, or another refusal of the purchase. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json':
+              | components['schemas']['InsufficientFundsError']
+              | components['schemas']['ErrorResponse']
           }
         }
         /** @description Rate limit exceeded (30 requests per minute per IP). */
@@ -3945,11 +5877,22 @@ export interface paths {
      *
      *     Licensability is the only filter. A publication that publishes no `FULL_USE` rate is listed and flagged `bulk_licensable: false` rather than omitted, and nothing is hidden for its page types, article lengths or perceived value.
      *
+     *     `q`, `bulk_licensable` and `topics[]` narrow the list on the server and combine with AND; `pagination` counts the filtered set. Without any of them, the list is unfiltered. `unclassified_count` is how many listed publications have no Topics yet, whatever the filter, so a Topic-filtered page that may be incomplete says so.
+     *
      *     **Authorization:** none.
      */
     get: {
       parameters: {
         query?: {
+          /**
+           * @description Case-insensitive substring of the publication's name or of any of its listed domains (as listed, e.g. `www.forbes.com`, or bare, e.g. `forbes.com`). Blank is no filter.
+           * @example times
+           */
+          q?: string
+          /** @description `true` returns only publications that can be bulk-licensed; `false` only those that cannot. */
+          bulk_licensable?: boolean
+          /** @description Only publications carrying any of these Topics. Repeat the parameter for several (`topics[]=sports&topics[]=travel`). An unknown Topic is a 400 naming the valid ones. */
+          'topics[]'?: components['schemas']['TopicSlug'][]
           page?: number
           per_page?: number
         }
@@ -3968,8 +5911,60 @@ export interface paths {
             'application/json': components['schemas']['PublicationListResponse']
           }
         }
-        /** @description Invalid pagination parameters */
+        /** @description Invalid pagination parameters, a `bulk_licensable` that is not a boolean, or a `topics[]` entry that is not a Topic (the message names the valid ones) */
         400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/publications/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get one publication
+     * @description One Publication, exactly as its row in `GET /v1/publications`. Served from the same registry, so it answers even while the Broker is unreachable, and an id the list would not show (not ready to license, or withdrawn) is a 404 here too.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The publication */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['Publication']
+          }
+        }
+        /** @description No listed publication has that id */
+        404: {
           headers: {
             [name: string]: unknown
           }
@@ -4049,6 +6044,17 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Too many requests from this address — 15 a minute per source IP, because every request is a live call to the Broker. Waiting `Retry-After` seconds is always enough. */
+        429: {
+          headers: {
+            /** @description Seconds to wait. Always the full window (60), so an upper bound: the window opened at this address's first request and may close sooner. */
+            'Retry-After'?: number
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description The Broker's catalog could not be read, even after retrying */
         502: {
           headers: {
@@ -4056,6 +6062,49 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/topics': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Topics, with how many publications carry each
+     * @description Every Topic a Publication can carry, in vocabulary order, with its IAB unique ID, its IAB display name and the number of listed Publications that carry it. Topics are IAB Content Taxonomy tier-1 subject areas, so the list is also every value `topics[]` on `GET /v1/publications` accepts.
+     *
+     *     Each `publication_count` is exactly what `GET /v1/publications?topics[]=<slug>` reports as `pagination.total`. A Topic no Publication carries yet is listed with 0. `unclassified_count` is how many listed Publications have no Topics yet, so are counted under none of them.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The Topic directory */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['TopicDirectoryResponse']
           }
         }
       }
@@ -4106,6 +6155,7 @@ export interface paths {
         /** @description The acquisition, with its quote not yet priced */
         201: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4189,6 +6239,7 @@ export interface paths {
         /** @description The acquisition */
         200: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4260,6 +6311,7 @@ export interface paths {
         /** @description Re-pricing started. Poll the acquisition until `quote_state` is `ready`. */
         202: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4284,7 +6336,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Refused. `error.type` is `quote_in_progress` when a re-pricing is already running — pricing is expensive upstream, so a client polling and re-quoting in one loop is not allowed to queue one per iteration. Otherwise the hold is already placed: a re-quote moves the total the funds are reserved against, so it is refused once the money is committed. A `failed` quote is re-quotable, and asking again is the remedy for it. */
+        /** @description Refused. `error.type` is `quote_in_progress` when a re-pricing is already running — pricing is expensive upstream, so a client polling and re-quoting in one loop is not allowed to queue one per iteration. Otherwise it is `invalid_acquisition_state`, with `status` and `expected_status`: the hold is already placed, and a re-quote moves the total the funds are reserved against, so it is refused once the money is committed. A `failed` quote is re-quotable, and asking again is the remedy for it. */
         422: {
           headers: {
             [name: string]: unknown
@@ -4360,7 +6412,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Nothing to acknowledge yet, or a quote too old to stand behind. `error.type` is `quote_expired` in the second case, and carries `quoted_at` and `valid_for_seconds`; the remedy is a re-quote. */
+        /** @description Nothing to acknowledge yet, or a quote too old to stand behind. `error.type` names which: `quote_not_ready` carries `quote_state` (`pending` — keep polling; `failed` — re-quote), and `quote_expired` carries `quoted_at` and `valid_for_seconds`, with a re-quote as the remedy. `invalid_acquisition_state` (with `status` and `expected_status`) means the acquisition is no longer `quoted` — cancelled, or past its hold. */
         422: {
           headers: {
             [name: string]: unknown
@@ -4414,6 +6466,7 @@ export interface paths {
         /** @description Hold placed, run started. Poll the acquisition. */
         202: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4447,7 +6500,96 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The hold was refused and the quote survives, so it can be acknowledged or re-priced and authorized again. Either the exclusions are unacknowledged, or the quote expired between acknowledgement and here, or the wallet is short, or the acquisition is not in a state that can be authorized. Insufficient funds answers here rather than at 402 — the existing contract for this API — which is what keeps it distinct from a cap refusal. */
+        /** @description The hold was refused and the quote survives, so it can be acknowledged or re-priced and authorized again. `error.type` names the condition: `exclusions_unacknowledged` (post the acknowledgement first), `quote_not_ready` (with `quote_state`), `quote_expired` (with `quoted_at` and `valid_for_seconds`; re-quote), `invalid_acquisition_state` (with `status` and `expected_status` — already authorized, cancelled, failed or settled), `nothing_to_hold` (every work was excluded), or `insufficient_funds`. Insufficient funds answers here rather than at 402 — the existing contract for this API — which is what keeps it distinct from a cap refusal. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `run_not_started`: the run could not be queued. The hold is placed and the run queued together or not at all, so nothing was held, the acquisition is still `quoted`, and the same authorization is safe to retry. */
+        503: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/acquisitions/{acquisition_id}/cancellation': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid for by a Company the caller is an open admin of. */
+        acquisition_id: string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Withdraw a quote, or stop a held acquisition the Company pays for
+     * @description Moves a `quoted` acquisition to `cancelled`. Quoting is how a Buyer learns what a Selection costs, and the usual next step is to trim it and submit the remainder as a new acquisition; this withdraws the first so it does not sit as an expired quote.
+     *
+     *     Allowed whatever the quote's state — still `pending`, `ready` or `failed`, expired or not, acknowledged or not. No hold exists yet, so **no money moves**: the wallet's balance, held and spendable amounts are unchanged. Pricing still running stops without writing to it, and a cancelled acquisition can be neither acknowledged nor authorized.
+     *
+     *     **A held acquisition** (`authorized` or `acquiring`) paid for by a Company can be cancelled by an open admin of that Company, whether or not the membership that paid is still open. What was already captured is charged; the rest of the hold is released to the Company wallet. That is a release, not a refund: delivered works stay bought. A run in progress starts no further work, and assembles the corpus for what it delivered. The cancel is recorded as `company.acquisition.cancelled` in the audit trail. A Buyer who is not an admin of that Company cannot cancel a held acquisition, their own included.
+     *
+     *     Idempotent: an acquisition already `cancelled` answers 200 with its current body and is not changed.
+     *
+     *     **Authorization:** buyer JWT. A quote must be the caller's own; a held acquisition must be Company-paid, and the caller an open admin of that Company.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid for by a Company the caller is an open admin of. */
+          acquisition_id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Cancelled, or already was. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['AcquisitionResponse']
+          }
+        }
+        /** @description Missing or invalid token */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No such acquisition for this caller — the same answer for one that exists and is neither the caller's nor paid for by a Company they are an open admin of. */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The acquisition is not in a state this caller can cancel: the Buyer's own acquisition once it is past its quote, or a Company admin's once it has settled or failed. `error.type` is `invalid_acquisition_state`, with `status` and `expected_status` alongside. Nothing is changed. */
         422: {
           headers: {
             [name: string]: unknown
@@ -4469,6 +6611,20 @@ export interface paths {
       query?: {
         page?: number
         per_page?: number
+        /** @description Only works the run left in this state. `undelivered` is what was attempted and failed; an excluded work is never attempted and stays `pending`. */
+        delivery_state?: 'pending' | 'delivered' | 'undelivered'
+        /** @description Only works the quote left in this state. */
+        line_state?: 'pending' | 'firm' | 'estimated' | 'excluded'
+        /** @description Only works excluded for this reason, so only `excluded` lines. */
+        exclusion_reason?:
+          | 'excluded_malformed'
+          | 'excluded_duplicate'
+          | 'excluded_no_rate'
+          | 'excluded_free_not_supported'
+          | 'excluded_not_deliverable'
+          | 'excluded_insufficient_rights'
+          | 'excluded_above_price_ceiling'
+          | 'excluded_rate_unavailable'
       }
       header?: never
       path: {
@@ -4483,6 +6639,8 @@ export interface paths {
      *
      *     **Partial failure is read from here, not caught.** An acquisition where 300 of 10,000 works failed is ordinary — it does not fail the request and it is not an exception — so each outcome is a line item carrying its typed reason.
      *
+     *     **Filters** answer "what didn't I get, and why?" without reading every page. `delivery_state`, `line_state` and `exclusion_reason` are optional and combine with AND; results stay in submission order, and `pagination` counts the filtered set. An unknown value is a 400, not an empty page.
+     *
      *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
      */
     get: {
@@ -4490,6 +6648,20 @@ export interface paths {
         query?: {
           page?: number
           per_page?: number
+          /** @description Only works the run left in this state. `undelivered` is what was attempted and failed; an excluded work is never attempted and stays `pending`. */
+          delivery_state?: 'pending' | 'delivered' | 'undelivered'
+          /** @description Only works the quote left in this state. */
+          line_state?: 'pending' | 'firm' | 'estimated' | 'excluded'
+          /** @description Only works excluded for this reason, so only `excluded` lines. */
+          exclusion_reason?:
+            | 'excluded_malformed'
+            | 'excluded_duplicate'
+            | 'excluded_no_rate'
+            | 'excluded_free_not_supported'
+            | 'excluded_not_deliverable'
+            | 'excluded_insufficient_rights'
+            | 'excluded_above_price_ceiling'
+            | 'excluded_rate_unavailable'
         }
         header?: never
         path: {
@@ -4509,7 +6681,7 @@ export interface paths {
             'application/json': components['schemas']['PaginatedAcquisitionWorkList']
           }
         }
-        /** @description Invalid pagination parameters */
+        /** @description Invalid pagination parameters, or a filter value outside its enum */
         400: {
           headers: {
             [name: string]: unknown
@@ -4551,7 +6723,7 @@ export interface paths {
       query?: never
       header?: never
       path: {
-        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
         acquisition_id: string
       }
       cookie?: never
@@ -4560,7 +6732,7 @@ export interface paths {
      * Where the corpus is
      * @description Answers with a **state**, never with an error — every case is a 200. A corpus is a rendering of Purchases the Buyer already holds rather than an entitlement of its own, so a blob past its 30-day retention answers `rebuild_required`: a 404 or a 410 would say something was lost, and nothing was.
      *
-     *     Reading the state never starts work. Use `POST` to ask for an assembly.
+     *     Reading the state never starts work. It does not need to: assembly is queued when the acquisition settles with something delivered, so a settled acquisition's corpus reads `pending`, `assembling` or `ready` without being asked for. Use `POST` to ask for a rebuild once it has expired, or to retry a failure.
      *
      *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
      */
@@ -4569,7 +6741,7 @@ export interface paths {
         query?: never
         header?: never
         path: {
-          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
           acquisition_id: string
         }
         cookie?: never
@@ -4579,6 +6751,7 @@ export interface paths {
         /** @description The corpus state, whatever it is */
         200: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4594,7 +6767,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description No such acquisition for this Buyer */
+        /** @description No such acquisition for this Buyer or Company admin */
         404: {
           headers: {
             [name: string]: unknown
@@ -4608,7 +6781,9 @@ export interface paths {
     put?: never
     /**
      * Build the corpus, if there is nothing to serve
-     * @description Starts an assembly when the state is `rebuild_required`, and does nothing when a corpus is already downloadable — re-assembling one that is sitting there spends minutes of a worker for a file the Buyer can already have.
+     * @description Starts an assembly when the state is `rebuild_required`, or when it is `failed` for a transient reason such as object storage being unavailable — the request is the retry, and is answered as `pending` with 202. Does nothing when a corpus is already downloadable — re-assembling one that is sitting there spends minutes of a worker for a file the Buyer can already have — nor while a run is `assembling`, nor for a failure a rebuild would only repeat.
+     *
+     *     Not needed for a first build: settlement queues one, and a `POST` that arrives before it starts is answered `pending` with 200 rather than queuing a second.
      *
      *     A separate verb from `GET` rather than a flag on it, because a Buyer polling every few seconds while a run finishes would otherwise queue one assembly per poll.
      *
@@ -4619,25 +6794,27 @@ export interface paths {
         query?: never
         header?: never
         path: {
-          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
           acquisition_id: string
         }
         cookie?: never
       }
       requestBody?: never
       responses: {
-        /** @description Nothing to do — a corpus is already downloadable. */
+        /** @description Nothing started — a corpus is already downloadable, a run is queued (`pending`) or in flight, or the failure is not one a rebuild can fix. The state says which. */
         200: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['CorpusResponse']
           }
         }
-        /** @description Assembly started. Poll the GET until `ready`. */
+        /** @description Assembly started, and answered `pending`. Poll the GET until `ready`. */
         202: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4653,7 +6830,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description No such acquisition for this Buyer */
+        /** @description No such acquisition for this Buyer or Company admin */
         404: {
           headers: {
             [name: string]: unknown
@@ -4675,7 +6852,7 @@ export interface paths {
       query?: never
       header?: never
       path: {
-        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
         acquisition_id: string
       }
       cookie?: never
@@ -4697,7 +6874,7 @@ export interface paths {
         query?: never
         header?: never
         path: {
-          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
           acquisition_id: string
         }
         cookie?: never
@@ -4707,6 +6884,7 @@ export interface paths {
         /** @description The archive, or — when there is nothing to serve — the corpus state as JSON. */
         200: {
           headers: {
+            'Retry-After': components['headers']['PollRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -4723,7 +6901,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description No such acquisition for this Buyer */
+        /** @description No such acquisition for this Buyer or Company admin */
         404: {
           headers: {
             [name: string]: unknown
@@ -4747,7 +6925,7 @@ export interface paths {
       query?: never
       header?: never
       path: {
-        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+        /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
         acquisition_id: string
       }
       cookie?: never
@@ -4765,7 +6943,7 @@ export interface paths {
         query?: never
         header?: never
         path: {
-          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer. */
+          /** @description Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the Company wallet of a Company the caller is an admin of. */
           acquisition_id: string
         }
         cookie?: never
@@ -4790,7 +6968,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description No such acquisition for this Buyer. Deliberately the same answer as "not yours": a 403 distinguishing them would confirm to a stranger that a named Buyer ran a bulk acquisition, which is the one fact this product's customers care about keeping quiet. */
+        /** @description No such acquisition for this Buyer or Company admin. Deliberately the same answer as "not yours": a 403 distinguishing them would confirm to a stranger that a named Buyer ran a bulk acquisition, which is the one fact this product's customers care about keeping quiet. */
         404: {
           headers: {
             [name: string]: unknown
@@ -4799,7 +6977,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The acquisition exists and has no manifest yet. The manifest is written once, at first assembly, so this says "ask for the corpus" rather than "there is nothing here". */
+        /** @description The acquisition exists and has no manifest yet. The manifest is written once, at first assembly, which starts by itself when the acquisition settles with at least one work delivered. So this answers while the run or that first assembly is still under way, and for an acquisition that delivered nothing — "not yet", rather than "there is nothing here". */
         409: {
           headers: {
             [name: string]: unknown
@@ -5406,7 +7584,7 @@ export interface paths {
      *
      *     **Tools (`tools/call`):** every tool is listed by `tools/list` regardless of the caller's auth state, so a client can see the full surface before authenticating. A tool's tier determines what it requires.
      *
-     *     | Tool | Tier | Required scope | Description | |---|---|---|---| | `search_content` | Open | — | Full-text search for premium content across all public stores | | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability | | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date | | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step | | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents | | `get_content_details` | Buyer | `mcp:search` | Pre-purchase info + purchase status for a content item | | `get_content` | Buyer | `mcp:search` (read); `can_purchase` (payment) | x402-gated content delivery | | `list_purchases` | Buyer | `mcp:search` | Paginated purchase history | | `list_my_stores` | Buyer | `mcp:search` | Stores the key owner has owner or author access to | | `fund_wallet` | Buyer | `mcp:search` | Buyer portal link for adding funds to the wallet | | `list_my_content` | Seller content | `mcp:manage_content` | Paginated catalog of the connected store | | `search_my_content` | Seller content | `mcp:manage_content` | Find a content item by title, tag, or external identifier | | `register_content` | Seller content | `mcp:manage_content` | Create a content item in the connected store | | `update_content` | Seller content | `mcp:manage_content` | Update fields on an existing content item | | `check_content_status` | Seller content | `mcp:manage_content` | Read-only diagnosis of one content item | | `get_sales_summary` | Seller analytics | `mcp:analytics` | Total revenue and purchase count, optionally by month | | `get_content_sales` | Seller analytics | `mcp:analytics` | Per-content purchase count and revenue | | `get_buyer_insights` | Seller analytics | `mcp:analytics` | Per-buyer spend and recency, keyed by an opaque buyer reference |
+     *     | Tool | Tier | Required scope | Description | |---|---|---|---| | `search_content` | Open | — | Full-text search for premium content across all public stores | | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability | | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date | | `list_topics` | Open | — | Every Topic, with how many listed publications carry it | | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step | | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents | | `get_content_details` | Buyer | `mcp:search` | Pre-purchase info + purchase status for a content item | | `get_content` | Buyer | `mcp:search` (read); `can_purchase` (payment) | x402-gated content delivery | | `list_purchases` | Buyer | `mcp:search` | Paginated purchase history | | `list_my_stores` | Buyer | `mcp:search` | Stores the key owner has owner or author access to | | `fund_wallet` | Buyer | `mcp:search` | Buyer portal link for adding funds to the wallet | | `list_my_content` | Seller content | `mcp:manage_content` | Paginated catalog of the connected store | | `search_my_content` | Seller content | `mcp:manage_content` | Find a content item by title, tag, or external identifier | | `register_content` | Seller content | `mcp:manage_content` | Create a content item in the connected store | | `update_content` | Seller content | `mcp:manage_content` | Update fields on an existing content item | | `check_content_status` | Seller content | `mcp:manage_content` | Read-only diagnosis of one content item | | `get_sales_summary` | Seller analytics | `mcp:analytics` | Total revenue and purchase count, optionally by month | | `get_content_sales` | Seller analytics | `mcp:analytics` | Per-content purchase count and revenue | | `get_buyer_insights` | Seller analytics | `mcp:analytics` | Per-buyer spend and recency, keyed by an opaque buyer reference |
      *
      *     Each entry in `tools/list` publishes its own requirement under the MCP metadata extension point, as `_meta["com.ledewire/requiredScopes"]` — an array of OAuth scope strings, empty for open tools. Read the requirement from there rather than from this table. (Before the SDK migration this was a non-standard top-level `x-requiredScopes` key; that key is no longer emitted.)
      *
@@ -5424,13 +7602,11 @@ export interface paths {
      *
      *     A missing required argument is rejected with `-32602`. A prompt taking no arguments omits the `arguments` key from `prompts/list` rather than publishing an empty array.
      *
-     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works` and `register` tools require no authentication.
+     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works`, `list_topics` and `register` tools require no authentication.
      *
-     *     **`search_content` pagination:** `offset` and `limit` page the Ledewire catalog, and walking `offset` in `limit`-sized steps reaches every Ledewire item matching the query. `total_count` is a full match count rather than the size of the page returned, but it is the sum of two differently scoped halves: every Ledewire item matching the query, which is stable across offsets and limits, plus the brokered rows merged into *this* page, which is not. Treat it as an upper bound to page towards, not a fixed total.
+     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
      *
-     *     Brokered results from partner marketplaces are an overlay on the requested page rather than part of it: they are fetched in one unpaginated slice per call, so `results` may hold more than `limit` entries and the same brokered rows recur on every page. If you accumulate pages, deduplicate by `id`.
-     *
-     *     **`search_content` completeness:** `unavailable_providers` names the catalogs that could not be searched on this call, and is an empty array when every catalog answered. A partner marketplace that is down contributes no rows and therefore nothing to `total_count`, which is indistinguishable from one that answered and held no match — so a short or empty `results` with a non-empty `unavailable_providers` is an incomplete search, not a finding. Retry before concluding that nothing matched.
+     *     **`search_content` completeness:** `partial_results` is true when part of the catalog could not be searched for this page, and false when everything answered. A part that is down contributes no rows, which looks exactly like one that answered and held no match — so a short or empty `results` with `partial_results: true` is an incomplete search, not a finding. Carry on with `next_cursor`: it moves on what was found and asks the part that was missing again from where it left off.
      *
      *     **Rate limits:** 15 req/min per IP unauthenticated; 60 req/min per key authenticated.
      *
@@ -5443,7 +7619,8 @@ export interface paths {
      *
      *     3. On success (new purchase or already purchased), the response includes
      *        `_meta["x402/payment-response"].accessToken` for offline verification via
-     *        `GET /.well-known/x402-jwks.json`.
+     *        `GET /.well-known/x402-jwks.json`. It is null when the receipt could not be
+     *        signed; the content is delivered either way.
      */
     post: operations['mcpCall']
     delete?: never
@@ -5511,10 +7688,19 @@ export interface components {
     ContentAccessInfo: {
       user_id: string | null
       has_purchased: boolean
+      /** @description Whether the buyer can afford the price. For a Company member, whether their Remaining covers it — the Company balance is never consulted, and a shortfall there surfaces only as the refusal at purchase. */
       has_sufficient_funds: boolean
-      wallet_balance_cents: number
-      /** @enum {string} */
+      /** @description The buyer's wallet balance. null for a Company member, who never sees the Company balance. */
+      wallet_balance_cents: number | null
+      /**
+       * @description Never fund_wallet for a Company member, who cannot fund the Company wallet.
+       * @enum {string}
+       */
       next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
+      /** @description Spend cap minus spend so far today — for a Company member, their membership's cap. null when the buyer is uncapped or unauthenticated. */
+      remaining_cents: number | null
+      /** @description The buyer's Company, if they hold an open membership. */
+      company_name: string | null
     }
     AuthenticationResponse: {
       /** @enum {string} */
@@ -5524,9 +7710,44 @@ export interface components {
       refresh_token: string
       /**
        * Format: date-time
-       * @description When the Access Token expires
+       * @description When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
        */
       expires_at: string
+      /** @description Present only on `POST /v1/auth/login/google` for an account that already existed, when the call carried `invitation_token` or `company_invitation_token`. One entry per token sent. A refused invitation does not refuse the sign-in; it is reported here instead. */
+      invitations?: {
+        store?: components['schemas']['InvitationOutcome']
+        company?: components['schemas']['InvitationOutcome']
+      }
+    }
+    InvitationOutcome: {
+      accepted: boolean
+      reason?: components['schemas']['InvitationRefusalReason']
+      /** @description The refusal in words, for display. Present when `accepted` is false. */
+      message?: string
+    }
+    /**
+     * @description Why an invitation was not accepted. `not_found` also covers a Company invitation addressed to another email, deliberately indistinguishable; `expired` covers a withdrawn one; `wrong_email` is a store invitation sent to another address; `already_in_company` means the account belongs to another Company and must leave it first; `already_member` means it already belongs to the store; `invalid` is an invitation that could not be saved.
+     * @enum {string}
+     */
+    InvitationRefusalReason:
+      | 'not_found'
+      | 'already_accepted'
+      | 'expired'
+      | 'wrong_email'
+      | 'already_in_company'
+      | 'already_member'
+      | 'invalid'
+    /** @description An invitation refused. Signup and Google sign-in return it with HTTP 422 and name the `invitation`; `POST /v1/company/invitations/accept` returns it with its own status (404, 409 or 410) and no `invitation`. */
+    InvitationNotAcceptedError: {
+      error: {
+        code: number
+        message: string
+        /** @enum {string} */
+        type: 'invitation_not_accepted'
+      }
+      reason: components['schemas']['InvitationRefusalReason']
+      /** @enum {string} */
+      invitation?: 'store' | 'company'
     }
     /** @description Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection. */
     MerchantAuthenticationResponse: {
@@ -5534,7 +7755,10 @@ export interface components {
       token_type: 'Bearer'
       access_token: string
       refresh_token: string
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
+       */
       expires_at: string
       /** @description Stores the authenticated user can manage, for store-selection on the client. */
       stores: components['schemas']['MerchantLoginStore'][]
@@ -5588,22 +7812,42 @@ export interface components {
         code: number
         message: string
         /**
-         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
+         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `not_found` means the publisher no longer has the work, so report it undelivered and do not retry; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
+         *
+         *     On the Bulk acquisition steps: `exclusions_unacknowledged` means post the acknowledgement first; `quote_not_ready` means keep polling a `pending` quote or re-quote a `failed` one (`quote_state` says which); `quote_expired` and `quote_in_progress` mean re-quote, and wait for the re-quote already running; `invalid_acquisition_state` means re-read the acquisition (`status` and `expected_status` are alongside); `nothing_to_hold` means every work was excluded and a different selection is needed; `run_not_started` means the run could not be queued, so nothing was held and the same authorization is safe to retry.
+         *
+         *     `invitation_not_accepted` means a store or Company invitation was refused; `reason` alongside says why (see `InvitationNotAcceptedError`).
+         *
+         *     `email_not_verified` is a Google sign-in refused because Google has not verified the account's email address; signing in again will not help until the address is verified with Google.
          * @enum {string}
          */
         type?:
           | 'retrieval_failed'
           | 'not_licensable'
+          | 'not_found'
           | 'price_drifted'
           | 'client_error'
           | 'insufficient_funds'
           | 'daily_spend_cap_reached'
+          | 'exclusions_unacknowledged'
+          | 'invalid_acquisition_state'
+          | 'quote_not_ready'
+          | 'nothing_to_hold'
+          | 'quote_expired'
+          | 'quote_in_progress'
+          | 'run_not_started'
+          | 'invitation_not_accepted'
+          | 'email_not_verified'
       }
     }
     AuthSignupRequest: {
       email: string
       password: string
       name: string
+      /** @description The token from a store invitation email. Signup also accepts it and the new account joins the store. If the invitation can't be accepted, nothing is created and the signup is refused with a 422 (`InvitationNotAcceptedError`). */
+      invitation_token?: string
+      /** @description The token from a Company invitation email. Signup also accepts it and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the signup is refused with a 422. A signup carrying both tokens joins both or neither. */
+      company_invitation_token?: string
     }
     AuthLoginEmailRequest: {
       email?: string
@@ -5611,6 +7855,10 @@ export interface components {
     }
     AuthLoginOAuthRequest: {
       id_token?: string
+      /** @description The token from a store invitation email. The account joins the store. When this call creates the account and the invitation can't be accepted, nothing is created and the call is refused with a 422. See `company_invitation_token` for an existing account. */
+      invitation_token?: string
+      /** @description The token from a Company invitation email. When this call creates the account, it also accepts the invitation and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the call is refused with a 422. A call creating an account with both tokens joins both or neither. For an account that already exists, each token is accepted if it can be, the sign-in succeeds either way, and the response's `invitations` says what happened to each. */
+      company_invitation_token?: string
     }
     MerchantEmailLoginRequest: {
       email: string
@@ -5657,7 +7905,7 @@ export interface components {
       /** @description 64-char hex authentication secret. Store immediately — shown once only. */
       secret: string
     }
-    /** @description The authenticated buyer's daily spend cap, read against the current spend window. The cap governs every wallet debit the buyer makes — MCP, REST, or the web payment gate — and spend is derived from completed purchases, so a refund returns allowance. cap_cents, spent_cents, remaining_cents and resets_at are spelled exactly as they are in DailySpendCapReachedError, so a refusal and this resource describe the same numbers. */
+    /** @description The authenticated buyer's daily spend cap, read against the current spend window. The cap governs every wallet debit the buyer makes — MCP, REST, or the web payment gate — and spend is derived from completed purchases, so a refund returns allowance. cap_cents, spent_cents, remaining_cents and resets_at are spelled exactly as they are in DailySpendCapReachedError, so a refusal and this resource describe the same numbers. For a Company member it is the membership's cap, read-only, in the Company's timezone, counting only spend paid through the membership; company_name names the Company. The Company balance never appears here. */
     UserSpendCap: {
       /** @description The daily spend cap in cents. null means uncapped. */
       cap_cents: number | null
@@ -5672,8 +7920,280 @@ export interface components {
        * @description The instant the current spend window rolls, in UTC.
        */
       resets_at: string
-      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. */
+      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. Always false for a Company member, whose cap binds bulk acquisitions too. */
       bulk_exempt: boolean
+      /** @description The Company whose cap this is, for a buyer with an open Company membership; null otherwise. A member sees the Company's name, never its balance. */
+      company_name: string | null
+    }
+    /** @description A pending invitation to join a Company. Joining always waits for the invitee to accept, because it moves their Agents' spending onto the Company wallet. Never carries the signup token, which reaches only the invited address. */
+    CompanyInvitation: {
+      /** Format: uuid */
+      id: string
+      /** Format: uuid */
+      company_id: string
+      company_name: string
+      /** @description The invited address, lowercased. */
+      email: string
+      /** @enum {string} */
+      role: 'admin' | 'member'
+      /** Format: date-time */
+      invited_at: string
+      /**
+       * Format: date-time
+       * @description Seven days after it was sent. An expired invitation cannot be accepted.
+       */
+      expires_at: string
+    }
+    CompanyInvitationList: {
+      data: components['schemas']['CompanyInvitation'][]
+    }
+    CompanyInvitationRequest: {
+      email: string
+      /**
+       * @default member
+       * @enum {string}
+       */
+      role: 'admin' | 'member'
+    }
+    /** @description An open membership as a Company admin sees it. */
+    CompanyMember: {
+      /**
+       * Format: uuid
+       * @description The membership id, used by the members/{id} routes.
+       */
+      id: string
+      /** Format: uuid */
+      user_id: string
+      name: string
+      /** @description Null for a Machine user, which has no email address. */
+      email: string | null
+      /**
+       * @description A machine member is a Machine user: it cannot be made an admin, and removing it deactivates it permanently.
+       * @enum {string}
+       */
+      kind: 'human' | 'machine'
+      /** @enum {string} */
+      role: 'admin' | 'member'
+      /** Format: date-time */
+      joined_at: string
+      /** @description The member's daily Spend cap, read in the Company's timezone. Never null: a member is never uncapped. Defaults to 1000 ($10) on joining, and again on rejoining. */
+      daily_spend_limit_cents: number
+    }
+    /** @description One thing the Company paid for, as a Company admin sees it: a purchase or a Bulk acquisition drawn on the Company wallet, attributed to the member who bought it. */
+    CompanyPurchase: {
+      /** @enum {string} */
+      kind: 'purchase' | 'bulk_acquisition'
+      /**
+       * Format: uuid
+       * @description The purchase id, or the acquisition id for a Bulk acquisition.
+       */
+      id: string
+      member: components['schemas']['CompanyPurchaseMember']
+      /** @description The purchase's or the acquisition's own status. */
+      status: string
+      /** @description A purchase's price. A Bulk acquisition's captured amount once it has settled, failed or been cancelled, and the amount still held while it is authorized or acquiring — so while a Hold is live this is more than the member's `spend_cents`, which counts only what was captured. */
+      amount_cents: number
+      /**
+       * Format: date-time
+       * @description When the purchase was made, or when the Bulk acquisition was authorized — the moment it counts against the member's Spend window.
+       */
+      occurred_at: string
+    }
+    /** @description The membership that paid. Recorded when it was paid, so it still names the member after they leave; a person who left and rejoined appears under each membership. */
+    CompanyPurchaseMember: {
+      /**
+       * Format: uuid
+       * @description The membership id, which the `member` filter takes.
+       */
+      id: string
+      /** Format: uuid */
+      user_id: string
+      /** @description The member's current name, read when the response is built. Renaming a Machine user (PATCH /v1/company/machine-users/{id}) relabels its earlier rows too; the audit trail keeps the old name. */
+      name: string
+      /** @enum {string} */
+      kind: 'human' | 'machine'
+      /**
+       * Format: date-time
+       * @description When the membership closed, or null while it is open.
+       */
+      left_at: string | null
+    }
+    CompanyPurchaseList: {
+      data: components['schemas']['CompanyPurchase'][]
+      pagination: components['schemas']['PaginationMeta']
+    }
+    CompanySpendList: {
+      /** @description Every membership the Company has had, open or closed, oldest first. */
+      data: {
+        member: components['schemas']['CompanyPurchaseMember']
+        /** @description What the member has spent of the Company's money in the range, net of refunds, read from the member's own ledger account. A Bulk acquisition counts what it captured; a live Hold does not count until it captures. */
+        spend_cents: number
+      }[]
+    }
+    /** @description A Machine user as a Company admin sees it: a Buyer with a name and no email, password or login, created as an active non-admin member. Deactivation is permanent. */
+    CompanyMachineUser: {
+      /**
+       * Format: uuid
+       * @description The Machine user id, used by the machine-users/{id} routes.
+       */
+      id: string
+      /**
+       * Format: uuid
+       * @description Its Buyer id, which attribution and history name it by.
+       */
+      user_id: string
+      /** @description Unique among the Company's active Machine users; a deactivated one's may be reused. */
+      name: string
+      description: string | null
+      /** Format: uuid */
+      created_by_user_id: string | null
+      /** Format: date-time */
+      created_at: string
+      /** Format: date-time */
+      deactivated_at: string | null
+    }
+    CompanyMachineUserList: {
+      data: components['schemas']['CompanyMachineUser'][]
+    }
+    CompanyMachineUserRequest: {
+      name: string
+      description?: string | null
+    }
+    /** @description At least one of `name` and `description`. A null or blank `description` clears it; `name` cannot be null. */
+    CompanyMachineUserUpdateRequest:
+      | {
+          name?: string
+          description?: string | null
+        }
+      | unknown
+      | unknown
+    /** @description A Machine user's Buyer key as a Company admin sees it. It logs in through POST /v1/auth/login/buyer-api-key. Its limit is the Machine user's membership Spend cap. */
+    CompanyMachineUserBuyerKey: {
+      /** Format: uuid */
+      id: string
+      name: string
+      /** @description Structured public identifier (e.g. bktst_abc123) */
+      key: string
+      /**
+       * Format: uuid
+       * @description The Company admin who created it.
+       */
+      created_by_user_id: string | null
+      /** Format: date-time */
+      last_used_at: string | null
+      /** Format: date-time */
+      created_at: string
+    }
+    /** @description Returned once only at creation. The secret is not stored and cannot be retrieved again. */
+    CompanyMachineUserBuyerKeyCreateResponse: components['schemas']['CompanyMachineUserBuyerKey'] & {
+      /** @description 64-char hex authentication secret. Store immediately — shown once only. */
+      secret: string
+    }
+    CompanyMachineUserBuyerKeyList: {
+      data: components['schemas']['CompanyMachineUserBuyerKey'][]
+    }
+    /** @description spending_limit_cents is refused with 400: the Machine user's membership Spend cap is its limit. */
+    CompanyMachineUserBuyerKeyRequest: {
+      /** @description Unique among this Machine user's Buyer keys. */
+      name: string
+    }
+    /** @description A Machine user's active MCP API Key as a Company admin sees it. Presented as a `key:secret` Bearer token. It carries buyer Scopes only, never a Store, and does not expire; revoke it instead. */
+    CompanyMachineUserMcpKey: {
+      /** Format: uuid */
+      id: string
+      label: string
+      key: string
+      scopes: ('mcp:search' | 'mcp:purchase')[]
+      /**
+       * Format: uuid
+       * @description The Company admin who created it.
+       */
+      created_by_user_id: string | null
+      /**
+       * Format: date-time
+       * @description Always null for a key an admin created.
+       */
+      expires_at: string | null
+      /** Format: date-time */
+      last_used_at: string | null
+      /** Format: date-time */
+      created_at: string
+    }
+    /** @description Returned once only at creation. The secret cannot be retrieved again. */
+    CompanyMachineUserMcpKeyCreateResponse: components['schemas']['CompanyMachineUserMcpKey'] & {
+      /** @description Authentication secret. Store immediately — shown once only. */
+      secret: string
+    }
+    CompanyMachineUserMcpKeyList: {
+      data: components['schemas']['CompanyMachineUserMcpKey'][]
+    }
+    /** @description Any Scope other than mcp:search and mcp:purchase, or a store_id, is refused with 400. */
+    CompanyMachineUserMcpKeyRequest: {
+      label: string
+      scopes: ('mcp:search' | 'mcp:purchase')[]
+    }
+    CompanyMemberList: {
+      data: components['schemas']['CompanyMember'][]
+    }
+    /** @description The Company wallet, as a Company admin sees it. No member-facing response carries these figures; only this one does. */
+    CompanyWallet: {
+      /** @description Spendable now. Money held by in-flight Bulk acquisitions is already out of it. Negative when a reversed top-up has taken the wallet below zero; a purchase is refused whenever the balance does not cover its price. */
+      balance_cents: number
+      /** @description Committed to Company-paid Bulk acquisitions still in progress, including those started by members who have since left the Company. When an acquisition settles or is cancelled, what it captured is charged and the rest is released back to the balance. */
+      held_cents: number
+      /** @description The sum of top-ups not yet spendable: the same top-ups GET /v1/company/wallet/pending-top-ups lists. Not part of the balance until each settles. */
+      pending_top_up_cents: number
+      /** @example usd */
+      currency: string
+      company_name: string
+    }
+    /** @description A Company wallet top-up that has not yet settled, as a Company admin sees it. */
+    CompanyPendingTopUp: {
+      /** Format: uuid */
+      id: string
+      /** @description The payment session id returned when the top-up was started. */
+      session_id: string | null
+      amount_cents: number
+      /** @enum {string} */
+      status: 'pending' | 'awaiting_verification' | 'processing'
+      /**
+       * Format: uuid
+       * @description The admin who started the top-up.
+       */
+      initiated_by_user_id: string
+      /** Format: date-time */
+      created_at: string
+      /**
+       * Format: date
+       * @description The payment provider's estimate of when an ACH debit lands. Not guaranteed, and null until the provider can determine it, and always for a card.
+       */
+      expected_debit_date: string | null
+    }
+    CompanyPendingTopUpList: {
+      data: components['schemas']['CompanyPendingTopUp'][]
+    }
+    CompanyInvitationAcceptRequest: {
+      /** @description The token from the invitation email. */
+      token: string
+    }
+    /** @description At least one of role and daily_spend_limit_cents. */
+    CompanyMemberRoleRequest: {
+      /** @enum {string} */
+      role?: 'admin' | 'member'
+      /** @description The member's daily Spend cap in cents. Any admin may set any member's, their own included. null is refused — a member is never uncapped. Writes an AuditEvent. */
+      daily_spend_limit_cents?: number
+    }
+    /** @description The authenticated buyer's own open Company membership. Names the Company but never its balance. */
+    CompanyMembership: {
+      /** Format: uuid */
+      id: string
+      /** Format: uuid */
+      company_id: string
+      company_name: string
+      /** @enum {string} */
+      role: 'admin' | 'member'
+      /** Format: date-time */
+      joined_at: string
     }
     /** @description Sets the buyer's cap. The field is required and nullable: null is how a buyer becomes uncapped, and an omitted field is treated as a client error rather than as a request to be uncapped. A cap below spend already made in the current window is accepted — it simply leaves remaining_cents at zero until the window rolls. Zero is a valid cap and refuses every priced purchase. */
     UserSpendCapUpdateRequest: {
@@ -5692,9 +8212,9 @@ export interface components {
        * @description Scopes the key to a specific store. User must be an owner or author of that store.
        */
       store_id?: string | null
-      /** @description Grants access to seller content management tools. Defaults to false. */
+      /** @description Grants access to seller content management tools. Defaults to false. Requires a `store_id` for which the user is an owner or author; otherwise the request is refused with 403. Re-checked on every use, so a key stops working if the holder loses the role. */
       can_manage_content?: boolean
-      /** @description Grants access to seller analytics tools. Defaults to false. */
+      /** @description Grants access to seller analytics tools. Defaults to false. Requires a `store_id` for which the user is an owner or author; an author's analytics cover only their own content. Otherwise refused with 403, and re-checked on every use. */
       can_read_analytics?: boolean
     }
     /** @description Returned once only at creation. The secret cannot be retrieved again. */
@@ -5729,20 +8249,26 @@ export interface components {
       /** Format: date-time */
       created_at: string
     }
-    McpContentSearchResult: {
+    /** @description One work in a Buyer's LedeWire search: a Store's work, or a brokered work LedeWire sells on behalf of the Publication it comes from (`content_type: brokered`). The same shape whether it came from `POST /v1/content/search` or MCP `search_content`, since both run the same search. */
+    ContentSearchResult: {
       /** Format: uuid */
       id: string
+      /** @description The work's title. Never null. On get_content and get_content_details, a brokered work stored without one is named from its publication and URL (`Inc. — inc.com/path`); search_content results may carry an empty string. */
       title: string
       /** @description Plain UTF-8 text preview. Never base64. */
       teaser: string
       price_cents: number
       /** @enum {string} */
       content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description The Store selling the work. For a brokered work, the same fixed id on every one (`f67c246e-206c-5d62-b113-c526c54fac76`), which stands for LedeWire and is not a Store that can be looked up. A work is bought by its `id`.
+       */
       store_id: string
+      /** @description The Store selling the work: `LedeWire` for a brokered work, whose Publication names who originated it. */
       store_name: string
       tags: string[]
-      /** @description Canonical article URL. Populated for Tollbit results; null for Ledewire items unless resource_url is set. */
+      /** @description Canonical article URL. Populated for brokered works; null for a Store's work unless it has a resource URL. */
       url?: string | null
       /** @description Academic author display names. Null for non-academic content or unknown values. */
       authors: string[] | null
@@ -5750,12 +8276,81 @@ export interface components {
       abstract: string | null
       /** @description DOI URL for academic works. Null for non-academic content or unknown values. */
       doi: string | null
-      /** @description Academic publication date. Null for non-academic content or unknown values. */
+      /** @description When the work was published. For brokered works, the date the broker reports, as `YYYY-MM-DDTHH:MM:SS` with no zone, because the broker gives none. For academic works, the source's publication date. Null when it isn't known. Never filled from `last_modified_date`. */
       publication_date: string | null
+      /** @description When the broker says the work's page last changed, as `YYYY-MM-DDTHH:MM:SS` in UTC. Reported for brokered works. Null when it isn't known. */
+      last_modified_date: string | null
       /** @description Academic citation count from source metadata. Null for non-academic content or unknown values. */
       citation_count: number | null
     }
-    /** @description Content returned to a store team member (owner or author) accessing their own content without a purchase. */
+    McpContentSearchResult: components['schemas']['ContentSearchResult']
+    /** @description A `ContentSearchResult` as MCP `search_content` returns it, with the Topics of the Publication a brokered work comes from. `POST /v1/content/search` carries the same Topics as `publication.topics` instead. */
+    McpContentSearchResultWithTopics: components['schemas']['ContentSearchResult'] & {
+      /**
+       * @description The Topics of the Publication this work comes from, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Empty when that Publication is not classified yet, when the host is on no listed Publication's domain, and for a work from a Ledewire store, which comes from no Publication. They describe the result and never decide whether it appears.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      publication_topics: components['schemas']['TopicSlug'][]
+    }
+    /** @description A `ContentSearchResult` as `POST /v1/content/search` returns it, naming the Publication a brokered work belongs to. MCP `search_content` results do not carry `publication`. */
+    ContentSearchResultWithPublication: components['schemas']['ContentSearchResult'] & {
+      /** @description The Publication this work was published by, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Null for Store works and for brokered works on no listed Publication's domain. A work whose Publication is `bulk_licensable` can be added to a Selection for a Bulk acquisition. */
+      publication: components['schemas']['ContentSearchPublication'] | null
+    }
+    /** @description The Publication a search result belongs to. `id` is the same id `GET /v1/publications` lists. */
+    ContentSearchPublication: {
+      /** Format: uuid */
+      id: string
+      /** @description The publication's display name. */
+      name: string
+      /** @description Whether works from this publication can come back in a Bulk acquisition's corpus — the same flag as on `Publication`. */
+      bulk_licensable: boolean
+      /**
+       * @description The Topics this publication covers, as on `Publication`, less any slug that is no longer a Topic. Empty where it has not been classified yet. They describe the result and never decide whether it appears: a search returns the same works whatever their publications' Topics are.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      topics: components['schemas']['TopicSlug'][]
+    }
+    /** @description A Buyer's LedeWire search, across every Store's works and the brokered works of every Publication. Every field is optional. Without a `query` only Store works are searched, filtered by the rest. */
+    ContentSearchRequest: {
+      /** @description Full-text query. Brokered works are searched only when this is given. */
+      query?: string | null
+      /** @description Only works carrying every one of these tags. */
+      tags?: string[] | null
+      /** @description Only works priced at or below this. */
+      max_price_cents?: number | null
+      /** @description Only works whose metadata holds every one of these key/value pairs. */
+      metadata?: {
+        [key: string]: unknown
+      } | null
+      /** @description The previous page's `next_cursor`, sent with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`. A cursor sent with any of those changed, one more than 24 hours old, or one in an older format is refused with 422. Omit for the first page. */
+      cursor?: string | null
+      /**
+       * @description The most rows a page holds, shared between Store works and brokered works. Room one leaves unused is filled from the Store works where it can be.
+       * @default 20
+       */
+      limit: number
+    }
+    ContentSearchResponse: {
+      /** @description At most `limit` works, Store works and brokered works taken in turn, each in its own order of relevance. A page can be shorter than `limit`, or even empty, while `next_cursor` is not null: keep paging. */
+      data: components['schemas']['ContentSearchResultWithPublication'][]
+      /** @description Send as `cursor` for the next page, within 24 hours. Null only when the search has been read to the end. When `partial_results` is true this still points at what could not be read, so sending it asks for those results again. */
+      next_cursor: string | null
+      /** @description True when part of the search could not be run for this page, so the page may be missing works that match — it does not mean nothing more matched. Keep paging with `next_cursor`, which asks for the missing part again. */
+      partial_results: boolean
+      /**
+       * @deprecated
+       * @description Deprecated: always empty. Kept so existing integrations keep parsing the response; read `partial_results` instead.
+       */
+      unavailable_providers: string[]
+    }
+    /** @description Content returned without a purchase to a store team member reading their own store's content — any of it for an owner, only what they wrote for an author. */
     McpSellerContent: components['schemas']['McpContentSearchResult'] & {
       /** @description Article body. Present when content_type is `markdown` or inline `html`. */
       content_body?: string | null
@@ -5792,7 +8387,8 @@ export interface components {
           transaction: string
           network: string
           payer: string
-          accessToken: string
+          /** @description Signed receipt for this purchase, verifiable against `/.well-known/x402-jwks.json`. Null when the receipt could not be signed — no signing key configured (development and test only; elsewhere a missing key is an error), or a configured key that will not load or sign. The work is still delivered. */
+          accessToken: string | null
         }
       }
     }
@@ -5801,6 +8397,7 @@ export interface components {
       /** @description The purchase this receipt records. Distinct per purchase, so repeat buys of one work are distinguishable. */
       purchase_id: string
       content_id: string
+      /** @description The work's title. For a brokered work stored without one, a name made from its publication and URL (`Inc. — inc.com/path`). Never null; empty only when there is nothing to name it by. */
       title: string
       /** @description Where the work lives. Not a way to read it — a brokered URL serves a paywall to an unlicensed caller. */
       url?: string | null
@@ -5824,8 +8421,12 @@ export interface components {
       } | null
     }
     McpGetWalletBalanceResult: {
-      /** @description Current wallet balance in cents for the authenticated MCP key owner. */
-      wallet_balance_cents: number
+      /** @description Current wallet balance in cents for the authenticated MCP key owner. null for a Company member, who never sees the Company balance; read remaining_cents instead. */
+      wallet_balance_cents: number | null
+      /** @description Spend cap minus spend so far today — for a Company member, their membership's cap, never reduced by the Company balance. null when uncapped. */
+      remaining_cents: number | null
+      /** @description The Company whose wallet pays, for a member; null otherwise. */
+      company_name: string | null
     }
     McpRegisterResult: {
       /** @description The API key identifier (not secret). */
@@ -5840,8 +8441,12 @@ export interface components {
       content: components['schemas']['McpContentSearchResult']
       /** @description Whether the authenticated user has a completed purchase for this content. */
       has_purchased: boolean
-      /** @description Current wallet balance in cents for the authenticated MCP key owner. */
-      wallet_balance_cents: number
+      /** @description Current wallet balance in cents for the authenticated MCP key owner. null for a Company member, who never sees the Company balance. */
+      wallet_balance_cents: number | null
+      /** @description Spend cap minus spend so far today; a member's membership cap. null when uncapped. */
+      remaining_cents: number | null
+      /** @description The Company whose wallet pays, for a member; null otherwise. */
+      company_name: string | null
     }
     McpListPurchasesResult: {
       /** @description Receipts, newest first, one per purchase and never collapsed — a Buyer may hold several purchases of one work, each at the price in force when it was made. These were `McpFullContent` until #939, which meant this endpoint returned the body of every article the Buyer had ever bought. */
@@ -5851,7 +8456,7 @@ export interface components {
       offset: number
       limit: number
     }
-    /** @description Returned as structuredContent when a get_content payment attempt fails due to insufficient wallet balance. Always accompanied by isError: true. */
+    /** @description Returned as structuredContent when a get_content payment attempt fails due to insufficient wallet balance. Always accompanied by isError: true. A Company member instead receives McpCompanyInsufficientFundsError, with the same error code. */
     McpInsufficientFundsError: {
       /** @enum {string} */
       error: 'insufficient_funds'
@@ -5866,6 +8471,24 @@ export interface components {
        * @description Direct link to the Ledewire wallet funding page, pre-filled with the shortfall amount.
        */
       funding_url: string
+      /**
+       * @description Who must add money to clear this refusal. Always `buyer` here.
+       * @enum {string}
+       */
+      funded_by?: 'buyer'
+    }
+    /** @description A Company member's get_content payment the Company wallet cannot cover. Always accompanied by isError: true. Same error code as McpInsufficientFundsError, but no balance, shortfall or funding_url: a member never sees the Company balance and cannot fund the Company wallet. The remedy is to ask a Company admin. */
+    McpCompanyInsufficientFundsError: {
+      /** @enum {string} */
+      error: 'insufficient_funds'
+      /** @description Price of the content in cents. */
+      required_cents: number
+      message: string
+      /**
+       * @description Who must add money to clear this refusal. Always `company` here.
+       * @enum {string}
+       */
+      funded_by?: 'company'
     }
     /** @description Returned as structuredContent when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
     McpDailySpendCapReachedError: {
@@ -5882,8 +8505,10 @@ export interface components {
        * @description The instant the current spend window rolls, in UTC. One calendar day boundary in the buyer's own timezone.
        */
       resets_at: string
-      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. */
+      /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only — an authorized bulk acquisition does not consume them — so a client presenting remaining_cents must say which number it is. Always false for a Company member, whose cap binds bulk acquisitions too. */
       bulk_exempt: boolean
+      /** @description The remedy in words. A Company member is told to ask a Company admin, who sets their cap; anyone else, that the daily cap is reached. */
+      message?: string
     }
     /** @description The REST and x402 web-gate form of the same refusal, returned with HTTP 402 Payment Required by POST /v1/purchases and GET /v1/x402/contents/{id}. Carries the same fields as McpDailySpendCapReachedError alongside the standard error envelope, and the same absence of a funding URL. `error.type` is the machine-readable discriminator. */
     DailySpendCapReachedError: {
@@ -5907,6 +8532,31 @@ export interface components {
       resets_at: string
       /** @description Whether this buyer's bulk acquisitions are exempt from the cap. When true, spent_cents and remaining_cents describe ordinary spend only. */
       bulk_exempt: boolean
+      /** @description The remedy in words. A Company member is told to ask a Company admin, who sets their cap; anyone else, that the daily cap is reached. */
+      message?: string
+    }
+    /** @description The REST and x402 form of an insufficient-funds refusal, returned with HTTP 422 by POST /v1/purchases and GET /v1/x402/contents/{id}. `error.type` is `insufficient_funds`; the remedy sits alongside the envelope. `funded_by` says whose money must be added. A personal Buyer gets their balance and shortfall; a Company member gets neither, since a member never sees the Company balance, and a `message` sending them to a Company admin instead. No `funding_url` on either: that is given only to an Agent, over MCP. */
+    InsufficientFundsError: {
+      error: {
+        /** @enum {integer} */
+        code: 422
+        message: string
+        /** @enum {string} */
+        type: 'insufficient_funds'
+      }
+      /** @description Price of the content in cents. */
+      required_cents: number
+      /**
+       * @description Who must add money. `buyer` — the Buyer's own wallet; `company` — the Company wallet, which only a Company admin can fund.
+       * @enum {string}
+       */
+      funded_by: 'buyer' | 'company'
+      /** @description The Buyer's wallet balance in cents. Only when `funded_by` is `buyer`. */
+      wallet_balance_cents?: number
+      /** @description How much more the Buyer needs, in cents. Only when `funded_by` is `buyer`. */
+      shortfall_cents?: number
+      /** @description The remedy in words. Only when `funded_by` is `company`. */
+      message?: string
     }
     /** @description Returned by the fund_wallet tool. Contains the buyer portal wallet URL. Open this link in a browser to add funds using the Ledewire wallet funding page. */
     McpFundWalletResult: {
@@ -5943,6 +8593,7 @@ export interface components {
           | 'search_content'
           | 'list_publications'
           | 'list_publication_works'
+          | 'list_topics'
           | 'register'
           | 'get_wallet_balance'
           | 'get_content_details'
@@ -5993,7 +8644,7 @@ export interface components {
         content_count: number
       }[]
     }
-    /** @description Returned by the list_my_content tool. A page of the connected store's catalog, including items no buyer can see. Pagination follows the standard `offset`/`limit` contract shared with search_content and list_purchases; the `total`, `page` and `per_page` fields are retained for clients written against the tool's original contract and describe the same window. */
+    /** @description Returned by the list_my_content tool. A page of the connected store's catalog, including items no buyer can see. Pagination follows the standard `offset`/`limit` contract shared with list_purchases; the `total`, `page` and `per_page` fields are retained for clients written against the tool's original contract and describe the same window. */
     McpListMyContentResult: {
       contents: {
         /** Format: uuid */
@@ -6169,13 +8820,13 @@ export interface components {
         [key: string]: unknown
       }
     }
-    /** @description The buyer's wallet. balance_cents and spendable_cents are the same number and always will be — balance_cents has always meant "what you can spend", and money committed to a bulk acquisition is a hold, which moves it out of the wallet rather than annotating it. held_cents and holds exist so a buyer mid-acquisition can see why their balance is lower than their purchase history explains. */
+    /** @description The buyer's wallet. balance_cents and spendable_cents are the same number and always will be — balance_cents has always meant "what you can spend", and money committed to a bulk acquisition is a hold, which moves it out of the wallet rather than annotating it. held_cents and holds exist so a buyer mid-acquisition can see why their balance is lower than their purchase history explains. For a Company member the balances are null — a member never sees the Company balance — and remaining_cents and company_name say what they may still spend and whose wallet pays. */
     WalletBalanceResponse: {
-      /** @description Spendable balance in cents. Excludes funds held against a bulk acquisition. */
-      balance_cents: number
-      /** @description The same figure as balance_cents, named in the vocabulary holds require. */
-      spendable_cents: number
-      /** @description Total committed to active bulk acquisitions and not yet spent or released. */
+      /** @description Spendable balance in cents. Excludes held funds — those held against a bulk acquisition, and a brokered purchase's price while its content is being retrieved. */
+      balance_cents: number | null
+      /** @description The same figure as balance_cents, named in the vocabulary holds require. null for a Company member. */
+      spendable_cents: number | null
+      /** @description Total held and not yet spent or released. Includes, for the few seconds its content is being retrieved, the price of a brokered purchase in progress, which has no entry in holds. */
       held_cents: number
       /** @description One entry per bulk acquisition currently holding funds. Empty when none is. */
       holds: {
@@ -6189,6 +8840,10 @@ export interface components {
          */
         authorized_at: string
       }[]
+      /** @description Spend cap minus spend so far today — for a Company member, their membership's cap, never reduced by the Company balance. null when uncapped. */
+      remaining_cents: number | null
+      /** @description The Company whose wallet pays, for a member; null otherwise. */
+      company_name: string | null
     }
     WalletTransactionItem: {
       /** @description ID of the transaction entry (matches the source record) */
@@ -6697,7 +9352,15 @@ export interface components {
       content: {
         id: string
         content_type: string
-        title: string
+        /** @description The work's stored title. A brokered work is often stored without one, and then this is composed from what identifies it instead: `<publication name> — <host/path>` (for example `The Atlantic — theatlantic.com/ideas/archive/2026/10/foo`), the publication name alone when there is no URL, or the host and path alone when there is no publication. Null only when the work has none of the three. */
+        title: string | null
+        /** @description Where the work was published, as first recorded. Null for content with no URL. */
+        resource_url: string | null
+        /** @description The Publication a brokered work was published under. Null for non-brokered content. */
+        publication: {
+          id: string
+          name: string
+        } | null
       }
       buyer_id: string
       buyer: {
@@ -6785,10 +9448,17 @@ export interface components {
     }
     WalletPaymentStatusResponse: {
       /** @enum {string} */
-      status: 'pending' | 'completed' | 'failed'
+      status:
+        | 'pending'
+        | 'awaiting_verification'
+        | 'processing'
+        | 'completed'
+        | 'failed'
+        | 'cancelled'
       /** Format: date-time */
       updated_at: string
-      balance_cents: number
+      /** @description The wallet balance. null for a Company member, as on GET /v1/wallet/balance. */
+      balance_cents: number | null
     }
     SalesSummaryResponse: {
       /** @description Amount in cents */
@@ -6916,7 +9586,7 @@ export interface components {
        */
       line_state: 'pending' | 'firm' | 'estimated' | 'excluded'
       /**
-       * @description Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason.
+       * @description Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason. `excluded_free_not_supported` is retired — a work published at zero is now included at no cost — and appears only on lines quoted before that; a re-quote prices them back in.
        * @enum {string|null}
        */
       exclusion_reason?:
@@ -6949,6 +9619,7 @@ export interface components {
       failure_reason?:
         | 'retrieval_failed'
         | 'not_licensable'
+        | 'not_found'
         | 'price_drifted'
         | 'client_error'
         | 'insufficient_funds'
@@ -6967,20 +9638,128 @@ export interface components {
       id: string
       /** @description The Broker's display name for the publication. */
       name: string
+      /**
+       * @description The Topics this publication covers, at most five. Empty where it has not been classified yet, which never removes it from the listing.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      topics: components['schemas']['TopicSlug'][]
       /** @description The domains the publication is listed under, spelled as the Broker spells them — including a `www.` prefix where it has one. */
       domains: string[]
       /** @description Whether works from this publication can come back in a Bulk acquisition's corpus — true when it publishes a `FULL_USE` rate. */
       bulk_licensable: boolean
+      /** @description The oldest date we have swept this publication back to, when that was true as of, and where we looked. Coverage is stated this way and never as a percentage. Null means "no horizon established yet" — it is not a horizon of zero, and is never sent as an object of nulls. */
+      coverage_horizon: {
+        /**
+         * Format: date-time
+         * @description The oldest date swept back to.
+         * @example 2019-03-01T00:00:00Z
+         */
+        horizon_at: string
+        /**
+         * Format: date-time
+         * @description When the sweep behind the horizon began. The Broker adds works behind a horizon after the fact, so the horizon holds only of the catalog as it stood at this time.
+         * @example 2026-09-27T04:30:00Z
+         */
+        as_of: string
+        /**
+         * @description Where the sweep looked — today always the Broker's catalog.
+         * @example [
+         *       "catalog"
+         *     ]
+         */
+        sources: string[]
+      } | null
     }
     /** @description Every Publication the Broker reports as ready to license, paginated. */
     PublicationListResponse: {
       data: components['schemas']['Publication'][]
       pagination: components['schemas']['PaginationMeta']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
     }
-    /** @description The MCP `list_publications` result: one page of the Publications a Buyer can license from, paged by offset and limit as `search_content` is. */
+    /** @description How many listed Publications have no Topics yet, counted over the whole listing and not narrowed by any filter. A Topic filter cannot return these, so a filtered result may be missing Publications that cover the Topic but are not classified. */
+    PublicationUnclassifiedCount: number
+    /**
+     * @description A Topic: a subject from the IAB Content Taxonomy 3.1 tier 1 that a Publication covers. The slug is the stable API value for one IAB tier-1 entry. Two tier-1 entries are not Topics, Genres and Sensitive Topics, since neither is a subject area. There is no general-news Topic: a broad news Publication carries its main sections instead.
+     * @enum {string}
+     */
+    TopicSlug:
+      | 'attractions'
+      | 'automotive'
+      | 'books-and-literature'
+      | 'business-and-finance'
+      | 'careers'
+      | 'communication'
+      | 'crime'
+      | 'disasters'
+      | 'education'
+      | 'entertainment'
+      | 'events'
+      | 'family-and-relationships'
+      | 'fine-art'
+      | 'food-and-drink'
+      | 'healthy-living'
+      | 'hobbies-and-interests'
+      | 'holidays'
+      | 'home-and-garden'
+      | 'law'
+      | 'medical-health'
+      | 'personal-celebrations-and-life-events'
+      | 'personal-finance'
+      | 'pets'
+      | 'politics'
+      | 'pop-culture'
+      | 'real-estate'
+      | 'religion-and-spirituality'
+      | 'science'
+      | 'shopping'
+      | 'sports'
+      | 'style-and-fashion'
+      | 'technology-and-computing'
+      | 'travel'
+      | 'video-gaming'
+      | 'war-and-conflicts'
+    /** @description One Topic in the Topic directory, with how many listed Publications carry it. */
+    TopicDirectoryEntry: {
+      slug: components['schemas']['TopicSlug']
+      /**
+       * @description The IAB Content Taxonomy unique ID of this tier-1 entry. A string, since some IAB IDs are alphanumeric.
+       * @example 483
+       */
+      iab_id: string
+      /**
+       * @description The IAB display name, verbatim.
+       * @example Sports
+       */
+      name: string
+      /** @description How many listed Publications carry this Topic: exactly the `pagination.total` of `GET /v1/publications` filtered by it alone. Zero is listed, not omitted. */
+      publication_count: number
+    }
+    /** @description Every Topic, in vocabulary order, with how many listed Publications carry each. */
+    TopicDirectoryResponse: {
+      data: components['schemas']['TopicDirectoryEntry'][]
+      iab_version: components['schemas']['TopicIabVersion']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
+    }
+    /**
+     * @description The IAB Content Taxonomy version the Topics are taken from.
+     * @example 3.1
+     */
+    TopicIabVersion: string
+    /** @description The MCP `list_topics` result: the Topic directory, as `GET /v1/topics` returns it, with the entries under `topics`. */
+    McpListTopicsResult: {
+      topics: components['schemas']['TopicDirectoryEntry'][]
+      iab_version: components['schemas']['TopicIabVersion']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
+    }
+    /** @description The MCP `list_publications` result: one page of the Publications a Buyer can license from, paged by offset and limit. */
     McpListPublicationsResult: {
       publications: components['schemas']['Publication'][]
+      /** @description How many publications match, after any `topics` filter. */
       total_count: number
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
       offset: number
       limit: number
     }
@@ -7030,7 +9809,7 @@ export interface components {
        */
       status: 'quoted' | 'authorized' | 'acquiring' | 'settled' | 'cancelled' | 'failed'
       /**
-       * @description Whether the Selection has been priced. Pricing is asynchronous — resolving rates for 10,000 works is ~200 upstream batch calls under undocumented limits — so a submitted Selection comes back `pending` and the client polls this.
+       * @description Whether the Selection has been priced. Pricing is asynchronous — resolving rates for 10,000 works is ~200 upstream batch calls under undocumented limits — so a submitted Selection comes back `pending` and the client polls this. Stop polling once `status` leaves `quoted`: a quote cancelled while still being priced stays `pending`.
        * @enum {string}
        */
       quote_state: 'pending' | 'ready' | 'failed'
@@ -7068,6 +9847,8 @@ export interface components {
         /** @description Quoted and not yet reached. What a resumed run will attempt. */
         outstanding: number
       }
+      /** @description Seconds to wait before polling again, also sent as `Retry-After`. Present only while there is something to wait for — `quote_state` is `pending` on a `quoted` acquisition, or `status` is `authorized` or `acquiring` — and absent otherwise, so a client can poll for as long as the field is there. Grows with the size of the Selection, from 2 seconds to at most 60. */
+      poll_after_seconds?: number
       /** Format: date-time */
       created_at: string
     }
@@ -7104,10 +9885,12 @@ export interface components {
      *     A corpus is a rendering of Purchases the Buyer already holds, not an entitlement of its own, which is what makes everything about it cheap: it can be discarded and rebuilt, and rebuilding grants nothing that was not already granted. So a blob past its 30-day retention answers `rebuild_required` at 200 rather than 404 or 410 — those would tell the Buyer something was lost, and nothing was.
      *
      *     `rebuild_required` covers "never assembled" as well as "expired", on purpose: from the Buyer's side they are one situation — there is no file, ask for one — and splitting them would put our bookkeeping into their contract.
+     *
+     *     **Assembly starts by itself when the acquisition settles** with at least one work delivered, so a client polls the acquisition until `settled` and then polls this until `ready` — there is nothing to ask for in between. `POST` is for a corpus that has expired or failed. An acquisition that delivered nothing has nothing to render and reads `rebuild_required`.
      */
     CorpusResponse: {
       /**
-       * @description `ready` is downloadable now. `assembling` means a run is in flight and `pending` that one is queued — poll either. `rebuild_required` means ask for it again, with `POST /v1/acquisitions/{id}/corpus`. `failed` carries a reason.
+       * @description `ready` is downloadable now. `assembling` means a run is in flight and `pending` that one is queued — poll either. `rebuild_required` means ask for it again, with `POST /v1/acquisitions/{id}/corpus`, and is also what a run abandoned mid-assembly (a worker that died) reads as once it has gone two hours without progress. `failed` carries a reason; a POST retries one that failed transiently, and leaves one that failed because our records disagree with the signed manifest as it is.
        * @enum {string}
        */
       state: 'pending' | 'assembling' | 'ready' | 'rebuild_required' | 'failed'
@@ -7125,6 +9908,8 @@ export interface components {
       expires_at?: string | null
       /** @description Why assembly broke. Present only when `state` is `failed`. */
       failure_reason?: string | null
+      /** @description Seconds to wait before polling again, also sent as `Retry-After`. Present only while `state` is `pending` or `assembling`; `ready`, `failed` and `rebuild_required` carry neither, since nothing changes until the Buyer acts. Grows with the number of works the corpus renders, from 2 seconds to at most 60. */
+      poll_after_seconds?: number
       /**
        * @description Where to fetch the archive, relative to this API, and null in every state but `ready`.
        *
@@ -7321,7 +10106,10 @@ export interface components {
   responses: never
   parameters: never
   requestBodies: never
-  headers: never
+  headers: {
+    /** @description Seconds to wait before polling again, sent only while a bulk step is still in progress — a quote being priced, a run in flight, a corpus queued or assembling — and equal to the body's `poll_after_seconds`. Absent once there is nothing left to wait for. Sized from the selection: at least 2 and at most 60. */
+    PollRetryAfter: number
+  }
   pathItems: never
 }
 export type $defs = Record<string, never>
@@ -7484,6 +10272,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse']
         }
       }
+      /** @description The user is not an owner or author of `store_id`. Plain members cannot hold a store-scoped key, with or without `can_manage_content` or `can_read_analytics`. Also refused to a Machine user, whose keys its Company's admins manage. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
       /** @description Validation error (e.g. missing label). */
       422: {
         headers: {
@@ -7516,6 +10313,15 @@ export interface operations {
       }
       /** @description Missing or invalid buyer JWT. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+      403: {
         headers: {
           [name: string]: unknown
         }

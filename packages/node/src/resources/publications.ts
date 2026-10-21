@@ -1,6 +1,7 @@
 import type { HttpClient } from '@ledewire/core'
 import type {
-  PaginationParams,
+  Publication,
+  PublicationListParams,
   PublicationListResponse,
   PublicationWorkListResponse,
   PublicationWorksParams,
@@ -36,14 +37,43 @@ export class PublicationsNamespace {
    * name. Served from LedeWire's own registry (reconciled daily against the
    * broker's directory), so it answers even while the broker is unreachable.
    *
-   * Licensability is the only filter: a publication that publishes no `FULL_USE`
-   * rate is still listed, flagged `bulk_licensable: false`, rather than omitted.
+   * A publication that publishes no `FULL_USE` rate is still listed, flagged
+   * `bulk_licensable: false`, rather than omitted. `bulk_licensable`, `q` and
+   * `topics` narrow the list on the server and combine with AND. `pagination`
+   * counts the filtered set, and `unclassified_count` counts listed publications
+   * with no Topics yet whatever the filter, so a Topic-filtered page can be
+   * incomplete.
    *
-   * @param params - Optional pagination parameters.
+   * @param params - Optional pagination and filter parameters.
    * @returns A paginated list of publications.
    */
-  async list(params?: PaginationParams): Promise<PublicationListResponse> {
-    return this.http.get<PublicationListResponse>('/v1/publications', params, { auth: false })
+  async list(params?: PublicationListParams): Promise<PublicationListResponse> {
+    return this.http.get<PublicationListResponse>(
+      '/v1/publications',
+      params && {
+        page: params.page,
+        per_page: params.per_page,
+        q: params.q,
+        bulk_licensable: params.bulk_licensable,
+        'topics[]': params.topics,
+      },
+      { auth: false },
+    )
+  }
+
+  /**
+   * Returns one publication, exactly as its row in {@link PublicationsNamespace.list}
+   * shows it. Served from the same registry, so it answers while the broker is
+   * unreachable. An id the list would not show is a 404 here too.
+   *
+   * @param id - The publication ID.
+   * @returns The publication.
+   * @throws `NotFoundError` when no listed publication has this ID.
+   */
+  async get(id: string): Promise<Publication> {
+    return this.http.get<Publication>(`/v1/publications/${encodeURIComponent(id)}`, undefined, {
+      auth: false,
+    })
   }
 
   /**

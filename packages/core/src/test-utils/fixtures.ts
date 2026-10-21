@@ -43,6 +43,16 @@ type CorpusManifestResponseSchema = components['schemas']['CorpusManifestRespons
 type SigningKeyHistoryResponseSchema = components['schemas']['SigningKeyHistoryResponse']
 type X402BazaarDiscoveryResponseSchema = components['schemas']['X402BazaarDiscoveryResponse']
 type DailySpendCapReachedErrorSchema = components['schemas']['DailySpendCapReachedError']
+type CompanyMembershipSchema = components['schemas']['CompanyMembership']
+type CompanyMemberSchema = components['schemas']['CompanyMember']
+type CompanyInvitationSchema = components['schemas']['CompanyInvitation']
+type CompanyMachineUserSchema = components['schemas']['CompanyMachineUser']
+type CompanyMachineUserBuyerKeySchema = components['schemas']['CompanyMachineUserBuyerKey']
+type CompanyMachineUserMcpKeySchema = components['schemas']['CompanyMachineUserMcpKey']
+type CompanyWalletSchema = components['schemas']['CompanyWallet']
+type CompanyPendingTopUpSchema = components['schemas']['CompanyPendingTopUp']
+type CompanyPurchaseSchema = components['schemas']['CompanyPurchase']
+type CompanySpendItemSchema = components['schemas']['CompanySpendList']['data'][number]
 
 /**
  * Returns a valid authentication response fixture.
@@ -244,6 +254,8 @@ export function contentAccessInfoFixture(
     has_sufficient_funds: true,
     wallet_balance_cents: 1000,
     next_required_action: 'purchase',
+    remaining_cents: null,
+    company_name: null,
     ...overrides,
   }
 }
@@ -272,6 +284,8 @@ export function walletBalanceFixture(
     spendable_cents: 12500,
     held_cents: 0,
     holds: [],
+    remaining_cents: null,
+    company_name: null,
     ...overrides,
   }
 }
@@ -333,7 +347,13 @@ export function purchaseResponseFixture(
   return {
     id: 'purchase-id-1',
     content_id: 'content-id-1',
-    content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
+    content: {
+      id: 'content-id-1',
+      content_type: 'markdown',
+      title: 'Test Article',
+      resource_url: null,
+      publication: null,
+    },
     buyer_id: 'user-id-1',
     buyer: { id: 'user-id-1', name: 'Test Buyer' },
     seller_id: 'seller-id-1',
@@ -517,6 +537,7 @@ export function spendCapFixture(overrides?: Partial<UserSpendCapSchema>): UserSp
     spent_cents: 1500,
     remaining_cents: 3500,
     resets_at: '2099-01-02T00:00:00Z',
+    company_name: null,
     bulk_exempt: false,
     ...overrides,
   }
@@ -571,6 +592,8 @@ export function publicationFixture(overrides?: Partial<PublicationSchema>): Publ
     name: 'Test Publication',
     domains: ['example.com'],
     bulk_licensable: true,
+    topics: [],
+    coverage_horizon: null,
     ...overrides,
   }
 }
@@ -747,6 +770,169 @@ export function spendCapReachedErrorFixture(
     remaining_cents: 0,
     resets_at: '2099-01-02T00:00:00Z',
     bulk_exempt: false,
+    ...overrides,
+  }
+}
+
+/** Returns the buyer's own Company membership fixture. */
+export function companyMembershipFixture(
+  overrides?: Partial<CompanyMembershipSchema>,
+): CompanyMembershipSchema {
+  return {
+    id: 'membership-id-1',
+    company_id: 'company-id-1',
+    company_name: 'Acme Research',
+    role: 'member',
+    joined_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Returns an open Company member fixture, as a Company admin sees it. */
+export function companyMemberFixture(
+  overrides?: Partial<CompanyMemberSchema>,
+): CompanyMemberSchema {
+  return {
+    id: 'membership-id-1',
+    user_id: 'user-id-1',
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    kind: 'human',
+    role: 'admin',
+    joined_at: '2099-01-01T00:00:00Z',
+    daily_spend_limit_cents: 1000,
+    ...overrides,
+  }
+}
+
+/** Returns a pending Company invitation fixture. */
+export function companyInvitationFixture(
+  overrides?: Partial<CompanyInvitationSchema>,
+): CompanyInvitationSchema {
+  return {
+    id: 'invitation-id-1',
+    company_id: 'company-id-1',
+    company_name: 'Acme Research',
+    email: 'invitee@example.com',
+    role: 'member',
+    invited_at: '2099-01-01T00:00:00Z',
+    expires_at: '2099-01-08T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Returns a Company Machine user fixture. */
+export function companyMachineUserFixture(
+  overrides?: Partial<CompanyMachineUserSchema>,
+): CompanyMachineUserSchema {
+  return {
+    id: 'machine-user-id-1',
+    user_id: 'buyer-id-1',
+    name: 'research-agent',
+    description: null,
+    created_by_user_id: 'user-id-1',
+    created_at: '2099-01-01T00:00:00Z',
+    deactivated_at: null,
+    ...overrides,
+  }
+}
+
+/** Returns a Machine user Buyer key fixture (no secret). */
+export function companyMachineUserBuyerKeyFixture(
+  overrides?: Partial<CompanyMachineUserBuyerKeySchema>,
+): CompanyMachineUserBuyerKeySchema {
+  return {
+    id: 'buyer-key-id-1',
+    name: 'primary',
+    key: 'bktst_abc123',
+    created_by_user_id: 'user-id-1',
+    last_used_at: null,
+    created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Returns a Machine user MCP API key fixture (no secret). */
+export function companyMachineUserMcpKeyFixture(
+  overrides?: Partial<CompanyMachineUserMcpKeySchema>,
+): CompanyMachineUserMcpKeySchema {
+  return {
+    id: 'mcp-key-id-1',
+    label: 'search-only',
+    key: 'mcpk_abc123',
+    scopes: ['mcp:search'],
+    created_by_user_id: 'user-id-1',
+    expires_at: null,
+    last_used_at: null,
+    created_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Returns the Company wallet fixture (admin view). */
+export function companyWalletFixture(
+  overrides?: Partial<CompanyWalletSchema>,
+): CompanyWalletSchema {
+  return {
+    balance_cents: 25000,
+    held_cents: 0,
+    pending_top_up_cents: 0,
+    currency: 'usd',
+    company_name: 'Acme Research',
+    ...overrides,
+  }
+}
+
+/** Returns a pending Company top-up fixture. */
+export function companyPendingTopUpFixture(
+  overrides?: Partial<CompanyPendingTopUpSchema>,
+): CompanyPendingTopUpSchema {
+  return {
+    id: 'top-up-id-1',
+    session_id: 'pi_abc123',
+    amount_cents: 5000,
+    status: 'processing',
+    initiated_by_user_id: 'user-id-1',
+    created_at: '2099-01-01T00:00:00Z',
+    expected_debit_date: '2099-01-05',
+    ...overrides,
+  }
+}
+
+/** Returns a Company purchase fixture, attributed to the paying membership. */
+export function companyPurchaseFixture(
+  overrides?: Partial<CompanyPurchaseSchema>,
+): CompanyPurchaseSchema {
+  return {
+    kind: 'purchase',
+    id: 'purchase-id-1',
+    member: {
+      id: 'membership-id-1',
+      user_id: 'user-id-1',
+      name: 'Ada Lovelace',
+      kind: 'human',
+      left_at: null,
+    },
+    status: 'completed',
+    amount_cents: 150,
+    occurred_at: '2099-01-01T12:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Returns one row of a Company spend report. */
+export function companySpendItemFixture(
+  overrides?: Partial<CompanySpendItemSchema>,
+): CompanySpendItemSchema {
+  return {
+    member: {
+      id: 'membership-id-1',
+      user_id: 'user-id-1',
+      name: 'Ada Lovelace',
+      kind: 'human',
+      left_at: null,
+    },
+    spend_cents: 1500,
     ...overrides,
   }
 }

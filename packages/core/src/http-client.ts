@@ -38,6 +38,15 @@ export interface RequestOptions {
 export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
 
 /**
+ * A query-string value. Booleans are sent as `true`/`false`. An array repeats its
+ * key once per item, which is how `topics[]=a&topics[]=b` is written.
+ */
+export type QueryValue = string | number | boolean | (string | number | boolean)[]
+
+/** Query-string parameters for {@link HttpClient.get} and {@link HttpClient.post}. */
+export type QueryParams = Record<string, QueryValue | undefined>
+
+/**
  * Extracts `{ message, code, type, details }` from a parsed API error body,
  * tolerating shapes that don't match the documented `ErrorResponse` envelope:
  * an empty object, a body with no `error` field at all, `error` as a bare
@@ -107,14 +116,10 @@ export class HttpClient {
   /**
    * GET request with optional query parameters.
    * @param path - API path (e.g. `/v1/wallet/balance`)
-   * @param params - Query string parameters. `undefined` values are omitted; numbers are coerced to strings.
+   * @param params - Query string parameters. `undefined` values are omitted; numbers and booleans are coerced to strings; an array repeats its key once per item.
    * @param options - Per-request overrides. Pass `{ auth: false }` for public endpoints.
    */
-  async get<T>(
-    path: string,
-    params?: Record<string, string | number | undefined>,
-    options?: RequestOptions,
-  ): Promise<T> {
+  async get<T>(path: string, params?: QueryParams, options?: RequestOptions): Promise<T> {
     return this.request<T>('GET', this.buildUrl(path, params), undefined, options)
   }
 
@@ -124,11 +129,7 @@ export class HttpClient {
    * @param body - Request body (JSON-serialized)
    * @param params - Optional query string parameters. `undefined` values are omitted; numbers are coerced to strings.
    */
-  async post<T>(
-    path: string,
-    body?: unknown,
-    params?: Record<string, string | number | undefined>,
-  ): Promise<T> {
+  async post<T>(path: string, body?: unknown, params?: QueryParams): Promise<T> {
     return this.request<T>('POST', this.buildUrl(path, params), body)
   }
 
@@ -182,15 +183,20 @@ export class HttpClient {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
+  private buildUrl(path: string, params?: QueryParams): string {
     const url = `${this.baseUrl}${path}`
     if (!params) return url
-    const filtered = Object.entries(params).filter(
-      (entry): entry is [string, string | number] => entry[1] !== undefined,
-    )
-    if (filtered.length === 0) return url
-    const qs = new URLSearchParams(filtered.map(([k, v]) => [k, String(v)]))
-    return `${url}?${qs.toString()}`
+    const qs = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined) continue
+      if (Array.isArray(value)) {
+        for (const item of value) qs.append(key, String(item))
+      } else {
+        qs.append(key, String(value))
+      }
+    }
+    const query = qs.toString()
+    return query === '' ? url : `${url}?${query}`
   }
 
   private async request<T>(

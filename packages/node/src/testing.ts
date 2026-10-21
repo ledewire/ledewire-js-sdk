@@ -219,6 +219,7 @@ export function createMockClient(
     },
     content: {
       getWithAccess: stub(),
+      search: stub(),
     },
     checkout: {
       state: stub(),
@@ -239,9 +240,57 @@ export function createMockClient(
         revoke: stub(),
       },
     },
+    company: {
+      membership: {
+        get: stub(),
+        leave: stub(),
+      },
+      members: {
+        list: stub(),
+        update: stub(),
+        remove: stub(),
+      },
+      invitations: {
+        list: stub(),
+        create: stub(),
+        revoke: stub(),
+        accept: stub(),
+      },
+      machineUsers: {
+        list: stub(),
+        create: stub(),
+        update: stub(),
+        deactivate: stub(),
+        buyerKeys: {
+          list: stub(),
+          create: stub(),
+          revoke: stub(),
+        },
+        mcpKeys: {
+          list: stub(),
+          create: stub(),
+          revoke: stub(),
+        },
+      },
+      wallet: {
+        get: stub(),
+        listPendingTopUps: stub(),
+        createPaymentSession: stub(),
+      },
+      purchases: {
+        list: stub(),
+      },
+      spend: {
+        list: stub(),
+      },
+    },
     publications: {
       list: stub(),
+      get: stub(),
       listWorks: stub(),
+    },
+    topics: {
+      list: stub(),
     },
     acquisitions: {
       create: stub(),
@@ -249,6 +298,7 @@ export function createMockClient(
       requote: stub(),
       acknowledgeExclusions: stub(),
       authorize: stub(),
+      cancel: stub(),
       listWorks: stub(),
       getCorpus: stub(),
       buildCorpus: stub(),

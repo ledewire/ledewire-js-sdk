@@ -236,6 +236,34 @@ export class AcquisitionsNamespace {
   }
 
   /**
+   * Withdraws a quote, or stops a held acquisition that a Company pays for.
+   *
+   * A `quoted` acquisition moves to `cancelled` whatever its quote state: pending,
+   * ready, failed, expired, or acknowledged. Use it to withdraw a quote before
+   * submitting a trimmed Selection as a new acquisition. No hold exists yet, so no
+   * money moves. Cancelling a `quoted` acquisition is idempotent: cancelling one that
+   * is already cancelled returns it unchanged.
+   *
+   * A held acquisition (`authorized` or `acquiring`) paid for by a Company can be
+   * cancelled by an open Company admin. Whatever was already captured is charged, and
+   * the rest of the hold is released to the Company wallet. That is a release, not a
+   * refund.
+   *
+   * @param id - The acquisition ID.
+   * @returns The cancelled acquisition, or the acquisition unchanged if it was already
+   *   cancelled.
+   * @throws `NotFoundError` (404) when the acquisition is not this caller's and is not
+   *   paid for by a Company they administer.
+   * @throws `LedewireError` with `error.type` `invalid_acquisition_state` (422) when the
+   *   acquisition is past what this caller can cancel.
+   */
+  async cancel(id: string): Promise<AcquisitionResponse> {
+    return this.http.post<AcquisitionResponse>(
+      `/v1/acquisitions/${encodeURIComponent(id)}/cancellation`,
+    )
+  }
+
+  /**
    * Returns every work in the Selection with its disposition, in submission
    * order, refused rows included.
    *

@@ -488,3 +488,55 @@ describe('AcquisitionsNamespace — public endpoints skip auth', () => {
     expect(authHeader).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// acquisitions.cancel
+// ---------------------------------------------------------------------------
+
+describe('acquisitions.cancel', () => {
+  it('withdraws the acquisition and returns it cancelled', async () => {
+    const fixture = acquisitionFixture({ status: 'cancelled' })
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/acq-id-1/cancellation`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeNamespace().cancel('acq-id-1')
+
+    expect(result.status).toBe('cancelled')
+  })
+
+  it('URL-encodes the acquisition id', async () => {
+    let receivedPath = ''
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/:id/cancellation`, ({ request }) => {
+        receivedPath = new URL(request.url).pathname
+        return HttpResponse.json(acquisitionFixture({ status: 'cancelled' }))
+      }),
+    )
+
+    await makeNamespace().cancel('a/b')
+
+    expect(receivedPath).toBe('/v1/acquisitions/a%2Fb/cancellation')
+  })
+
+  it('throws LedewireError carrying invalid_acquisition_state on 422', async () => {
+    server.use(
+      http.post(`${BASE}/v1/acquisitions/acq-id-1/cancellation`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 422,
+              message: 'Acquisition cannot be cancelled in its current state',
+              type: 'invalid_acquisition_state',
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    )
+
+    await expect(makeNamespace().cancel('acq-id-1')).rejects.toMatchObject({
+      type: 'invalid_acquisition_state',
+    })
+  })
+})

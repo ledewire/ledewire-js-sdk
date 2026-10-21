@@ -356,6 +356,145 @@ export type McpApiKeyCreateRequest = components['schemas']['McpApiKeyCreateReque
  */
 export type McpApiKeyCreateResponse = components['schemas']['McpApiKeyCreateResponse']
 
+// ---------------------------------------------------------------------------
+// Company (buyer-side)
+// ---------------------------------------------------------------------------
+
+/** The authenticated buyer's own open Company membership. Names the Company, never its balance. */
+export type CompanyMembership = components['schemas']['CompanyMembership']
+
+/** An open Company membership as a Company admin sees it. */
+export type CompanyMember = components['schemas']['CompanyMember']
+
+/** Envelope of a Company's open members. */
+export type CompanyMemberList = components['schemas']['CompanyMemberList']
+
+/** Request body for `PATCH /v1/company/members/{id}`. At least one field is required. */
+export type CompanyMemberRoleRequest = components['schemas']['CompanyMemberRoleRequest']
+
+/** A pending Company invitation. Never carries the signup token. */
+export type CompanyInvitation = components['schemas']['CompanyInvitation']
+
+/** Envelope of a Company's pending invitations. */
+export type CompanyInvitationList = components['schemas']['CompanyInvitationList']
+
+/**
+ * Request body for `POST /v1/company/invitations`. `role` is optional: the server
+ * applies its default of `member` when it is omitted.
+ */
+export type CompanyInvitationRequest = Omit<
+  components['schemas']['CompanyInvitationRequest'],
+  'role'
+> & { role?: 'admin' | 'member' }
+
+/** Request body for `POST /v1/company/invitations/accept`. */
+export type CompanyInvitationAcceptRequest = components['schemas']['CompanyInvitationAcceptRequest']
+
+/** A Machine user (a name-only Buyer that agents act as) as a Company admin sees it. */
+export type CompanyMachineUser = components['schemas']['CompanyMachineUser']
+
+/** Envelope of a Company's Machine users, active and deactivated. */
+export type CompanyMachineUserList = components['schemas']['CompanyMachineUserList']
+
+/** Request body for creating a Machine user. */
+export type CompanyMachineUserRequest = components['schemas']['CompanyMachineUserRequest']
+
+/** Request body for renaming a Machine user or changing its description. */
+export type CompanyMachineUserUpdateRequest =
+  components['schemas']['CompanyMachineUserUpdateRequest']
+
+/** A Machine user's Buyer key, as listed. The secret is never included. */
+export type CompanyMachineUserBuyerKey = components['schemas']['CompanyMachineUserBuyerKey']
+
+/** Response returned once when a Machine user's Buyer key is created. Includes the secret. */
+export type CompanyMachineUserBuyerKeyCreateResponse =
+  components['schemas']['CompanyMachineUserBuyerKeyCreateResponse']
+
+/** Envelope of a Machine user's Buyer keys. */
+export type CompanyMachineUserBuyerKeyList = components['schemas']['CompanyMachineUserBuyerKeyList']
+
+/** Request body for creating a Buyer key for a Machine user. */
+export type CompanyMachineUserBuyerKeyRequest =
+  components['schemas']['CompanyMachineUserBuyerKeyRequest']
+
+/** A Machine user's MCP API key, as listed. The secret is never included. */
+export type CompanyMachineUserMcpKey = components['schemas']['CompanyMachineUserMcpKey']
+
+/** Response returned once when a Machine user's MCP API key is created. Includes the secret. */
+export type CompanyMachineUserMcpKeyCreateResponse =
+  components['schemas']['CompanyMachineUserMcpKeyCreateResponse']
+
+/** Envelope of a Machine user's MCP API keys. */
+export type CompanyMachineUserMcpKeyList = components['schemas']['CompanyMachineUserMcpKeyList']
+
+/** Request body for creating an MCP API key for a Machine user. */
+export type CompanyMachineUserMcpKeyRequest =
+  components['schemas']['CompanyMachineUserMcpKeyRequest']
+
+/** The Company wallet's balances and pending top-ups. Visible to Company admins only. */
+export type CompanyWallet = components['schemas']['CompanyWallet']
+
+/** A Company wallet top-up that has not yet settled. */
+export type CompanyPendingTopUp = components['schemas']['CompanyPendingTopUp']
+
+/** Envelope of a Company's top-ups that are not yet spendable. */
+export type CompanyPendingTopUpList = components['schemas']['CompanyPendingTopUpList']
+
+/**
+ * Request body for `POST /v1/company/wallet/payment-session`. `currency` is optional:
+ * the server defaults it to `usd`.
+ */
+export type CompanyWalletPaymentSessionRequest = Omit<WalletPaymentSessionRequest, 'currency'> & {
+  currency?: string
+}
+
+/** The membership that paid for a Company purchase. Still names it after the member leaves. */
+export type CompanyPurchaseMember = components['schemas']['CompanyPurchaseMember']
+
+/** One thing the Company paid for: a purchase or a Bulk acquisition, attributed to a member. */
+export type CompanyPurchase = components['schemas']['CompanyPurchase']
+
+/** Paginated envelope of Company purchases, newest first. */
+export type CompanyPurchaseList = components['schemas']['CompanyPurchaseList']
+
+/** Spend totals per membership (open and closed), oldest first. */
+export type CompanySpendList = components['schemas']['CompanySpendList']
+
+/** One row of {@link CompanySpendList}: a membership and what it has spent in the range. */
+export type CompanySpendItem = CompanySpendList['data'][number]
+
+/**
+ * Query filters for `GET /v1/company/purchases`. Dates are `YYYY-MM-DD` in the
+ * Company's timezone. `member` is a membership id (`member.id`).
+ */
+export interface CompanyPurchaseListParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+  /** Only purchases made by this membership id. */
+  member?: string
+  /** First day to include, `YYYY-MM-DD`. */
+  from?: string
+  /** Last day to include, `YYYY-MM-DD`. */
+  to?: string
+  /** Only plain purchases, or only Bulk acquisitions. Both by default. */
+  kind?: CompanyPurchase['kind']
+}
+
+/**
+ * Query filters for `GET /v1/company/spend`. With neither `from` nor `to`, spend is
+ * lifetime. Dates are `YYYY-MM-DD` in the Company's timezone.
+ */
+export interface CompanySpendListParams {
+  /** Only the row for this membership id. */
+  member?: string
+  /** First day to include, `YYYY-MM-DD`. */
+  from?: string
+  /** Last day to include, `YYYY-MM-DD`. */
+  to?: string
+}
+
 /**
  * A Publication a buyer can license from in bulk — the title a Bulk acquisition is
  * organised around. Listed from LedeWire's own registry, reconciled daily against the
@@ -395,6 +534,58 @@ export interface PublicationWorksParams {
   limit?: number
   [key: string]: string | number | undefined
 }
+
+/**
+ * A Topic: a subject from the IAB Content Taxonomy that a {@link Publication} covers.
+ * The slug is the stable API value for one IAB tier-1 entry, and the only values
+ * `topics` on {@link PublicationListParams} accepts.
+ */
+export type TopicSlug = components['schemas']['TopicSlug']
+
+/** One Topic in the directory, with how many listed Publications carry it. */
+export type TopicDirectoryEntry = components['schemas']['TopicDirectoryEntry']
+
+/**
+ * The Topic directory: every Topic in vocabulary order, with how many listed
+ * Publications carry each, plus how many have no Topics yet.
+ */
+export type TopicDirectoryResponse = components['schemas']['TopicDirectoryResponse']
+
+/**
+ * Query parameters accepted by `GET /v1/publications`. The filters combine with AND,
+ * and `pagination` counts the filtered set.
+ */
+export interface PublicationListParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+  /** Case-insensitive substring of a Publication's name or listed domains. Blank is no filter. */
+  q?: string
+  /** `true` returns only bulk-licensable Publications; `false` only those that cannot be. */
+  bulk_licensable?: boolean
+  /** Only Publications carrying any of these Topics. An unknown Topic is a 400. */
+  topics?: TopicSlug[]
+}
+
+/** The Publication a search result belongs to, as `POST /v1/content/search` names it. */
+export type ContentSearchPublication = components['schemas']['ContentSearchPublication']
+
+/** One work in a buyer's LedeWire search, from a Store or a brokered Publication. */
+export type ContentSearchResult = components['schemas']['ContentSearchResult']
+
+/** A {@link ContentSearchResult} that also names the Publication it was published by. */
+export type ContentSearchResultWithPublication =
+  components['schemas']['ContentSearchResultWithPublication']
+
+/**
+ * Body for `POST /v1/content/search`. Every field is optional. `limit` defaults to 20 on
+ * the server, though the generated schema marks it required, so it is made optional here.
+ */
+export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+
+/** One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null. */
+export type ContentSearchResponse = components['schemas']['ContentSearchResponse']
 
 /**
  * A Bulk acquisition — the resource the whole bulk-licensing flow hangs off. The

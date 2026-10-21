@@ -36,12 +36,20 @@ const stores = await client.merchant.auth.listStores()
 | `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset                              |
 | `client.wallet`                | Buyer wallet balance (incl. `held_cents`/`holds` from bulk acquisitions) and payment sessions |
 | `client.purchases`             | Buyer purchase history, create purchases, verify ownership                                    |
-| `client.content`               | Fetch content with buyer access info                                                          |
+| `client.content`               | Fetch content with buyer access info; search every Store and Publication                      |
 | `client.checkout`              | Checkout state — what action is required next                                                 |
 | `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                                                   |
 | `client.user.spendCap`         | Buyer's daily spend cap — read and update the ceiling                                         |
 | `client.user.mcpKeys`          | Manage buyer MCP API keys for the Ledewire MCP server                                         |
+| `client.company.membership`    | Read or leave the buyer's own Company membership                                              |
+| `client.company.members`       | Company admin: list, change role or spend cap, remove members                                 |
+| `client.company.invitations`   | Company admin: invite and revoke; accept an invitation                                        |
+| `client.company.machineUsers`  | Company admin: agent Machine users, with their Buyer and MCP keys                             |
+| `client.company.wallet`        | Company admin: Company wallet balance, top-ups                                                |
+| `client.company.purchases`     | Company admin: purchases and Bulk acquisitions paid from the Company wallet                   |
+| `client.company.spend`         | Company admin: spend per member                                                               |
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
+| `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
 | `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
 | `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
@@ -272,14 +280,19 @@ transaction instead of purchasing works one at a time:
 
 ```ts
 // 1. Browse the catalog and pull a page of work URLs.
-const { data: publications } = await client.publications.list()
-const publication = publications.find((p) => p.bulk_licensable)
+// Narrow the catalog by Topic. Topic slugs come from `client.topics.list()`.
+const { data: publications } = await client.publications.list({
+  bulk_licensable: true,
+  topics: ['sports'],
+})
+const publication = publications[0]
 const { data: urls } = await client.publications.listWorks(publication.id, {
   from: '2026-01-01',
   to: '2026-01-31',
 })
 
-// 2. Submit the Selection. Quoting is asynchronous.
+// 2. Submit the Selection. Quoting is asynchronous. To withdraw a quote instead,
+//    call `client.acquisitions.cancel(id)`: no money moves.
 let acquisition = await client.acquisitions.create({ urls: urls.map((w) => w.url) })
 while (acquisition.quote_state === 'pending') {
   await new Promise((r) => setTimeout(r, 2000))
