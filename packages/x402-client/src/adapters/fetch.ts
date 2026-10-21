@@ -93,5 +93,5 @@ export function wrapFetchWithPayment(
     // Legacy (pre-api#1066): no PAYMENT-RESPONSE header — the refusal lives
     // directly in the response status/body. Remove once api#1066 ships.
     throwLegacyPaymentError(paidResponse.status, body)
-  } as typeof globalThis.fetch
+  }
 }

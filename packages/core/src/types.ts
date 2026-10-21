@@ -640,8 +640,7 @@ export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMach
  * generator widens to `unknown`.
  */
 export type CompanyMachineUserUpdateRequest =
-  | { name: string; description?: string | null }
-  | { name?: string; description: string | null }
+  { name: string; description?: string | null } | { name?: string; description: string | null }
 
 /**
  * A Machine user's Buyer key (secret never included after creation). It logs in

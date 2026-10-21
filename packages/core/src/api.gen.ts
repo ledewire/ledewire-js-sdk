@@ -9449,12 +9449,7 @@ export interface components {
     WalletPaymentStatusResponse: {
       /** @enum {string} */
       status:
-        | 'pending'
-        | 'awaiting_verification'
-        | 'processing'
-        | 'completed'
-        | 'failed'
-        | 'cancelled'
+        'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
       /** Format: date-time */
       updated_at: string
       /** @description The wallet balance. null for a Company member, as on GET /v1/wallet/balance. */
@@ -10124,8 +10119,7 @@ export interface operations {
     requestBody: {
       content: {
         'application/json':
-          | components['schemas']['McpJsonRpcRequest']
-          | components['schemas']['McpJsonRpcRequest'][]
+          components['schemas']['McpJsonRpcRequest'] | components['schemas']['McpJsonRpcRequest'][]
       }
     }
     responses: {
