@@ -351,7 +351,13 @@ export function purchaseResponseFixture(
   return {
     id: 'purchase-id-1',
     content_id: 'content-id-1',
-    content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
+    content: {
+      id: 'content-id-1',
+      content_type: 'markdown',
+      title: 'Test Article',
+      resource_url: null,
+      publication: null,
+    },
     buyer_id: 'user-id-1',
     buyer: { id: 'user-id-1', name: 'Test Buyer' },
     seller_id: 'seller-id-1',
@@ -590,6 +596,7 @@ export function publicationFixture(overrides?: Partial<PublicationSchema>): Publ
     name: 'Test Publication',
     domains: ['example.com'],
     bulk_licensable: true,
+    topics: [],
     coverage_horizon: null,
     ...overrides,
   }

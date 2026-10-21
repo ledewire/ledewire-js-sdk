@@ -36,13 +36,14 @@ const stores = await client.merchant.auth.listStores()
 | `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset                              |
 | `client.wallet`                | Buyer wallet balance (incl. `held_cents`/`holds` from bulk acquisitions) and payment sessions |
 | `client.purchases`             | Buyer purchase history, create purchases, verify ownership                                    |
-| `client.content`               | Fetch content with buyer access info                                                          |
+| `client.content`               | Fetch content with buyer access info; search every Store and Publication                      |
 | `client.checkout`              | Checkout state — what action is required next                                                 |
 | `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                                                   |
 | `client.user.spendCap`         | Buyer's daily spend cap — read and update the ceiling                                         |
 | `client.user.mcpKeys`          | Manage buyer MCP API keys for the Ledewire MCP server                                         |
 | `client.company`               | Company wallets: membership, invitations, members, Machine users, top-ups, spend reports      |
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
+| `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
 | `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
 | `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
@@ -337,8 +338,12 @@ transaction instead of purchasing works one at a time:
 ```ts
 // 1. Browse the catalog and pull a page of work URLs. coverage_horizon says how
 // far back LedeWire has swept a publication (null = not established yet).
-const { data: publications } = await client.publications.list()
-const publication = publications.find((p) => p.bulk_licensable)
+// Narrow the catalog by Topic. Topic slugs come from `client.topics.list()`.
+const { data: publications } = await client.publications.list({
+  bulk_licensable: true,
+  topics: ['sports'],
+})
+const publication = publications[0]
 const { data: urls } = await client.publications.listWorks(publication.id, {
   from: '2026-01-01',
   to: '2026-01-31',

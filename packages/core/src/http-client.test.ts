@@ -47,6 +47,25 @@ describe('HttpClient.get', () => {
     expect(receivedUrl).toContain('page=2')
   })
 
+  it('sends booleans as true/false and repeats array params once per item', async () => {
+    let receivedUrl = ''
+    server.use(
+      http.get(`${BASE}/v1/test`, ({ request }) => {
+        receivedUrl = request.url
+        return HttpResponse.json({})
+      }),
+    )
+    await makeClient().get('/v1/test', {
+      bulk_licensable: true,
+      'topics[]': ['sports', 'travel'],
+      none: [],
+    })
+    const url = new URL(receivedUrl)
+    expect(url.searchParams.get('bulk_licensable')).toBe('true')
+    expect(url.searchParams.getAll('topics[]')).toEqual(['sports', 'travel'])
+    expect(url.searchParams.has('none')).toBe(false)
+  })
+
   it('coerces numeric params to strings and omits undefined values', async () => {
     let receivedUrl = ''
     server.use(

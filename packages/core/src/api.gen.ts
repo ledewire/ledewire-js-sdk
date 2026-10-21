@@ -320,6 +320,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Google signed the token but has not verified the account's email address (`email_verified` is false or absent). Refused before any account is looked up, so no account is created, linked or signed in. `error.type` is `email_not_verified`. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description An invitation token was sent and can't be accepted. Returned only when this call would create the account, and no account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. An account that already exists signs in anyway, and `invitations` in the 200 says what happened. */
         422: {
           headers: {
@@ -2761,7 +2770,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store. */
+        /**
+         * @description Google token is valid and the account was found, but the account has no merchant store access. This is the expected response when a personal Google account previously registered as a buyer is used on the merchant login endpoint. Use a different account or have the account added as an owner or author to a store.
+         *     Also returned, with `error.type` `email_not_verified`, when Google has not verified the account's email address. That refusal happens before any account is looked up.
+         */
         403: {
           headers: {
             [name: string]: unknown
@@ -4389,6 +4401,102 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/content/search': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Search LedeWire for content from every Store and every Publication
+     * @description A signed-in Buyer's LedeWire search, the same search as MCP `search_content`: works from every Store and brokered works from every Publication, taken in turn, each in its own order of relevance. Each brokered work names its Publication. Unlisted and archived works never appear.
+     *
+     *     Paged by one opaque cursor. Send each page's `next_cursor` back as `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`, until it comes back null. A page never holds more than `limit` rows. A cursor lasts 24 hours. Without a `query`, only Store works are searched.
+     *
+     *     When part of the search cannot be run the call still succeeds, with what could be found and `partial_results: true`. `next_cursor` then still points at what was missed, so sending it asks for it again. `unavailable_providers` is deprecated and always empty.
+     *
+     *     **Authorization:** any Buyer, by session or Buyer key, Machine users included.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ContentSearchRequest']
+        }
+      }
+      responses: {
+        /** @description One page of results */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ContentSearchResponse']
+          }
+        }
+        /** @description A malformed body, such as a `limit` out of range or `tags` that are not strings */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No valid Buyer credentials */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The credentials are not a Buyer's */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata` or `limit`. Nothing was searched. Start again without one. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many searches from this Buyer — 15 a minute per authenticated user, because a search with a `query` is a live search of brokered works. Counted per Buyer, not per address, and apart from the `GET /v1/publications/{id}/works` budget. Nothing was searched. Waiting `Retry-After` seconds is always enough. */
+        429: {
+          headers: {
+            /** @description Seconds to wait. Always the full window (60), so an upper bound: the window opened at this Buyer's first search and may close sooner. */
+            'Retry-After'?: number
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/checkout/state/{content_id}': {
     parameters: {
       query?: never
@@ -4424,6 +4532,15 @@ export interface paths {
                 next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
               }
             }
+          }
+        }
+        /** @description No work for sale has this id. Answered for an id that names nothing, and for a work that is unlisted or archived. A partner work found by `POST /v1/content/search` that nobody has bought yet resolves like any other, at the price the search quoted. */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -4483,7 +4600,10 @@ export interface paths {
       }
     }
     put?: never
-    /** Complete a content purchase */
+    /**
+     * Complete a content purchase
+     * @description Buys one work and delivers its body on this response. `content_id` and `price_cents` are taken from wherever the Buyer found the work, including a result from `POST /v1/content/search` — a Store work and a partner work alike, whether or not anybody has bought that partner work before.
+     */
     post: {
       parameters: {
         query?: never
@@ -4551,13 +4671,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unprocessable Content - Price mismatch or other validation error */
+        /** @description Unprocessable Content — the wallet cannot cover the price (`InsufficientFundsError`), a price mismatch, or another refusal. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json':
+              | components['schemas']['InsufficientFundsError']
+              | components['schemas']['ErrorResponse']
           }
         }
       }
@@ -5554,13 +5676,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Insufficient wallet balance. */
+        /** @description Insufficient wallet balance, or another refusal of the purchase. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json':
+              | components['schemas']['InsufficientFundsError']
+              | components['schemas']['ErrorResponse']
           }
         }
         /** @description Rate limit exceeded (30 requests per minute per IP). */
@@ -5753,11 +5877,22 @@ export interface paths {
      *
      *     Licensability is the only filter. A publication that publishes no `FULL_USE` rate is listed and flagged `bulk_licensable: false` rather than omitted, and nothing is hidden for its page types, article lengths or perceived value.
      *
+     *     `q`, `bulk_licensable` and `topics[]` narrow the list on the server and combine with AND; `pagination` counts the filtered set. Without any of them, the list is unfiltered. `unclassified_count` is how many listed publications have no Topics yet, whatever the filter, so a Topic-filtered page that may be incomplete says so.
+     *
      *     **Authorization:** none.
      */
     get: {
       parameters: {
         query?: {
+          /**
+           * @description Case-insensitive substring of the publication's name or of any of its listed domains (as listed, e.g. `www.forbes.com`, or bare, e.g. `forbes.com`). Blank is no filter.
+           * @example times
+           */
+          q?: string
+          /** @description `true` returns only publications that can be bulk-licensed; `false` only those that cannot. */
+          bulk_licensable?: boolean
+          /** @description Only publications carrying any of these Topics. Repeat the parameter for several (`topics[]=sports&topics[]=travel`). An unknown Topic is a 400 naming the valid ones. */
+          'topics[]'?: components['schemas']['TopicSlug'][]
           page?: number
           per_page?: number
         }
@@ -5776,8 +5911,60 @@ export interface paths {
             'application/json': components['schemas']['PublicationListResponse']
           }
         }
-        /** @description Invalid pagination parameters */
+        /** @description Invalid pagination parameters, a `bulk_licensable` that is not a boolean, or a `topics[]` entry that is not a Topic (the message names the valid ones) */
         400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/publications/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get one publication
+     * @description One Publication, exactly as its row in `GET /v1/publications`. Served from the same registry, so it answers even while the Broker is unreachable, and an id the list would not show (not ready to license, or withdrawn) is a 404 here too.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The publication */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['Publication']
+          }
+        }
+        /** @description No listed publication has that id */
+        404: {
           headers: {
             [name: string]: unknown
           }
@@ -5875,6 +6062,49 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/topics': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List the Topics, with how many publications carry each
+     * @description Every Topic a Publication can carry, in vocabulary order, with its IAB unique ID, its IAB display name and the number of listed Publications that carry it. Topics are IAB Content Taxonomy tier-1 subject areas, so the list is also every value `topics[]` on `GET /v1/publications` accepts.
+     *
+     *     Each `publication_count` is exactly what `GET /v1/publications?topics[]=<slug>` reports as `pagination.total`. A Topic no Publication carries yet is listed with 0. `unclassified_count` is how many listed Publications have no Topics yet, so are counted under none of them.
+     *
+     *     **Authorization:** none.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The Topic directory */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['TopicDirectoryResponse']
           }
         }
       }
@@ -7354,7 +7584,7 @@ export interface paths {
      *
      *     **Tools (`tools/call`):** every tool is listed by `tools/list` regardless of the caller's auth state, so a client can see the full surface before authenticating. A tool's tier determines what it requires.
      *
-     *     | Tool | Tier | Required scope | Description | |---|---|---|---| | `search_content` | Open | — | Full-text search for premium content across all public stores | | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability | | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date | | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step | | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents | | `get_content_details` | Buyer | `mcp:search` | Pre-purchase info + purchase status for a content item | | `get_content` | Buyer | `mcp:search` (read); `can_purchase` (payment) | x402-gated content delivery | | `list_purchases` | Buyer | `mcp:search` | Paginated purchase history | | `list_my_stores` | Buyer | `mcp:search` | Stores the key owner has owner or author access to | | `fund_wallet` | Buyer | `mcp:search` | Buyer portal link for adding funds to the wallet | | `list_my_content` | Seller content | `mcp:manage_content` | Paginated catalog of the connected store | | `search_my_content` | Seller content | `mcp:manage_content` | Find a content item by title, tag, or external identifier | | `register_content` | Seller content | `mcp:manage_content` | Create a content item in the connected store | | `update_content` | Seller content | `mcp:manage_content` | Update fields on an existing content item | | `check_content_status` | Seller content | `mcp:manage_content` | Read-only diagnosis of one content item | | `get_sales_summary` | Seller analytics | `mcp:analytics` | Total revenue and purchase count, optionally by month | | `get_content_sales` | Seller analytics | `mcp:analytics` | Per-content purchase count and revenue | | `get_buyer_insights` | Seller analytics | `mcp:analytics` | Per-buyer spend and recency, keyed by an opaque buyer reference |
+     *     | Tool | Tier | Required scope | Description | |---|---|---|---| | `search_content` | Open | — | Full-text search for premium content across all public stores | | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability | | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date | | `list_topics` | Open | — | Every Topic, with how many listed publications carry it | | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step | | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents | | `get_content_details` | Buyer | `mcp:search` | Pre-purchase info + purchase status for a content item | | `get_content` | Buyer | `mcp:search` (read); `can_purchase` (payment) | x402-gated content delivery | | `list_purchases` | Buyer | `mcp:search` | Paginated purchase history | | `list_my_stores` | Buyer | `mcp:search` | Stores the key owner has owner or author access to | | `fund_wallet` | Buyer | `mcp:search` | Buyer portal link for adding funds to the wallet | | `list_my_content` | Seller content | `mcp:manage_content` | Paginated catalog of the connected store | | `search_my_content` | Seller content | `mcp:manage_content` | Find a content item by title, tag, or external identifier | | `register_content` | Seller content | `mcp:manage_content` | Create a content item in the connected store | | `update_content` | Seller content | `mcp:manage_content` | Update fields on an existing content item | | `check_content_status` | Seller content | `mcp:manage_content` | Read-only diagnosis of one content item | | `get_sales_summary` | Seller analytics | `mcp:analytics` | Total revenue and purchase count, optionally by month | | `get_content_sales` | Seller analytics | `mcp:analytics` | Per-content purchase count and revenue | | `get_buyer_insights` | Seller analytics | `mcp:analytics` | Per-buyer spend and recency, keyed by an opaque buyer reference |
      *
      *     Each entry in `tools/list` publishes its own requirement under the MCP metadata extension point, as `_meta["com.ledewire/requiredScopes"]` — an array of OAuth scope strings, empty for open tools. Read the requirement from there rather than from this table. (Before the SDK migration this was a non-standard top-level `x-requiredScopes` key; that key is no longer emitted.)
      *
@@ -7372,13 +7602,11 @@ export interface paths {
      *
      *     A missing required argument is rejected with `-32602`. A prompt taking no arguments omits the `arguments` key from `prompts/list` rather than publishing an empty array.
      *
-     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works` and `register` tools require no authentication.
+     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works`, `list_topics` and `register` tools require no authentication.
      *
-     *     **`search_content` pagination:** `offset` and `limit` page the Ledewire catalog, and walking `offset` in `limit`-sized steps reaches every Ledewire item matching the query. `total_count` is a full match count rather than the size of the page returned, but it is the sum of two differently scoped halves: every Ledewire item matching the query, which is stable across offsets and limits, plus the brokered rows merged into *this* page, which is not. Treat it as an upper bound to page towards, not a fixed total.
+     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
      *
-     *     Brokered results from partner marketplaces are an overlay on the requested page rather than part of it, so `results` may hold more than `limit` entries. They page separately, by cursor: each response carries `tollbit_cursor`, and passing it back with the same `query` returns the next brokered page with none of the brokered rows already returned. `tollbit_exhausted: true` (with a null cursor) means there are no more. A call without `tollbit_cursor` starts the brokered results again from their first page, whatever `offset` is, so to walk both, advance `offset` and pass the latest `tollbit_cursor` on each call. If the brokered catalog is unavailable, the cursor you sent comes back unchanged and `tollbit_exhausted` is false: retry with it.
-     *
-     *     **`search_content` completeness:** `unavailable_providers` names the catalogs that could not be searched on this call, and is an empty array when every catalog answered. A partner marketplace that is down contributes no rows and therefore nothing to `total_count`, which is indistinguishable from one that answered and held no match — so a short or empty `results` with a non-empty `unavailable_providers` is an incomplete search, not a finding. Retry before concluding that nothing matched.
+     *     **`search_content` completeness:** `partial_results` is true when part of the catalog could not be searched for this page, and false when everything answered. A part that is down contributes no rows, which looks exactly like one that answered and held no match — so a short or empty `results` with `partial_results: true` is an incomplete search, not a finding. Carry on with `next_cursor`: it moves on what was found and asks the part that was missing again from where it left off.
      *
      *     **Rate limits:** 15 req/min per IP unauthenticated; 60 req/min per key authenticated.
      *
@@ -7391,7 +7619,8 @@ export interface paths {
      *
      *     3. On success (new purchase or already purchased), the response includes
      *        `_meta["x402/payment-response"].accessToken` for offline verification via
-     *        `GET /.well-known/x402-jwks.json`.
+     *        `GET /.well-known/x402-jwks.json`. It is null when the receipt could not be
+     *        signed; the content is delivered either way.
      */
     post: operations['mcpCall']
     delete?: never
@@ -7583,16 +7812,19 @@ export interface components {
         code: number
         message: string
         /**
-         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
+         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `not_found` means the publisher no longer has the work, so report it undelivered and do not retry; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
          *
          *     On the Bulk acquisition steps: `exclusions_unacknowledged` means post the acknowledgement first; `quote_not_ready` means keep polling a `pending` quote or re-quote a `failed` one (`quote_state` says which); `quote_expired` and `quote_in_progress` mean re-quote, and wait for the re-quote already running; `invalid_acquisition_state` means re-read the acquisition (`status` and `expected_status` are alongside); `nothing_to_hold` means every work was excluded and a different selection is needed; `run_not_started` means the run could not be queued, so nothing was held and the same authorization is safe to retry.
          *
          *     `invitation_not_accepted` means a store or Company invitation was refused; `reason` alongside says why (see `InvitationNotAcceptedError`).
+         *
+         *     `email_not_verified` is a Google sign-in refused because Google has not verified the account's email address; signing in again will not help until the address is verified with Google.
          * @enum {string}
          */
         type?:
           | 'retrieval_failed'
           | 'not_licensable'
+          | 'not_found'
           | 'price_drifted'
           | 'client_error'
           | 'insufficient_funds'
@@ -7605,6 +7837,7 @@ export interface components {
           | 'quote_in_progress'
           | 'run_not_started'
           | 'invitation_not_accepted'
+          | 'email_not_verified'
       }
     }
     AuthSignupRequest: {
@@ -8016,20 +8249,26 @@ export interface components {
       /** Format: date-time */
       created_at: string
     }
-    McpContentSearchResult: {
+    /** @description One work in a Buyer's LedeWire search: a Store's work, or a brokered work LedeWire sells on behalf of the Publication it comes from (`content_type: brokered`). The same shape whether it came from `POST /v1/content/search` or MCP `search_content`, since both run the same search. */
+    ContentSearchResult: {
       /** Format: uuid */
       id: string
+      /** @description The work's title. Never null. On get_content and get_content_details, a brokered work stored without one is named from its publication and URL (`Inc. — inc.com/path`); search_content results may carry an empty string. */
       title: string
       /** @description Plain UTF-8 text preview. Never base64. */
       teaser: string
       price_cents: number
       /** @enum {string} */
       content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description The Store selling the work. For a brokered work, the same fixed id on every one (`f67c246e-206c-5d62-b113-c526c54fac76`), which stands for LedeWire and is not a Store that can be looked up. A work is bought by its `id`.
+       */
       store_id: string
+      /** @description The Store selling the work: `LedeWire` for a brokered work, whose Publication names who originated it. */
       store_name: string
       tags: string[]
-      /** @description Canonical article URL. Populated for Tollbit results; null for Ledewire items unless resource_url is set. */
+      /** @description Canonical article URL. Populated for brokered works; null for a Store's work unless it has a resource URL. */
       url?: string | null
       /** @description Academic author display names. Null for non-academic content or unknown values. */
       authors: string[] | null
@@ -8037,10 +8276,79 @@ export interface components {
       abstract: string | null
       /** @description DOI URL for academic works. Null for non-academic content or unknown values. */
       doi: string | null
-      /** @description Academic publication date. Null for non-academic content or unknown values. */
+      /** @description When the work was published. For brokered works, the date the broker reports, as `YYYY-MM-DDTHH:MM:SS` with no zone, because the broker gives none. For academic works, the source's publication date. Null when it isn't known. Never filled from `last_modified_date`. */
       publication_date: string | null
+      /** @description When the broker says the work's page last changed, as `YYYY-MM-DDTHH:MM:SS` in UTC. Reported for brokered works. Null when it isn't known. */
+      last_modified_date: string | null
       /** @description Academic citation count from source metadata. Null for non-academic content or unknown values. */
       citation_count: number | null
+    }
+    McpContentSearchResult: components['schemas']['ContentSearchResult']
+    /** @description A `ContentSearchResult` as MCP `search_content` returns it, with the Topics of the Publication a brokered work comes from. `POST /v1/content/search` carries the same Topics as `publication.topics` instead. */
+    McpContentSearchResultWithTopics: components['schemas']['ContentSearchResult'] & {
+      /**
+       * @description The Topics of the Publication this work comes from, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Empty when that Publication is not classified yet, when the host is on no listed Publication's domain, and for a work from a Ledewire store, which comes from no Publication. They describe the result and never decide whether it appears.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      publication_topics: components['schemas']['TopicSlug'][]
+    }
+    /** @description A `ContentSearchResult` as `POST /v1/content/search` returns it, naming the Publication a brokered work belongs to. MCP `search_content` results do not carry `publication`. */
+    ContentSearchResultWithPublication: components['schemas']['ContentSearchResult'] & {
+      /** @description The Publication this work was published by, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Null for Store works and for brokered works on no listed Publication's domain. A work whose Publication is `bulk_licensable` can be added to a Selection for a Bulk acquisition. */
+      publication: components['schemas']['ContentSearchPublication'] | null
+    }
+    /** @description The Publication a search result belongs to. `id` is the same id `GET /v1/publications` lists. */
+    ContentSearchPublication: {
+      /** Format: uuid */
+      id: string
+      /** @description The publication's display name. */
+      name: string
+      /** @description Whether works from this publication can come back in a Bulk acquisition's corpus — the same flag as on `Publication`. */
+      bulk_licensable: boolean
+      /**
+       * @description The Topics this publication covers, as on `Publication`, less any slug that is no longer a Topic. Empty where it has not been classified yet. They describe the result and never decide whether it appears: a search returns the same works whatever their publications' Topics are.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      topics: components['schemas']['TopicSlug'][]
+    }
+    /** @description A Buyer's LedeWire search, across every Store's works and the brokered works of every Publication. Every field is optional. Without a `query` only Store works are searched, filtered by the rest. */
+    ContentSearchRequest: {
+      /** @description Full-text query. Brokered works are searched only when this is given. */
+      query?: string | null
+      /** @description Only works carrying every one of these tags. */
+      tags?: string[] | null
+      /** @description Only works priced at or below this. */
+      max_price_cents?: number | null
+      /** @description Only works whose metadata holds every one of these key/value pairs. */
+      metadata?: {
+        [key: string]: unknown
+      } | null
+      /** @description The previous page's `next_cursor`, sent with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`. A cursor sent with any of those changed, one more than 24 hours old, or one in an older format is refused with 422. Omit for the first page. */
+      cursor?: string | null
+      /**
+       * @description The most rows a page holds, shared between Store works and brokered works. Room one leaves unused is filled from the Store works where it can be.
+       * @default 20
+       */
+      limit: number
+    }
+    ContentSearchResponse: {
+      /** @description At most `limit` works, Store works and brokered works taken in turn, each in its own order of relevance. A page can be shorter than `limit`, or even empty, while `next_cursor` is not null: keep paging. */
+      data: components['schemas']['ContentSearchResultWithPublication'][]
+      /** @description Send as `cursor` for the next page, within 24 hours. Null only when the search has been read to the end. When `partial_results` is true this still points at what could not be read, so sending it asks for those results again. */
+      next_cursor: string | null
+      /** @description True when part of the search could not be run for this page, so the page may be missing works that match — it does not mean nothing more matched. Keep paging with `next_cursor`, which asks for the missing part again. */
+      partial_results: boolean
+      /**
+       * @deprecated
+       * @description Deprecated: always empty. Kept so existing integrations keep parsing the response; read `partial_results` instead.
+       */
+      unavailable_providers: string[]
     }
     /** @description Content returned without a purchase to a store team member reading their own store's content — any of it for an owner, only what they wrote for an author. */
     McpSellerContent: components['schemas']['McpContentSearchResult'] & {
@@ -8079,7 +8387,8 @@ export interface components {
           transaction: string
           network: string
           payer: string
-          accessToken: string
+          /** @description Signed receipt for this purchase, verifiable against `/.well-known/x402-jwks.json`. Null when the receipt could not be signed — no signing key configured (development and test only; elsewhere a missing key is an error), or a configured key that will not load or sign. The work is still delivered. */
+          accessToken: string | null
         }
       }
     }
@@ -8088,6 +8397,7 @@ export interface components {
       /** @description The purchase this receipt records. Distinct per purchase, so repeat buys of one work are distinguishable. */
       purchase_id: string
       content_id: string
+      /** @description The work's title. For a brokered work stored without one, a name made from its publication and URL (`Inc. — inc.com/path`). Never null; empty only when there is nothing to name it by. */
       title: string
       /** @description Where the work lives. Not a way to read it — a brokered URL serves a paywall to an unlicensed caller. */
       url?: string | null
@@ -8161,6 +8471,11 @@ export interface components {
        * @description Direct link to the Ledewire wallet funding page, pre-filled with the shortfall amount.
        */
       funding_url: string
+      /**
+       * @description Who must add money to clear this refusal. Always `buyer` here.
+       * @enum {string}
+       */
+      funded_by?: 'buyer'
     }
     /** @description A Company member's get_content payment the Company wallet cannot cover. Always accompanied by isError: true. Same error code as McpInsufficientFundsError, but no balance, shortfall or funding_url: a member never sees the Company balance and cannot fund the Company wallet. The remedy is to ask a Company admin. */
     McpCompanyInsufficientFundsError: {
@@ -8169,6 +8484,11 @@ export interface components {
       /** @description Price of the content in cents. */
       required_cents: number
       message: string
+      /**
+       * @description Who must add money to clear this refusal. Always `company` here.
+       * @enum {string}
+       */
+      funded_by?: 'company'
     }
     /** @description Returned as structuredContent when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
     McpDailySpendCapReachedError: {
@@ -8215,6 +8535,29 @@ export interface components {
       /** @description The remedy in words. A Company member is told to ask a Company admin, who sets their cap; anyone else, that the daily cap is reached. */
       message?: string
     }
+    /** @description The REST and x402 form of an insufficient-funds refusal, returned with HTTP 422 by POST /v1/purchases and GET /v1/x402/contents/{id}. `error.type` is `insufficient_funds`; the remedy sits alongside the envelope. `funded_by` says whose money must be added. A personal Buyer gets their balance and shortfall; a Company member gets neither, since a member never sees the Company balance, and a `message` sending them to a Company admin instead. No `funding_url` on either: that is given only to an Agent, over MCP. */
+    InsufficientFundsError: {
+      error: {
+        /** @enum {integer} */
+        code: 422
+        message: string
+        /** @enum {string} */
+        type: 'insufficient_funds'
+      }
+      /** @description Price of the content in cents. */
+      required_cents: number
+      /**
+       * @description Who must add money. `buyer` — the Buyer's own wallet; `company` — the Company wallet, which only a Company admin can fund.
+       * @enum {string}
+       */
+      funded_by: 'buyer' | 'company'
+      /** @description The Buyer's wallet balance in cents. Only when `funded_by` is `buyer`. */
+      wallet_balance_cents?: number
+      /** @description How much more the Buyer needs, in cents. Only when `funded_by` is `buyer`. */
+      shortfall_cents?: number
+      /** @description The remedy in words. Only when `funded_by` is `company`. */
+      message?: string
+    }
     /** @description Returned by the fund_wallet tool. Contains the buyer portal wallet URL. Open this link in a browser to add funds using the Ledewire wallet funding page. */
     McpFundWalletResult: {
       /**
@@ -8250,6 +8593,7 @@ export interface components {
           | 'search_content'
           | 'list_publications'
           | 'list_publication_works'
+          | 'list_topics'
           | 'register'
           | 'get_wallet_balance'
           | 'get_content_details'
@@ -8300,7 +8644,7 @@ export interface components {
         content_count: number
       }[]
     }
-    /** @description Returned by the list_my_content tool. A page of the connected store's catalog, including items no buyer can see. Pagination follows the standard `offset`/`limit` contract shared with search_content and list_purchases; the `total`, `page` and `per_page` fields are retained for clients written against the tool's original contract and describe the same window. */
+    /** @description Returned by the list_my_content tool. A page of the connected store's catalog, including items no buyer can see. Pagination follows the standard `offset`/`limit` contract shared with list_purchases; the `total`, `page` and `per_page` fields are retained for clients written against the tool's original contract and describe the same window. */
     McpListMyContentResult: {
       contents: {
         /** Format: uuid */
@@ -9008,7 +9352,15 @@ export interface components {
       content: {
         id: string
         content_type: string
-        title: string
+        /** @description The work's stored title. A brokered work is often stored without one, and then this is composed from what identifies it instead: `<publication name> — <host/path>` (for example `The Atlantic — theatlantic.com/ideas/archive/2026/10/foo`), the publication name alone when there is no URL, or the host and path alone when there is no publication. Null only when the work has none of the three. */
+        title: string | null
+        /** @description Where the work was published, as first recorded. Null for content with no URL. */
+        resource_url: string | null
+        /** @description The Publication a brokered work was published under. Null for non-brokered content. */
+        publication: {
+          id: string
+          name: string
+        } | null
       }
       buyer_id: string
       buyer: {
@@ -9267,6 +9619,7 @@ export interface components {
       failure_reason?:
         | 'retrieval_failed'
         | 'not_licensable'
+        | 'not_found'
         | 'price_drifted'
         | 'client_error'
         | 'insufficient_funds'
@@ -9285,6 +9638,14 @@ export interface components {
       id: string
       /** @description The Broker's display name for the publication. */
       name: string
+      /**
+       * @description The Topics this publication covers, at most five. Empty where it has not been classified yet, which never removes it from the listing.
+       * @example [
+       *       "business-and-finance",
+       *       "personal-finance"
+       *     ]
+       */
+      topics: components['schemas']['TopicSlug'][]
       /** @description The domains the publication is listed under, spelled as the Broker spells them — including a `www.` prefix where it has one. */
       domains: string[]
       /** @description Whether works from this publication can come back in a Bulk acquisition's corpus — true when it publishes a `FULL_USE` rate. */
@@ -9316,11 +9677,89 @@ export interface components {
     PublicationListResponse: {
       data: components['schemas']['Publication'][]
       pagination: components['schemas']['PaginationMeta']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
     }
-    /** @description The MCP `list_publications` result: one page of the Publications a Buyer can license from, paged by offset and limit as `search_content` is. */
+    /** @description How many listed Publications have no Topics yet, counted over the whole listing and not narrowed by any filter. A Topic filter cannot return these, so a filtered result may be missing Publications that cover the Topic but are not classified. */
+    PublicationUnclassifiedCount: number
+    /**
+     * @description A Topic: a subject from the IAB Content Taxonomy 3.1 tier 1 that a Publication covers. The slug is the stable API value for one IAB tier-1 entry. Two tier-1 entries are not Topics, Genres and Sensitive Topics, since neither is a subject area. There is no general-news Topic: a broad news Publication carries its main sections instead.
+     * @enum {string}
+     */
+    TopicSlug:
+      | 'attractions'
+      | 'automotive'
+      | 'books-and-literature'
+      | 'business-and-finance'
+      | 'careers'
+      | 'communication'
+      | 'crime'
+      | 'disasters'
+      | 'education'
+      | 'entertainment'
+      | 'events'
+      | 'family-and-relationships'
+      | 'fine-art'
+      | 'food-and-drink'
+      | 'healthy-living'
+      | 'hobbies-and-interests'
+      | 'holidays'
+      | 'home-and-garden'
+      | 'law'
+      | 'medical-health'
+      | 'personal-celebrations-and-life-events'
+      | 'personal-finance'
+      | 'pets'
+      | 'politics'
+      | 'pop-culture'
+      | 'real-estate'
+      | 'religion-and-spirituality'
+      | 'science'
+      | 'shopping'
+      | 'sports'
+      | 'style-and-fashion'
+      | 'technology-and-computing'
+      | 'travel'
+      | 'video-gaming'
+      | 'war-and-conflicts'
+    /** @description One Topic in the Topic directory, with how many listed Publications carry it. */
+    TopicDirectoryEntry: {
+      slug: components['schemas']['TopicSlug']
+      /**
+       * @description The IAB Content Taxonomy unique ID of this tier-1 entry. A string, since some IAB IDs are alphanumeric.
+       * @example 483
+       */
+      iab_id: string
+      /**
+       * @description The IAB display name, verbatim.
+       * @example Sports
+       */
+      name: string
+      /** @description How many listed Publications carry this Topic: exactly the `pagination.total` of `GET /v1/publications` filtered by it alone. Zero is listed, not omitted. */
+      publication_count: number
+    }
+    /** @description Every Topic, in vocabulary order, with how many listed Publications carry each. */
+    TopicDirectoryResponse: {
+      data: components['schemas']['TopicDirectoryEntry'][]
+      iab_version: components['schemas']['TopicIabVersion']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
+    }
+    /**
+     * @description The IAB Content Taxonomy version the Topics are taken from.
+     * @example 3.1
+     */
+    TopicIabVersion: string
+    /** @description The MCP `list_topics` result: the Topic directory, as `GET /v1/topics` returns it, with the entries under `topics`. */
+    McpListTopicsResult: {
+      topics: components['schemas']['TopicDirectoryEntry'][]
+      iab_version: components['schemas']['TopicIabVersion']
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
+    }
+    /** @description The MCP `list_publications` result: one page of the Publications a Buyer can license from, paged by offset and limit. */
     McpListPublicationsResult: {
       publications: components['schemas']['Publication'][]
+      /** @description How many publications match, after any `topics` filter. */
       total_count: number
+      unclassified_count: components['schemas']['PublicationUnclassifiedCount']
       offset: number
       limit: number
     }

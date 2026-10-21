@@ -14,6 +14,7 @@ import { ConfigNamespace } from './resources/config.js'
 import { ContentNamespace } from './resources/content.js'
 import { MerchantNamespace } from './resources/merchant/index.js'
 import { PublicationsNamespace } from './resources/publications.js'
+import { TopicsNamespace } from './resources/topics.js'
 import { PurchasesNamespace } from './resources/purchases.js'
 import { SellerNamespace } from './resources/seller/index.js'
 import { UserNamespace } from './resources/user/index.js'
@@ -211,6 +212,9 @@ export class NodeClient {
   /** Publications available to bulk-license, and their works (no auth required) */
   readonly publications: PublicationsNamespace
 
+  /** Topic directory: the subjects publications cover, with how many carry each (no auth required) */
+  readonly topics: TopicsNamespace
+
   /** Buyer bulk acquisitions: quote, acknowledge, authorize, corpus download, signed manifest */
   readonly acquisitions: AcquisitionsNamespace
 
@@ -234,6 +238,7 @@ export class NodeClient {
     this.user = new UserNamespace(_http)
     this.company = new CompanyNamespace(_http)
     this.publications = new PublicationsNamespace(_http)
+    this.topics = new TopicsNamespace(_http)
     this.acquisitions = new AcquisitionsNamespace(_http)
     this.x402 = new X402Namespace(_http)
   }
@@ -245,8 +250,8 @@ export class NodeClient {
  * The agent client is a buyer-scoped client designed for autonomous (headless)
  * agents. It authenticates automatically using a buyer API key + secret and
  * exposes only the namespaces an agent needs: `auth`, `wallet`, `purchases`,
- * `content`, `checkout`, `user`, `company`, `publications`, `acquisitions`, and
- * `x402`.
+ * `content`, `checkout`, `user`, `company`, `publications`, `topics`, `acquisitions`,
+ * and `x402`.
  */
 export interface AgentClientConfig {
   /**
@@ -277,7 +282,7 @@ export interface AgentClientConfig {
 /**
  * A buyer-scoped client for autonomous agents.
  * Exposes `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`,
- * `company`, `publications`, `acquisitions`, and `x402`.
+ * `company`, `publications`, `topics`, `acquisitions`, and `x402`.
  *
  * Instantiate with {@link createAgentClient} rather than constructing directly.
  */
@@ -291,6 +296,7 @@ export type AgentClient = Pick<
   | 'user'
   | 'company'
   | 'publications'
+  | 'topics'
   | 'acquisitions'
   | 'x402'
 >
@@ -360,6 +366,7 @@ export function createAgentClient(config: AgentClientConfig): AgentClient {
     user: client.user,
     company: client.company,
     publications: client.publications,
+    topics: client.topics,
     acquisitions: client.acquisitions,
     x402: client.x402,
   }
