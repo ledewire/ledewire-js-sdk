@@ -39,7 +39,7 @@ export function decodeContentFields<
       content_body: decodeBase64(item.content_body),
     }),
     ...(typeof item.teaser === 'string' && { teaser: decodeBase64(item.teaser) }),
-  } as T
+  }
 }
 
 /**

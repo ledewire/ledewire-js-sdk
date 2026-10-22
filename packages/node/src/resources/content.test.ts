@@ -90,3 +90,79 @@ describe('content.getWithAccess', () => {
     await expect(makeClient().content.getWithAccess('missing-id')).rejects.toThrow(NotFoundError)
   })
 })
+
+// ---------------------------------------------------------------------------
+// content.search
+// ---------------------------------------------------------------------------
+
+describe('content.search', () => {
+  const page = {
+    data: [
+      {
+        id: 'content-id-1',
+        title: 'Quantum Guide',
+        teaser: 'A primer',
+        price_cents: 500,
+        content_type: 'markdown',
+        store_id: 'store-id-1',
+        store_name: 'Test Store',
+        tags: [],
+        authors: [],
+        abstract: null,
+        doi: null,
+        publication_date: null,
+        last_modified_date: null,
+        citation_count: 0,
+        publication: null,
+      },
+    ],
+    next_cursor: null,
+    partial_results: false,
+    unavailable_providers: [],
+  }
+
+  it('posts the search criteria and returns one page of results', async () => {
+    let receivedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/content/search`, async ({ request }) => {
+        receivedBody = await request.json()
+        return HttpResponse.json(page)
+      }),
+    )
+
+    const result = await makeClient().content.search({ query: 'quantum', max_price_cents: 500 })
+
+    expect(receivedBody).toEqual({ query: 'quantum', max_price_cents: 500 })
+    expect(result.data[0]?.title).toBe('Quantum Guide')
+    expect(result.next_cursor).toBeNull()
+  })
+
+  it('sends the cursor from the previous page to fetch the next one', async () => {
+    let receivedBody: unknown = null
+    server.use(
+      http.post(`${BASE}/v1/content/search`, async ({ request }) => {
+        receivedBody = await request.json()
+        return HttpResponse.json({ ...page, next_cursor: null })
+      }),
+    )
+
+    await makeClient().content.search({ query: 'quantum', cursor: 'cursor-2' })
+
+    expect(receivedBody).toEqual({ query: 'quantum', cursor: 'cursor-2' })
+  })
+
+  it('throws LedewireError with code 422 on a stale cursor', async () => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json(
+          { error: { code: 422, message: 'Cursor expired', type: 'client_error' } },
+          { status: 422 },
+        ),
+      ),
+    )
+
+    await expect(makeClient().content.search({ cursor: 'stale' })).rejects.toMatchObject({
+      code: 422,
+    })
+  })
+})

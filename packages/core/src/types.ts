@@ -432,6 +432,58 @@ export interface PublicationWorksParams {
 }
 
 /**
+ * A Topic: a subject from the IAB Content Taxonomy that a {@link Publication} covers.
+ * The slug is the stable API value for one IAB tier-1 entry, and the only values
+ * `topics` on {@link PublicationListParams} accepts.
+ */
+export type TopicSlug = components['schemas']['TopicSlug']
+
+/** One Topic in the directory, with how many listed Publications carry it. */
+export type TopicDirectoryEntry = components['schemas']['TopicDirectoryEntry']
+
+/**
+ * The Topic directory: every Topic in vocabulary order, with how many listed
+ * Publications carry each, plus how many have no Topics yet.
+ */
+export type TopicDirectoryResponse = components['schemas']['TopicDirectoryResponse']
+
+/**
+ * Query parameters accepted by `GET /v1/publications`. The filters combine with AND,
+ * and `pagination` counts the filtered set.
+ */
+export interface PublicationListParams {
+  /** Page number (1-based). Defaults to 1. */
+  page?: number
+  /** Items per page. Maximum 100. Defaults to 25. */
+  per_page?: number
+  /** Case-insensitive substring of a Publication's name or listed domains. Blank is no filter. */
+  q?: string
+  /** `true` returns only bulk-licensable Publications; `false` only those that cannot be. */
+  bulk_licensable?: boolean
+  /** Only Publications carrying any of these Topics. An unknown Topic is a 400. */
+  topics?: TopicSlug[]
+}
+
+/** The Publication a search result belongs to, as `POST /v1/content/search` names it. */
+export type ContentSearchPublication = components['schemas']['ContentSearchPublication']
+
+/** One work in a buyer's LedeWire search, from a Store or a brokered Publication. */
+export type ContentSearchResult = components['schemas']['ContentSearchResult']
+
+/** A {@link ContentSearchResult} that also names the Publication it was published by. */
+export type ContentSearchResultWithPublication =
+  components['schemas']['ContentSearchResultWithPublication']
+
+/**
+ * Body for `POST /v1/content/search`. Every field is optional. `limit` defaults to 20 on
+ * the server, though the generated schema marks it required, so it is made optional here.
+ */
+export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+
+/** One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null. */
+export type ContentSearchResponse = components['schemas']['ContentSearchResponse']
+
+/**
  * A Bulk acquisition — the resource the whole bulk-licensing flow hangs off. The
  * buyer holds this id from the moment they submit a Selection, and every later step
  * reads or advances it: the quote arrives on it, the acknowledgement is a timestamp
@@ -588,8 +640,7 @@ export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMach
  * generator widens to `unknown`.
  */
 export type CompanyMachineUserUpdateRequest =
-  | { name: string; description?: string | null }
-  | { name?: string; description: string | null }
+  { name: string; description?: string | null } | { name?: string; description: string | null }
 
 /**
  * A Machine user's Buyer key (secret never included after creation). It logs in

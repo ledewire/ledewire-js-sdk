@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, HttpClient } from '@ledewire/core'
+import { AuthError, HttpClient, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import { publicationFixture, publicationWorkListFixture } from '@ledewire/core/test-utils'
 import { PublicationsNamespace } from './publications.js'
@@ -66,6 +66,105 @@ describe('publications.list', () => {
     )
 
     await makeNamespace().list({ page: 2, per_page: 10 })
+  })
+})
+
+describe('publications.list filters', () => {
+  it('sends q, bulk_licensable and every topic as query parameters', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications`, ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get('q')).toBe('times')
+        expect(url.searchParams.get('bulk_licensable')).toBe('true')
+        expect(url.searchParams.getAll('topics[]')).toEqual(['sports', 'travel'])
+        return HttpResponse.json({
+          data: [],
+          pagination: {
+            total: 0,
+            per_page: 25,
+            current_page: 1,
+            total_pages: 0,
+            next_page: null,
+            prev_page: null,
+          },
+          unclassified_count: 0,
+        })
+      }),
+    )
+
+    await makeNamespace().list({
+      q: 'times',
+      bulk_licensable: true,
+      topics: ['sports', 'travel'],
+    })
+  })
+
+  it('sends no filter parameters when none are given', async () => {
+    let receivedUrl = ''
+    server.use(
+      http.get(`${BASE}/v1/publications`, ({ request }) => {
+        receivedUrl = request.url
+        return HttpResponse.json({
+          data: [],
+          pagination: {
+            total: 0,
+            per_page: 25,
+            current_page: 1,
+            total_pages: 0,
+            next_page: null,
+            prev_page: null,
+          },
+          unclassified_count: 0,
+        })
+      }),
+    )
+
+    await makeNamespace().list()
+
+    expect(new URL(receivedUrl).search).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// publications.get
+// ---------------------------------------------------------------------------
+
+describe('publications.get', () => {
+  it('returns one publication, including its topics and coverage horizon', async () => {
+    const fixture = publicationFixture({
+      id: 'pub-id-9',
+      topics: ['sports'],
+      coverage_horizon: null,
+    })
+    server.use(http.get(`${BASE}/v1/publications/pub-id-9`, () => HttpResponse.json(fixture)))
+
+    const result = await makeNamespace().get('pub-id-9')
+
+    expect(result).toEqual(fixture)
+  })
+
+  it('URL-encodes the publication id', async () => {
+    let receivedPath = ''
+    server.use(
+      http.get(`${BASE}/v1/publications/:id`, ({ request }) => {
+        receivedPath = new URL(request.url).pathname
+        return HttpResponse.json(publicationFixture())
+      }),
+    )
+
+    await makeNamespace().get('a/b')
+
+    expect(receivedPath).toBe('/v1/publications/a%2Fb')
+  })
+
+  it('throws NotFoundError when no listed publication has the id', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications/missing`, () =>
+        HttpResponse.json({ error: { code: 404, message: 'Not found' } }, { status: 404 }),
+      ),
+    )
+
+    await expect(makeNamespace().get('missing')).rejects.toThrow(NotFoundError)
   })
 })
 

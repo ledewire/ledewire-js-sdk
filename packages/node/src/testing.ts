@@ -219,6 +219,7 @@ export function createMockClient(
     },
     content: {
       getWithAccess: stub(),
+      search: stub(),
     },
     checkout: {
       state: stub(),
@@ -285,7 +286,11 @@ export function createMockClient(
     },
     publications: {
       list: stub(),
+      get: stub(),
       listWorks: stub(),
+    },
+    topics: {
+      list: stub(),
     },
     acquisitions: {
       create: stub(),
