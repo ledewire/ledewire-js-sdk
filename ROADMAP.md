@@ -204,7 +204,7 @@ POST /v1/user/profile/change-password  → void  (body: { current_password, new_
 
 #### GAP-3 — Server-side token revocation (logout)
 
-**Security gap.** `auth.logout()` only clears local token storage. There is no `DELETE /v1/auth/token` endpoint to invalidate the refresh token server-side, meaning a stolen refresh token remains valid until it expires naturally.
+**Security gap.** The SDK has no `auth.logout()` yet. Clearing local tokens (`clearTokens`) does not invalidate anything server-side. There is no `DELETE /v1/auth/token` endpoint to invalidate the refresh token server-side, meaning a stolen refresh token remains valid until it expires naturally.
 
 **Proposed spec addition:**
 
@@ -212,7 +212,7 @@ POST /v1/user/profile/change-password  → void  (body: { current_password, new_
 DELETE /v1/auth/token    (sends current refresh_token in body; invalidates it server-side)
 ```
 
-**SDK work once spec is added:** update `auth.logout()` in both packages to call the endpoint before clearing local storage. Fall back to local clear if the request fails (e.g. already expired).
+**SDK work once spec is added:** add `auth.logout()` in both packages to call the endpoint before clearing local storage. Fall back to local clear if the request fails (e.g. already expired).
 
 ---
 

@@ -63,7 +63,7 @@ const client = createClient({
 
 ### @ledewire/node — createClient()
 - `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
-- `client.auth.*` — buyer auth (signup, email, google, logout, password reset)
+- `client.auth.*` — buyer auth (signup, email, google, password reset)
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
