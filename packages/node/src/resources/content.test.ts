@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { NotFoundError } from '@ledewire/core'
+import { AuthError, LedewireError, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { errorResponseFixture, contentWithAccessFixture } from '@ledewire/core/test-utils'
+import {
+  errorResponseFixture,
+  contentWithAccessFixture,
+  contentSearchResultFixture,
+  brokeredContentSearchResultFixture,
+} from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -161,8 +166,72 @@ describe('content.search', () => {
       ),
     )
 
-    await expect(makeClient().content.search({ cursor: 'stale' })).rejects.toMatchObject({
-      code: 422,
+    const error = await makeClient()
+      .content.search({ cursor: 'stale' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ code: 422, statusCode: 422 })
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json({ error: { code: 401, message: 'Unauthorized' } }, { status: 401 }),
+      ),
+    )
+
+    await expect(makeClient().content.search({ query: 'quantum' })).rejects.toThrow(AuthError)
+  })
+
+  it('surfaces a 429 with its status, so the caller can wait and retry', async () => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json(
+          { error: { code: 429, message: 'Too many searches' } },
+          { status: 429, headers: { 'Retry-After': '12' } },
+        ),
+      ),
+    )
+
+    const error = await makeClient()
+      .content.search({ query: 'quantum' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ code: 429, statusCode: 429 })
+  })
+
+  it('returns brokered results with the Publication they name, and Store results with none', async () => {
+    const page = {
+      data: [brokeredContentSearchResultFixture(), contentSearchResultFixture()],
+      next_cursor: null,
+      partial_results: false,
+      unavailable_providers: [],
+    }
+    server.use(http.post(`${BASE}/v1/content/search`, () => HttpResponse.json(page)))
+
+    const result = await makeClient().content.search({ query: 'quantum' })
+
+    expect(result.data[0]?.publication).toEqual({
+      id: 'pub-id-1',
+      name: 'Test Publication',
+      bulk_licensable: true,
+      topics: ['business-and-finance'],
     })
+    expect(result.data[1]?.publication).toBeNull()
+  })
+
+  it('returns an envelope with partial_results and unavailable_providers unchanged', async () => {
+    const page = {
+      data: [contentSearchResultFixture()],
+      next_cursor: 'cursor-next',
+      partial_results: true,
+      unavailable_providers: ['tollbit'],
+    }
+    server.use(http.post(`${BASE}/v1/content/search`, () => HttpResponse.json(page)))
+
+    const result = await makeClient().content.search({ query: 'quantum' })
+
+    expect(result).toEqual(page)
+    expect(result.next_cursor).toBe('cursor-next')
   })
 })
