@@ -77,16 +77,7 @@ components:
 
     ContentAccessInfo:
       type: object
-      required:
-        [
-          user_id,
-          has_purchased,
-          has_sufficient_funds,
-          wallet_balance_cents,
-          next_required_action,
-          remaining_cents,
-          company_name,
-        ]
+      required: [user_id, has_purchased, has_sufficient_funds, wallet_balance_cents, next_required_action, remaining_cents, company_name]
       properties:
         user_id:
           type: [string, null]
@@ -162,16 +153,7 @@ components:
         `wrong_email` is a store invitation sent to another address; `already_in_company` means
         the account belongs to another Company and must leave it first; `already_member` means
         it already belongs to the store; `invalid` is an invitation that could not be saved.
-      enum:
-        [
-          not_found,
-          already_accepted,
-          expired,
-          wrong_email,
-          already_in_company,
-          already_member,
-          invalid,
-        ]
+      enum: [not_found, already_accepted, expired, wrong_email, already_in_company, already_member, invalid]
 
     InvitationNotAcceptedError:
       type: object
@@ -506,16 +488,7 @@ components:
         For a Company member it is the membership's cap, read-only, in the Company's timezone,
         counting only spend paid through the membership; company_name names the Company. The
         Company balance never appears here.
-      required:
-        [
-          cap_cents,
-          spend_window_timezone,
-          spent_cents,
-          remaining_cents,
-          resets_at,
-          bulk_exempt,
-          company_name,
-        ]
+      required: [cap_cents, spend_window_timezone, spent_cents, remaining_cents, resets_at, bulk_exempt, company_name]
       properties:
         cap_cents:
           type: [integer, 'null']
@@ -962,16 +935,7 @@ components:
     CompanyPendingTopUp:
       type: object
       description: A Company wallet top-up that has not yet settled, as a Company admin sees it.
-      required:
-        [
-          id,
-          session_id,
-          amount_cents,
-          status,
-          initiated_by_user_id,
-          created_at,
-          expected_debit_date,
-        ]
+      required: [id, session_id, amount_cents, status, initiated_by_user_id, created_at, expected_debit_date]
       properties:
         id:
           type: string
@@ -1100,8 +1064,7 @@ components:
 
     McpApiKeyCreateResponse:
       type: object
-      required:
-        [id, key, secret, label, can_search, can_purchase, can_manage_content, can_read_analytics]
+      required: [id, key, secret, label, can_search, can_purchase, can_manage_content, can_read_analytics]
       description: Returned once only at creation. The secret cannot be retrieved again.
       properties:
         id:
@@ -1129,17 +1092,7 @@ components:
 
     McpApiKey:
       type: object
-      required:
-        [
-          id,
-          label,
-          key,
-          can_search,
-          can_purchase,
-          can_manage_content,
-          can_read_analytics,
-          created_at,
-        ]
+      required: [id, label, key, can_search, can_purchase, can_manage_content, can_read_analytics, created_at]
       properties:
         id:
           type: string
@@ -1173,23 +1126,7 @@ components:
         whether it came from `POST /v1/content/search` or MCP `search_content`, since both run
         the same search.
       type: object
-      required:
-        [
-          id,
-          title,
-          teaser,
-          price_cents,
-          content_type,
-          store_id,
-          store_name,
-          tags,
-          authors,
-          abstract,
-          doi,
-          publication_date,
-          last_modified_date,
-          citation_count,
-        ]
+      required: [id, title, teaser, price_cents, content_type, store_id, store_name, tags, authors, abstract, doi, publication_date, last_modified_date, citation_count]
       properties:
         id:
           type: string
@@ -1463,9 +1400,9 @@ components:
                   description: The broker-hosted licence document for this grant.
             _meta:
               type: object
-              required: ['x402/payment-response']
+              required: ["x402/payment-response"]
               properties:
-                'x402/payment-response':
+                "x402/payment-response":
                   type: object
                   required: [success, transaction, network, payer, accessToken]
                   properties:
@@ -1814,7 +1751,7 @@ components:
       properties:
         jsonrpc:
           type: string
-          enum: ['2.0']
+          enum: ["2.0"]
         method:
           type: string
           enum:
@@ -2137,8 +2074,7 @@ components:
 
     MerchantUser:
       type: object
-      required:
-        [id, user_id, store_id, role, is_author, author_fee_bps, invited_at, accepted_at, email]
+      required: [id, user_id, store_id, role, is_author, author_fee_bps, invited_at, accepted_at, email]
       properties:
         id:
           type: string
@@ -2299,18 +2235,7 @@ components:
 
     WalletTransactionItem:
       type: object
-      required:
-        [
-          id,
-          type,
-          reason,
-          amount_cents,
-          balance_after_cents,
-          status,
-          reference_id,
-          description,
-          occurred_at,
-        ]
+      required: [id, type, reason, amount_cents, balance_after_cents, status, reference_id, description, occurred_at]
       properties:
         id:
           type: string
@@ -2343,18 +2268,8 @@ components:
           description: Running wallet balance immediately after this event
         status:
           type: string
-          enum:
-            [
-              completed,
-              pending,
-              failed,
-              cancelled,
-              settled,
-              reverted,
-              refunded,
-              authorized,
-              acquiring,
-            ]
+          enum: [completed, pending, failed, cancelled, settled, reverted, refunded,
+                 authorized, acquiring]
           description: >
             Status of the source record. authorized/acquiring/settled/cancelled/failed are bulk
             acquisition states; the rest are purchase and funding transfer states.
@@ -2464,15 +2379,7 @@ components:
 
 
         Prefer `buyer_ref` over any global buyer identifier.
-      required:
-        [
-          buyer_ref,
-          purchases_count,
-          total_spent_cents,
-          first_purchase_at,
-          last_purchase_at,
-          buyer_status,
-        ]
+      required: [buyer_ref, purchases_count, total_spent_cents, first_purchase_at, last_purchase_at, buyer_status]
       properties:
         buyer_ref:
           type: string
@@ -3012,19 +2919,7 @@ components:
 
     PurchaseResponse:
       type: object
-      required:
-        [
-          id,
-          content_id,
-          content,
-          buyer_id,
-          buyer,
-          seller_id,
-          seller,
-          amount_cents,
-          timestamp,
-          status,
-        ]
+      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, timestamp, status]
       properties:
         id:
           type: string
@@ -3108,20 +3003,7 @@ components:
 
     MerchantSaleResponse:
       type: object
-      required:
-        [
-          id,
-          content_id,
-          content,
-          buyer_id,
-          buyer,
-          seller_id,
-          seller,
-          amount_cents,
-          fees,
-          status,
-          timestamp,
-        ]
+      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, fees, status, timestamp]
       properties:
         id:
           type: string
@@ -3298,7 +3180,7 @@ components:
                 example: ledewire-wallet
               network:
                 type: string
-                example: 'ledewire:v1'
+                example: "ledewire:v1"
         lastUpdated:
           type: integer
           description: Unix timestamp (seconds) of the content's last update.
@@ -3510,17 +3392,7 @@ components:
             failed. Those are different answers to a Buyer and only the second is worth a retry.
         failure_reason:
           type: [string, 'null']
-          enum:
-            [
-              retrieval_failed,
-              not_licensable,
-              not_found,
-              price_drifted,
-              client_error,
-              insufficient_funds,
-              cap_refused,
-              null,
-            ]
+          enum: [retrieval_failed, not_licensable, not_found, price_drifted, client_error, insufficient_funds, cap_refused, null]
           description: >
             Why an attempted work did not arrive, as a type rather than prose. Only
             `retrieval_failed` is transient; the rest fail identically on every attempt, so
@@ -3627,41 +3499,41 @@ components:
         Topics, Genres and Sensitive Topics, since neither is a subject area. There is no
         general-news Topic: a broad news Publication carries its main sections instead.
       enum:
-        - attractions
-        - automotive
-        - books-and-literature
-        - business-and-finance
-        - careers
-        - communication
-        - crime
-        - disasters
-        - education
-        - entertainment
-        - events
-        - family-and-relationships
-        - fine-art
-        - food-and-drink
-        - healthy-living
-        - hobbies-and-interests
-        - holidays
-        - home-and-garden
-        - law
-        - medical-health
-        - personal-celebrations-and-life-events
-        - personal-finance
-        - pets
-        - politics
-        - pop-culture
-        - real-estate
-        - religion-and-spirituality
-        - science
-        - shopping
-        - sports
-        - style-and-fashion
-        - technology-and-computing
-        - travel
-        - video-gaming
-        - war-and-conflicts
+          - attractions
+          - automotive
+          - books-and-literature
+          - business-and-finance
+          - careers
+          - communication
+          - crime
+          - disasters
+          - education
+          - entertainment
+          - events
+          - family-and-relationships
+          - fine-art
+          - food-and-drink
+          - healthy-living
+          - hobbies-and-interests
+          - holidays
+          - home-and-garden
+          - law
+          - medical-health
+          - personal-celebrations-and-life-events
+          - personal-finance
+          - pets
+          - politics
+          - pop-culture
+          - real-estate
+          - religion-and-spirituality
+          - science
+          - shopping
+          - sports
+          - style-and-fashion
+          - technology-and-computing
+          - travel
+          - video-gaming
+          - war-and-conflicts
 
     TopicDirectoryEntry:
       type: object
@@ -3834,19 +3706,7 @@ components:
         and every terminal state releases what is left. `quote_state` is whether the prices are
         in. A `quoted` acquisition whose quote is still `pending` has a snapshot and no prices,
         and a client that read one field would mis-read exactly that case.
-      required:
-        [
-          id,
-          status,
-          quote_state,
-          publication_count,
-          submitted_work_count,
-          work_count,
-          quote,
-          exclusions,
-          delivery,
-          created_at,
-        ]
+      required: [id, status, quote_state, publication_count, submitted_work_count, work_count, quote, exclusions, delivery, created_at]
       properties:
         id:
           type: string
@@ -4221,7 +4081,7 @@ components:
           description: UUID of the settled Purchase record.
         network:
           type: string
-          enum: ['ledewire:v1']
+          enum: ["ledewire:v1"]
         payer:
           type: string
           description: UUID of the buying user.
@@ -8116,43 +7976,43 @@ paths:
                 items:
                   $ref: '#/components/schemas/PurchaseResponse'
               examples:
-                purchase_list:
-                  summary: List of user purchases
-                  value:
-                    - id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
-                      content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                      content:
-                        id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                        content_type: 'markdown'
-                        title: 'Sample Blog Post'
-                      buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      buyer:
-                        id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                        name: 'Buyer Name'
-                      seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      seller:
-                        id: '87654321-dcba-4fed-ba98-76543210fedc'
-                        name: 'Seller Name'
-                      amount_cents: 1200
-                      timestamp: '2025-05-18T13:27:45Z'
-                      status: 'completed'
-                    - id: '4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d'
-                      content_id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
-                      content:
-                        id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
-                        content_type: 'markdown'
-                        title: 'Advanced Technology Guide'
-                      buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      buyer:
-                        id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                        name: 'Buyer Name'
-                      seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      seller:
-                        id: '87654321-dcba-4fed-ba98-76543210fedc'
-                        name: 'Seller Name'
-                      amount_cents: 1500
-                      timestamp: '2025-05-17T09:15:30Z'
-                      status: 'completed'
+                    purchase_list:
+                      summary: List of user purchases
+                      value:
+                        - id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
+                          content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                          content:
+                            id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                            content_type: 'markdown'
+                            title: 'Sample Blog Post'
+                          buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          buyer:
+                            id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                            name: 'Buyer Name'
+                          seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          seller:
+                            id: '87654321-dcba-4fed-ba98-76543210fedc'
+                            name: 'Seller Name'
+                          amount_cents: 1200
+                          timestamp: '2025-05-18T13:27:45Z'
+                          status: 'completed'
+                        - id: '4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d'
+                          content_id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
+                          content:
+                            id: 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'
+                            content_type: 'markdown'
+                            title: 'Advanced Technology Guide'
+                          buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          buyer:
+                            id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                            name: 'Buyer Name'
+                          seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          seller:
+                            id: '87654321-dcba-4fed-ba98-76543210fedc'
+                            name: 'Seller Name'
+                          amount_cents: 1500
+                          timestamp: '2025-05-17T09:15:30Z'
+                          status: 'completed'
         '401':
           description: Unauthorized - Invalid or missing authentication token
           content:
@@ -8318,26 +8178,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchaseResponse'
               examples:
-                purchase:
-                  summary: Purchase details
-                  value:
-                    id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
-                    content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                    content:
-                      id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
-                      content_type: 'markdown'
-                      title: 'Sample Blog Post'
-                    buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                    buyer:
-                      id: '09357c22-389a-4fab-b166-822e52a5bf5e'
-                      name: 'Buyer Name'
-                    seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
-                    seller:
-                      id: '87654321-dcba-4fed-ba98-76543210fedc'
-                      name: 'Seller Name'
-                    amount_cents: 1200
-                    timestamp: '2025-05-18T13:27:45Z'
-                    status: 'completed'
+                    purchase:
+                      summary: Purchase details
+                      value:
+                        id: '3f7b9a8c-1d2e-3f4a-5b6c-7d8e9f0a1b2c'
+                        content_id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                        content:
+                          id: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'
+                          content_type: 'markdown'
+                          title: 'Sample Blog Post'
+                        buyer_id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                        buyer:
+                          id: '09357c22-389a-4fab-b166-822e52a5bf5e'
+                          name: 'Buyer Name'
+                        seller_id: '87654321-dcba-4fed-ba98-76543210fedc'
+                        seller:
+                          id: '87654321-dcba-4fed-ba98-76543210fedc'
+                          name: 'Seller Name'
+                        amount_cents: 1200
+                        timestamp: '2025-05-18T13:27:45Z'
+                        status: 'completed'
         '401':
           description: Unauthorized - Invalid or missing authentication token
           content:
@@ -8956,17 +8816,17 @@ paths:
                     total_revenue_cents: 4389
                     total_sales: 48
                     monthly_revenue_cents:
-                      '2025':
-                        '5': 204
-                        '6': 2210
-                        '7': 785
-                        '8': 1190
+                      "2025":
+                        "5": 204
+                        "6": 2210
+                        "7": 785
+                        "8": 1190
                     monthly_sales:
-                      '2025':
-                        '5': 2
-                        '6': 26
-                        '7': 6
-                        '8': 14
+                      "2025":
+                        "5": 2
+                        "6": 26
+                        "7": 6
+                        "8": 14
         '401':
           description: Unauthorized
           content:
@@ -9195,20 +9055,20 @@ paths:
               page_view:
                 summary: Track a page view
                 value:
-                  name: 'Page View'
+                  name: "Page View"
                   properties:
-                    page: '/content/123'
-                    title: 'Sample Blog Post'
-                  time: '2025-01-20T10:30:00Z'
+                    page: "/content/123"
+                    title: "Sample Blog Post"
+                  time: "2025-01-20T10:30:00Z"
               button_click:
                 summary: Track a button click
                 value:
-                  name: 'Button Click'
+                  name: "Button Click"
                   properties:
-                    button_id: 'purchase_button'
-                    content_id: '123'
-                    location: 'content_page'
-                  time: '2025-01-20T10:35:00Z'
+                    button_id: "purchase_button"
+                    content_id: "123"
+                    location: "content_page"
+                  time: "2025-01-20T10:35:00Z"
       responses:
         '200':
           description: Event tracked successfully
@@ -9235,7 +9095,7 @@ paths:
                 invalid_event:
                   summary: Invalid event data
                   value:
-                    error: 'Event name is required'
+                    error: "Event name is required"
 
   /ahoy/visits:
     post:
@@ -9256,45 +9116,45 @@ paths:
               web_visit:
                 summary: Track a web visit
                 value:
-                  visit_token: 'visit_123456'
-                  visitor_token: 'visitor_789012'
-                  ip: '192.168.1.1'
-                  user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-                  referrer: 'https://google.com'
-                  referring_domain: 'google.com'
-                  landing_page: 'https://ledewire.com/content/123'
-                  browser: 'Chrome'
-                  os: 'macOS'
-                  device_type: 'desktop'
-                  country: 'US'
-                  region: 'CA'
-                  city: 'San Francisco'
+                  visit_token: "visit_123456"
+                  visitor_token: "visitor_789012"
+                  ip: "192.168.1.1"
+                  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                  referrer: "https://google.com"
+                  referring_domain: "google.com"
+                  landing_page: "https://ledewire.com/content/123"
+                  browser: "Chrome"
+                  os: "macOS"
+                  device_type: "desktop"
+                  country: "US"
+                  region: "CA"
+                  city: "San Francisco"
                   latitude: 37.7749
                   longitude: -122.4194
-                  utm_source: 'google'
-                  utm_medium: 'cpc'
-                  utm_campaign: 'content_marketing'
-                  started_at: '2025-01-20T10:30:00Z'
+                  utm_source: "google"
+                  utm_medium: "cpc"
+                  utm_campaign: "content_marketing"
+                  started_at: "2025-01-20T10:30:00Z"
               mobile_visit:
                 summary: Track a mobile visit
                 value:
-                  visit_token: 'visit_789012'
-                  visitor_token: 'visitor_345678'
-                  ip: '192.168.1.2'
-                  user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15'
-                  landing_page: 'https://ledewire.com/content/456'
-                  browser: 'Safari'
-                  os: 'iOS'
-                  device_type: 'mobile'
-                  country: 'US'
-                  region: 'NY'
-                  city: 'New York'
+                  visit_token: "visit_789012"
+                  visitor_token: "visitor_345678"
+                  ip: "192.168.1.2"
+                  user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15"
+                  landing_page: "https://ledewire.com/content/456"
+                  browser: "Safari"
+                  os: "iOS"
+                  device_type: "mobile"
+                  country: "US"
+                  region: "NY"
+                  city: "New York"
                   latitude: 40.7128
                   longitude: -74.0060
-                  app_version: '1.2.3'
-                  os_version: '14.7.1'
-                  platform: 'ios'
-                  started_at: '2025-01-20T11:00:00Z'
+                  app_version: "1.2.3"
+                  os_version: "14.7.1"
+                  platform: "ios"
+                  started_at: "2025-01-20T11:00:00Z"
       responses:
         '200':
           description: Visit tracked successfully
@@ -9321,7 +9181,7 @@ paths:
                 invalid_visit:
                   summary: Invalid visit data
                   value:
-                    error: 'Visit token is required'
+                    error: "Visit token is required"
 
   /v1/x402/contents/{id}:
     get:
@@ -10332,8 +10192,7 @@ paths:
         required: true
         schema:
           type: string
-        description:
-          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+        description: Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
           Company wallet of a Company the caller is an admin of.
     get:
       summary: Where the corpus is
@@ -10438,8 +10297,7 @@ paths:
         required: true
         schema:
           type: string
-        description:
-          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+        description: Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
           Company wallet of a Company the caller is an admin of.
     get:
       summary: Download the corpus
@@ -10501,8 +10359,7 @@ paths:
         required: true
         schema:
           type: string
-        description:
-          Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
+        description: Bulk acquisition UUID. Must belong to the authenticated Buyer, or have been paid from the
           Company wallet of a Company the caller is an admin of.
     get:
       summary: The signed manifest of a Bulk acquisition
@@ -11138,26 +10995,26 @@ paths:
               initialize:
                 summary: Initialize handshake
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: initialize
                   params:
-                    protocolVersion: '2025-11-25'
+                    protocolVersion: "2025-11-25"
                     capabilities: {}
                     clientInfo:
                       name: my-agent
-                      version: '1.0'
+                      version: "1.0"
                   id: 1
               tools_list:
                 summary: List available tools
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: tools/list
                   params: {}
                   id: 2
               search_content:
                 summary: Search content (no auth)
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: tools/call
                   params:
                     name: search_content
@@ -11168,7 +11025,7 @@ paths:
               register:
                 summary: Register account + key in one step (no auth)
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: tools/call
                   params:
                     name: register
@@ -11181,14 +11038,14 @@ paths:
               get_content_payment:
                 summary: Retry get_content with payment nonce
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: tools/call
                   params:
                     name: get_content
                     arguments:
                       content_id: 550e8400-e29b-41d4-a716-446655440000
                       _meta:
-                        'x402/payment':
+                        "x402/payment":
                           scheme: ledewire-wallet
                           payload:
                             nonce: a84f18e1bd8751674e9bf6dd2d4610e2
@@ -11196,7 +11053,7 @@ paths:
               register_content:
                 summary: Create content in the connected store (seller content tier)
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: tools/call
                   params:
                     name: register_content
@@ -11205,13 +11062,13 @@ paths:
                       teaser: What surface codes actually cost in practice.
                       price_cents: 1500
                       content_type: markdown
-                      content_body: '# A Field Guide...'
+                      content_body: "# A Field Guide..."
                       tags: [quantum, hardware]
                   id: 6
               resources_read:
                 summary: Read a documentation resource (no auth)
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: resources/read
                   params:
                     uri: ledewire://docs/pricing-guidelines
@@ -11219,7 +11076,7 @@ paths:
               prompts_get:
                 summary: Render a prompt template
                 value:
-                  jsonrpc: '2.0'
+                  jsonrpc: "2.0"
                   method: prompts/get
                   params:
                     name: troubleshoot_integration
@@ -11230,11 +11087,11 @@ paths:
               batch:
                 summary: Batch two requests in one call
                 value:
-                  - jsonrpc: '2.0'
+                  - jsonrpc: "2.0"
                     method: tools/list
                     params: {}
                     id: 9
-                  - jsonrpc: '2.0'
+                  - jsonrpc: "2.0"
                     method: prompts/list
                     params: {}
                     id: 10
@@ -11289,7 +11146,7 @@ paths:
                 properties:
                   jsonrpc:
                     type: string
-                    enum: ['2.0']
+                    enum: ["2.0"]
                   id:
                     description: Echoed from the request.
                     oneOf:
@@ -11318,22 +11175,22 @@ paths:
                 initialize_response:
                   summary: initialize response
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 1
                     result:
-                      protocolVersion: '2025-11-25'
+                      protocolVersion: "2025-11-25"
                       capabilities:
                         tools: {}
                         resources: {}
                         prompts: {}
                       serverInfo:
                         name: ledewire-mcp
-                        version: '1.0'
-                      instructions: 'Ledewire MCP Server — AI agent access to premium content and paid content...'
+                        version: "1.0"
+                      instructions: "Ledewire MCP Server — AI agent access to premium content and paid content..."
                 tools_list_response:
                   summary: tools/list response (abbreviated — 16 tools are returned)
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 2
                     result:
                       tools:
@@ -11348,7 +11205,7 @@ paths:
                           outputSchema:
                             type: object
                           _meta:
-                            'com.ledewire/requiredScopes': []
+                            "com.ledewire/requiredScopes": []
                         - name: list_my_content
                           description: List your store's content catalog with optional filtering. Requires a store-scoped key with mcp:manage_content scope — connect a store via OAuth.
                           inputSchema:
@@ -11362,11 +11219,11 @@ paths:
                           outputSchema:
                             type: object
                           _meta:
-                            'com.ledewire/requiredScopes': [mcp:manage_content]
+                            "com.ledewire/requiredScopes": [mcp:manage_content]
                 resources_list_response:
                   summary: resources/list response
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 9
                     result:
                       resources:
@@ -11385,7 +11242,7 @@ paths:
                 resources_read_response:
                   summary: resources/read response
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 7
                     result:
                       contents:
@@ -11395,7 +11252,7 @@ paths:
                 prompts_get_response:
                   summary: prompts/get response
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 8
                     result:
                       messages:
@@ -11406,7 +11263,7 @@ paths:
                 search_result:
                   summary: search_content tool response
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 3
                     result:
                       content:
@@ -11415,7 +11272,7 @@ paths:
                 payment_required:
                   summary: get_content — payment required (isError)
                   value:
-                    jsonrpc: '2.0'
+                    jsonrpc: "2.0"
                     id: 5
                     result:
                       isError: true
@@ -11423,7 +11280,7 @@ paths:
                         x402Version: 2
                         accepts:
                           - scheme: ledewire-wallet
-                            network: 'ledewire:v1'
+                            network: "ledewire:v1"
                         extra:
                           nonce: a84f18e1bd8751674e9bf6dd2d4610e2
                           price_cents: 1500
@@ -11453,7 +11310,7 @@ paths:
                     description: Scope the calling key must hold to invoke the requested tool.
                     example: mcp:search
         '403':
-          description: 'Authenticated but insufficient permissions (e.g. `can_purchase: false` attempting payment).'
+          description: "Authenticated but insufficient permissions (e.g. `can_purchase: false` attempting payment)."
           content:
             application/json:
               schema:
