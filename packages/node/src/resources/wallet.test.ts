@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError } from '@ledewire/core'
+import { AuthError, ForbiddenError, LedewireError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
@@ -197,5 +197,49 @@ describe('wallet.getPaymentStatus', () => {
     )
 
     await expect(makeClient().wallet.getPaymentStatus('pi_bad')).rejects.toThrow(AuthError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// wallet error branches (spec-documented codes)
+// ---------------------------------------------------------------------------
+
+describe('wallet error branches', () => {
+  it('balance throws ForbiddenError on 403', async () => {
+    server.use(
+      http.get(`${BASE}/v1/wallet/balance`, () =>
+        HttpResponse.json(errorResponseFixture(1003, 'Forbidden'), { status: 403 }),
+      ),
+    )
+
+    await expect(makeClient().wallet.balance()).rejects.toThrow(ForbiddenError)
+  })
+
+  it('createPaymentSession throws LedewireError with statusCode 400 on a malformed body', async () => {
+    server.use(
+      http.post(`${BASE}/v1/wallet/payment-session`, () =>
+        HttpResponse.json(errorResponseFixture(1000, 'amount_cents must be positive'), {
+          status: 400,
+        }),
+      ),
+    )
+
+    const error = await makeClient()
+      .wallet.createPaymentSession({ amount_cents: 0, currency: 'usd' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 400 })
+  })
+
+  it('createPaymentSession throws ForbiddenError on 403', async () => {
+    server.use(
+      http.post(`${BASE}/v1/wallet/payment-session`, () =>
+        HttpResponse.json(errorResponseFixture(1003, 'Forbidden'), { status: 403 }),
+      ),
+    )
+
+    await expect(
+      makeClient().wallet.createPaymentSession({ amount_cents: 5000, currency: 'usd' }),
+    ).rejects.toThrow(ForbiddenError)
   })
 })

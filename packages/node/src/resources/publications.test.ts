@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, HttpClient, NotFoundError } from '@ledewire/core'
+import { AuthError, HttpClient, LedewireError, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import { publicationFixture, publicationWorkListFixture } from '@ledewire/core/test-utils'
 import { PublicationsNamespace } from './publications.js'
@@ -270,5 +270,70 @@ describe('PublicationsNamespace — public endpoints skip auth', () => {
 
     await expect(ns.listWorks('pub-1')).resolves.toBeDefined()
     expect(authHeader).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// publications error branches (spec-documented codes)
+// ---------------------------------------------------------------------------
+
+describe('publications error branches', () => {
+  it('list throws LedewireError with statusCode 400 for an unknown topic', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications`, () =>
+        HttpResponse.json({ error: { code: 400, message: 'Unknown topic' } }, { status: 400 }),
+      ),
+    )
+
+    const error = await makeNamespace()
+      .list({ topics: ['sports'] })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 400 })
+  })
+
+  it('listWorks throws LedewireError with statusCode 400 on bad pagination', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications/pub-id-1/works`, () =>
+        HttpResponse.json({ error: { code: 400, message: 'Bad limit' } }, { status: 400 }),
+      ),
+    )
+
+    const error = await makeNamespace()
+      .listWorks('pub-id-1', { limit: 0 })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 400 })
+  })
+
+  it('listWorks throws LedewireError with statusCode 429 when rate-limited', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications/pub-id-1/works`, () =>
+        HttpResponse.json(
+          { error: { code: 429, message: 'Too many requests' } },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        ),
+      ),
+    )
+
+    const error = await makeNamespace()
+      .listWorks('pub-id-1')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 429 })
+  })
+
+  it('listWorks throws LedewireError with statusCode 502 when the broker is unreachable', async () => {
+    server.use(
+      http.get(`${BASE}/v1/publications/pub-id-1/works`, () =>
+        HttpResponse.json({ error: { code: 502, message: 'Broker unavailable' } }, { status: 502 }),
+      ),
+    )
+
+    const error = await makeNamespace()
+      .listWorks('pub-id-1')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 502 })
   })
 })

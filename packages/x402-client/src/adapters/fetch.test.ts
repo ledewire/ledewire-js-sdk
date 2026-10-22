@@ -188,6 +188,28 @@ describe('wrapFetchWithPayment', () => {
     await expect(fetch(ORIGIN_URL)).rejects.toThrow(LedewireError)
   })
 
+  it('throws LedewireError with statusCode 429 when the paid retry is rate-limited', async () => {
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        return HttpResponse.json(
+          { error: 'Too many requests' },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        )
+      }),
+    )
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+
+    const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 429 })
+  })
+
   it('accepts a URL object as input', async () => {
     server.use(http.get(ORIGIN_URL, () => HttpResponse.json({ ok: true })))
     const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
