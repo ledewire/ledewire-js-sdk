@@ -104,9 +104,8 @@ export class PublicationsNamespace {
    *   `cursor` for the next page, and `limit` (defaults to the maximum, 1000).
    * @returns A page of the publication's works.
    * @throws {LedewireError} With `statusCode === 429` when the endpoint's rate
-   *   limit is exhausted. The SDK does not retry automatically; back off
-   *   before calling again (the API's `Retry-After` header is not surfaced on
-   *   the error).
+   *   limit is exhausted. The SDK does not retry automatically. Wait
+   *   `err.retryAfter` seconds before calling again, when it is set.
    */
   async listWorks(
     id: string,

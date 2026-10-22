@@ -38,6 +38,23 @@ export interface RequestOptions {
 export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
 
 /**
+ * Reads a `Retry-After` header as the number of seconds to wait. Accepts both forms
+ * RFC 9110 allows: delta-seconds (`120`) and an HTTP-date. A date in the past means
+ * no wait (`0`). Returns `undefined` when the header is absent or unparseable.
+ *
+ * @param value - The raw header value, or `null` when the header is absent.
+ * @param now - The current time in milliseconds, injectable for tests.
+ */
+function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
+  if (value === null) return undefined
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const at = Date.parse(trimmed)
+  if (Number.isNaN(at)) return undefined
+  return Math.max(0, Math.ceil((at - now) / 1000))
+}
+
+/**
  * A query-string value. Booleans are sent as `true`/`false`. An array repeats its
  * key once per item, which is how `topics[]=a&topics[]=b` is written.
  */
@@ -275,16 +292,17 @@ export class HttpClient {
     }
 
     const { message, code, type, details } = extractErrorInfo(body, response.statusText)
+    const retryAfter = parseRetryAfter(response.headers.get('Retry-After'))
 
     switch (response.status) {
       case 401:
-        throw new AuthError(message, code, type, details)
+        throw new AuthError(message, code, type, details, retryAfter)
       case 403:
-        throw new ForbiddenError(message, code, type, details)
+        throw new ForbiddenError(message, code, type, details, retryAfter)
       case 404:
-        throw new NotFoundError(message, code, type, details)
+        throw new NotFoundError(message, code, type, details, retryAfter)
       default:
-        throw new LedewireError(message, response.status, code, type, details)
+        throw new LedewireError(message, response.status, code, type, details, retryAfter)
     }
   }
 }
