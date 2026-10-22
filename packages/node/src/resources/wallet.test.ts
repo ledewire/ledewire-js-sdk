@@ -208,7 +208,7 @@ describe('wallet error branches', () => {
   it('balance throws ForbiddenError on 403', async () => {
     server.use(
       http.get(`${BASE}/v1/wallet/balance`, () =>
-        HttpResponse.json(errorResponseFixture(1003, 'Forbidden'), { status: 403 }),
+        HttpResponse.json(errorResponseFixture(1002, 'Forbidden'), { status: 403 }),
       ),
     )
 
@@ -234,7 +234,7 @@ describe('wallet error branches', () => {
   it('createPaymentSession throws ForbiddenError on 403', async () => {
     server.use(
       http.post(`${BASE}/v1/wallet/payment-session`, () =>
-        HttpResponse.json(errorResponseFixture(1003, 'Forbidden'), { status: 403 }),
+        HttpResponse.json(errorResponseFixture(1002, 'Forbidden'), { status: 403 }),
       ),
     )
 

@@ -198,7 +198,7 @@ describe('wrapFetchWithPayment', () => {
           })
         }
         return HttpResponse.json(
-          { error: 'Too many requests' },
+          { error: { code: 429, message: 'Too many requests' } },
           { status: 429, headers: { 'Retry-After': '30' } },
         )
       }),

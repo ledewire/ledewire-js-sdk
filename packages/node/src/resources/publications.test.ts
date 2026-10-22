@@ -279,15 +279,21 @@ describe('PublicationsNamespace — public endpoints skip auth', () => {
 
 describe('publications error branches', () => {
   it('list throws LedewireError with statusCode 400 for an unknown topic', async () => {
+    let topicsSent: string[] = []
     server.use(
-      http.get(`${BASE}/v1/publications`, () =>
-        HttpResponse.json({ error: { code: 400, message: 'Unknown topic' } }, { status: 400 }),
-      ),
+      http.get(`${BASE}/v1/publications`, ({ request }) => {
+        topicsSent = new URL(request.url).searchParams.getAll('topics[]')
+        return HttpResponse.json(
+          { error: { code: 400, message: 'Unknown topic' } },
+          { status: 400 },
+        )
+      }),
     )
 
     const error = await makeNamespace()
       .list({ topics: ['sports'] })
       .catch((err: unknown) => err)
+    expect(topicsSent).toEqual(['sports'])
     expect(error).toBeInstanceOf(LedewireError)
     expect(error).toMatchObject({ statusCode: 400 })
   })
@@ -306,14 +312,16 @@ describe('publications error branches', () => {
     expect(error).toMatchObject({ statusCode: 400 })
   })
 
-  it('listWorks throws LedewireError with statusCode 429 when rate-limited', async () => {
+  it('listWorks throws LedewireError with statusCode 429 when rate-limited, without retrying', async () => {
+    let calls = 0
     server.use(
-      http.get(`${BASE}/v1/publications/pub-id-1/works`, () =>
-        HttpResponse.json(
+      http.get(`${BASE}/v1/publications/pub-id-1/works`, () => {
+        calls += 1
+        return HttpResponse.json(
           { error: { code: 429, message: 'Too many requests' } },
-          { status: 429, headers: { 'Retry-After': '30' } },
-        ),
-      ),
+          { status: 429 },
+        )
+      }),
     )
 
     const error = await makeNamespace()
@@ -321,9 +329,10 @@ describe('publications error branches', () => {
       .catch((err: unknown) => err)
     expect(error).toBeInstanceOf(LedewireError)
     expect(error).toMatchObject({ statusCode: 429 })
+    expect(calls).toBe(1)
   })
 
-  it('listWorks throws LedewireError with statusCode 502 when the broker is unreachable', async () => {
+  it('listWorks throws LedewireError with statusCode 502 when the broker catalog cannot be read', async () => {
     server.use(
       http.get(`${BASE}/v1/publications/pub-id-1/works`, () =>
         HttpResponse.json({ error: { code: 502, message: 'Broker unavailable' } }, { status: 502 }),
