@@ -93,7 +93,7 @@ import { createMockClient } from '@ledewire/node/testing'
 
 ```
 lw.config.*          platform public config (no auth required)
-lw.auth.*            signup, login (email + google), logout, password reset
+lw.auth.*            signup, login (email + google), password reset
 lw.checkout.*        checkout state machine for a content item
 lw.wallet.*          balance (incl. held_cents/holds), fund (payment session), transactions
 lw.purchases.*       create (single-use delivery), list, verify

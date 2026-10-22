@@ -109,7 +109,6 @@ lw.auth.signup(body)                                           → Promise<Authe
 lw.auth.loginWithEmail({ email, password })                    → Promise<AuthenticationResponse>
 lw.auth.loginWithGoogle({ id_token })                          → Promise<AuthenticationResponse>
 lw.auth.loginWithBuyerApiKey({ key, secret })                  → Promise<AuthenticationResponse>
-lw.auth.logout()                                               → Promise<void>
 lw.auth.requestPasswordReset({ email })                        → Promise<AuthPasswordResetResponse>
 lw.auth.resetPassword({ email, reset_code, password })         → Promise<AuthPasswordResetResponse>
 ```
