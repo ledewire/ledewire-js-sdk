@@ -16,7 +16,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">NodeClientConfig</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#apikey">apiKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#apisecret">apiSecret</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#baseurl">baseUrl</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#onauthexpired">onAuthExpired</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#ontokenrefreshed">onTokenRefreshed</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">tokens</span><span class="tsd-signature-symbol">:</span> <a href="browser_src.StoredTokens.html" class="tsd-signature-type tsd-kind-interface">StoredTokens</a><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#storage">storage</a><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L27">node/src/client.ts:27</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L27">node/src/client.ts:27</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -42,7 +42,7 @@ Required for all seller and buyer operations.
 Omit when using merchant email/password auth exclusively.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L33">node/src/client.ts:33</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L33">node/src/client.ts:33</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="apisecret"><code class="tsd-tag">Optional</code><span>api<wbr/>Secret</span><a href="#apisecret" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">apiSecret</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -51,7 +51,7 @@ When combined with <code>apiKey</code>, grants <code>full</code> (read/write) se
 When omitted, <code>apiKey</code> alone grants <code>view</code> (read-only) seller permission.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L39">node/src/client.ts:39</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L39">node/src/client.ts:39</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="baseurl"><code class="tsd-tag">Optional</code><span>base<wbr/>Url</span><a href="#baseurl" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">baseUrl</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -65,7 +65,7 @@ Defaults to <code>https://api.ledewire.com</code>.</p>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L49">node/src/client.ts:49</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L49">node/src/client.ts:49</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onauthexpired"><code class="tsd-tag">Optional</code><span>on<wbr/>Auth<wbr/>Expired</span><a href="#onauthexpired" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onAuthExpired</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
@@ -73,7 +73,7 @@ Defaults to <code>https://api.ledewire.com</code>.</p>
 Handle this by prompting the user to re-authenticate.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L96">node/src/client.ts:96</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L96">node/src/client.ts:96</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="ontokenrefreshed"><code class="tsd-tag">Optional</code><span>on<wbr/>Token<wbr/>Refreshed</span><a href="#ontokenrefreshed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onTokenRefreshed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">tokens</span><span class="tsd-signature-symbol">:</span> <a href="browser_src.StoredTokens.html" class="tsd-signature-type tsd-kind-interface">StoredTokens</a><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
@@ -94,7 +94,7 @@ will result in double-writes on every refresh.</p>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L91">node/src/client.ts:91</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L91">node/src/client.ts:91</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="storage"><code class="tsd-tag">Optional</code><span>storage</span><a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">storage</span><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a></div>
@@ -111,7 +111,7 @@ refresh — it is the canonical hook for persisting updated credentials.</p>
 
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/fc808449048207a314cef55c177cdba41371411b/packages/node/src/client.ts#L70">node/src/client.ts:70</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/ledewire/ledewire-js-sdk/blob/138aef7e8b322cdd5ab9e036eefcd0cce6108329/packages/node/src/client.ts#L70">node/src/client.ts:70</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
