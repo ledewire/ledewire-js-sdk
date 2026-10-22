@@ -63,6 +63,15 @@ jobs:
             exit 1
           )
 
+      - name: Check docs/ledewire.yml matches ledewire.yml
+        run: |
+          cmp -s ledewire.yml docs/ledewire.yml || (
+            echo ""
+            echo "ERROR: docs/ledewire.yml differs from ledewire.yml."
+            echo "Copy ledewire.yml to docs/ledewire.yml and commit both."
+            exit 1
+          )
+
       - name: Check docs/api is up to date
         run: |
           pnpm run docs
