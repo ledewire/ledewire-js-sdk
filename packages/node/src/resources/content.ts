@@ -69,6 +69,9 @@ export class ContentNamespace {
    * the page may be incomplete. Sending `next_cursor` then asks for the missed results
    * again.
    *
+   * `unavailable_providers` in the response is deprecated and always empty. Use
+   * `partial_results` to detect a partial page.
+   *
    * Requires buyer credentials. Searches with a `query` are rate-limited to 15 a minute
    * per buyer.
    *
