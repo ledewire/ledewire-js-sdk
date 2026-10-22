@@ -67,7 +67,7 @@ export class ContentNamespace {
    * A page can be shorter than `limit`, or empty, while `next_cursor` is not `null`.
    * Keep paging. When `partial_results` is `true`, part of the search could not run and
    * the page may be incomplete. Sending `next_cursor` then asks for the missed results
-   * again.
+   * again. (`unavailable_providers` is deprecated and always empty.)
    *
    * Requires buyer credentials. Searches with a `query` are rate-limited to 15 a minute
    * per buyer.
