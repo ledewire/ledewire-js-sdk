@@ -97,6 +97,12 @@ describe('createMockClient', () => {
     expect(typeof client.merchant.auth.loginWithGoogleAndListStores).toBe('function')
   })
 
+  it('stubs the buyer content search', () => {
+    const client = createMockClient(vi.fn)
+
+    expect(typeof client.content.search).toBe('function')
+  })
+
   it('stubs all seller content methods', () => {
     const client = createMockClient(vi.fn)
 
@@ -214,7 +220,9 @@ describe('createMockClient', () => {
     const client = createMockClient(vi.fn)
 
     expect(typeof client.publications.list).toBe('function')
+    expect(typeof client.publications.get).toBe('function')
     expect(typeof client.publications.listWorks).toBe('function')
+    expect(typeof client.topics.list).toBe('function')
     for (const method of [
       'create',
       'get',

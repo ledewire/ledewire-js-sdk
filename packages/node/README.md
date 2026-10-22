@@ -339,6 +339,7 @@ transaction instead of purchasing works one at a time:
 // 1. Browse the catalog and pull a page of work URLs. coverage_horizon says how
 // far back LedeWire has swept a publication (null = not established yet).
 // Narrow the catalog by Topic. Topic slugs come from `client.topics.list()`.
+// To load one publication directly, use `client.publications.get(id)`.
 const { data: publications } = await client.publications.list({
   bulk_licensable: true,
   topics: ['sports'],
@@ -399,6 +400,27 @@ if (result.ready) {
 const manifest = await client.acquisitions.getManifest(acquisition.id)
 const keyHistory = await client.acquisitions.signingKeyHistory()
 ```
+
+## Example: Buyer Content Search
+
+Search every Store and every brokered Publication from a Buyer's server. Page with
+`next_cursor` until it is `null`:
+
+```ts
+let cursor: string | null | undefined
+do {
+  const page = await client.content.search({ query: 'quantum computing', cursor, limit: 20 })
+  for (const result of page.data) {
+    console.log(result.title, result.publication?.name ?? '(Store work)')
+  }
+  // partial_results: true means part of this page could not be searched. next_cursor
+  // still points at what was missed, so sending it again asks for those results.
+  cursor = page.next_cursor
+} while (cursor)
+```
+
+Searches with a `query` are rate-limited to 15 a minute per Buyer. A 429 throws a
+`LedewireError` with `statusCode` 429.
 
 ## Example: x402 Bazaar Discovery
 

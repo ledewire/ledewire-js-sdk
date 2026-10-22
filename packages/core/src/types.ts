@@ -480,7 +480,12 @@ export type ContentSearchResultWithPublication =
  */
 export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
 
-/** One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null. */
+/**
+ * One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null.
+ *
+ * `unavailable_providers` is deprecated and always empty. Read `partial_results` to
+ * learn whether part of the search could not run.
+ */
 export type ContentSearchResponse = components['schemas']['ContentSearchResponse']
 
 /**

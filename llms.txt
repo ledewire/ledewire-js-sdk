@@ -63,7 +63,7 @@ const client = createClient({
 
 ### @ledewire/node — createClient()
 - `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
-- `client.auth.*` — buyer auth (signup, email, google, logout, password reset)
+- `client.auth.*` — buyer auth (signup, email, google, password reset)
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
@@ -92,7 +92,10 @@ const client = createClient({
 - `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
 - `client.company.wallet.get()` / `.createPaymentSession(body)` / `.listPendingTopUps()` — admin; `get()` is the only place the Company balance appears; Company top-ups are not found by `wallet.getPaymentStatus()`
 - `client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })` / `client.company.spend.list({ member?, from?, to? })` — admin reports
-- `client.publications.list(pagination?)` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
+- `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
+- `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
+- `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, cursor?, limit? })` → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present

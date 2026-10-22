@@ -98,8 +98,6 @@ client.auth.loginWithEmail({ email, password })                      → Promise
 client.auth.loginWithGoogle({ id_token })                            → Promise<AuthenticationResponse>
 client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise<AuthenticationResponse>
 client.auth.loginWithApiKey({ key, secret? })                        → Promise<AuthenticationResponse>
-client.auth.logout()                                                 → Promise<void>
-client.auth.refreshToken()                                           → Promise<AuthenticationResponse>
 client.auth.requestPasswordReset({ email })                          → Promise<void>
 client.auth.resetPassword({ email, reset_code, password })           → Promise<void>
 ```
@@ -196,7 +194,6 @@ client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) �
 client.merchant.sales.summary(storeId)              → Promise<SalesSummaryResponse>
 client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>
 client.merchant.sales.get(storeId, saleId)           → Promise<MerchantSaleResponse>
-client.merchant.sales.statistics(storeId, params?)   → Promise<{ data: SalesStatisticsItem[], pagination: PaginationMeta }>
 ```
 
 ### client.merchant.buyers
@@ -313,6 +310,13 @@ if (purchase.content_body && purchase.content.content_type === 'markdown') {
 ```ts
 client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessResponse>
 // userId: optional buyer ID for merchant server-side proxy lookups
+
+client.content.search(body)                                             → Promise<ContentSearchResponse>
+// Buyer search across every Store and brokered Publication (Buyer or Machine user credentials).
+// body: { query?, tags?, max_price_cents?, metadata?, cursor?, limit? }  (limit defaults to 20)
+// Page with next_cursor until it is null. partial_results: true means part of the search was missed.
+// unavailable_providers is deprecated and always empty.
+// Searches with a query are rate-limited to 15/minute per buyer: a 429 throws LedewireError with statusCode 429.
 ```
 
 ### client.checkout
@@ -517,13 +521,27 @@ await client.company.members.update(
 )
 ```
 
+### client.topics
+
+Public Topic directory. The slugs are the values `topics` on `publications.list` accepts.
+
+```ts
+client.topics.list()  → Promise<TopicDirectoryResponse>
+// data: [{ slug, iab_id, name, publication_count }], iab_version, unclassified_count
+// A topic no publication carries yet is listed with publication_count 0.
+```
+
 ### client.publications
 
 Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
 required, requests always sent without credentials.
 
 ```ts
-client.publications.list(params?: PaginationParams)                     → Promise<PublicationListResponse>
+client.publications.list(params?: PublicationListParams)                → Promise<PublicationListResponse>
+// PublicationListParams: { page?, per_page?, q?, bulk_licensable?, topics?: TopicSlug[] }
+// q is a case-insensitive substring of name or domain; filters combine with AND.
+client.publications.get(id)                                             → Promise<Publication>
+// Throws NotFoundError (404) for an id the list would not show.
 client.publications.listWorks(id, params?: PublicationWorksParams)      → Promise<PublicationWorkListResponse>
 // PublicationWorksParams: { from?: string, to?: string, cursor?: string, limit?: number }
 // from/to are inclusive YYYY-MM-DD bounds; limit defaults to the max, 1000.

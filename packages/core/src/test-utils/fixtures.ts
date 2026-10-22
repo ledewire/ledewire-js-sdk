@@ -35,6 +35,7 @@ type UserSpendCapSchema = components['schemas']['UserSpendCap']
 type McpApiKeySchema = components['schemas']['McpApiKey']
 type McpApiKeyCreateResponseSchema = components['schemas']['McpApiKeyCreateResponse']
 type PublicationSchema = components['schemas']['Publication']
+type ContentSearchResultSchema = components['schemas']['ContentSearchResultWithPublication']
 type PublicationWorkListResponseSchema = components['schemas']['PublicationWorkListResponse']
 type AcquisitionResponseSchema = components['schemas']['AcquisitionResponse']
 type AcquisitionWorkSchema = components['schemas']['AcquisitionWork']
@@ -598,6 +599,56 @@ export function publicationFixture(overrides?: Partial<PublicationSchema>): Publ
     bulk_licensable: true,
     topics: [],
     coverage_horizon: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a LedeWire-native content search result: a Store's work, which names no
+ * Publication (`publication: null`).
+ */
+export function contentSearchResultFixture(
+  overrides?: Partial<ContentSearchResultSchema>,
+): ContentSearchResultSchema {
+  return {
+    id: 'search-content-id-1',
+    title: 'Quantum Guide',
+    teaser: 'A primer on quantum computing',
+    price_cents: 500,
+    content_type: 'markdown',
+    store_id: 'store-id-1',
+    store_name: 'Test Store',
+    tags: [],
+    authors: [],
+    abstract: null,
+    doi: null,
+    publication_date: null,
+    last_modified_date: null,
+    citation_count: 0,
+    publication: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a brokered content search result: a work LedeWire sells for a Publication,
+ * which names that Publication.
+ */
+export function brokeredContentSearchResultFixture(
+  overrides?: Partial<ContentSearchResultSchema>,
+): ContentSearchResultSchema {
+  return {
+    ...contentSearchResultFixture({
+      content_type: 'brokered',
+      store_id: 'store-id-2',
+      store_name: 'Brokered Store',
+    }),
+    publication: {
+      id: 'pub-id-1',
+      name: 'Test Publication',
+      bulk_licensable: true,
+      topics: ['business-and-finance'],
+    },
     ...overrides,
   }
 }
