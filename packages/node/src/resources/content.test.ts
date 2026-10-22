@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, LedewireError, NotFoundError } from '@ledewire/core'
+import { AuthError, LedewireError, MemoryTokenStorage, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
+  authTokenFixture,
   errorResponseFixture,
   contentWithAccessFixture,
   contentSearchResultFixture,
@@ -173,7 +174,68 @@ describe('content.search', () => {
     expect(error).toMatchObject({ code: 422, statusCode: 422 })
   })
 
-  it('throws AuthError on 401', async () => {
+  it('refreshes a stored session once on 401 and retries with the new token', async () => {
+    const authHeaders: string[] = []
+    let refreshCalls = 0
+    server.use(
+      http.post(`${BASE}/v1/content/search`, ({ request }) => {
+        const header = request.headers.get('Authorization') ?? ''
+        authHeaders.push(header)
+        if (header === 'Bearer stale-access') {
+          return HttpResponse.json(
+            { error: { code: 401, message: 'Unauthorized' } },
+            { status: 401 },
+          )
+        }
+        return HttpResponse.json(page)
+      }),
+      http.post(`${BASE}/v1/auth/token/refresh`, () => {
+        refreshCalls += 1
+        return HttpResponse.json(authTokenFixture({ access_token: 'refreshed-access' }))
+      }),
+    )
+
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'stale-access',
+      refreshToken: 'valid-refresh',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    })
+    const client = createClient({ storage })
+
+    const result = await client.content.search({ query: 'quantum' })
+
+    expect(result.data[0]?.title).toBe('Quantum Guide')
+    expect(authHeaders).toEqual(['Bearer stale-access', 'Bearer refreshed-access'])
+    expect(refreshCalls).toBe(1)
+  })
+
+  it('throws AuthError when a 401 cannot be recovered because the refresh fails', async () => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json({ error: { code: 401, message: 'Unauthorized' } }, { status: 401 }),
+      ),
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json(
+          { error: { code: 401, message: 'Refresh token revoked' } },
+          { status: 401 },
+        ),
+      ),
+    )
+
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'stale-access',
+      refreshToken: 'revoked-refresh',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    })
+
+    await expect(createClient({ storage }).content.search({ query: 'quantum' })).rejects.toThrow(
+      AuthError,
+    )
+  })
+
+  it('throws AuthError on 401 when there is no session to refresh', async () => {
     server.use(
       http.post(`${BASE}/v1/content/search`, () =>
         HttpResponse.json({ error: { code: 401, message: 'Unauthorized' } }, { status: 401 }),
