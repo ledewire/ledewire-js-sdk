@@ -77,12 +77,20 @@ export class LedewireError extends Error {
    */
   public readonly details: Readonly<Record<string, unknown>> | undefined
 
+  /**
+   * Seconds to wait before retrying, from the response's `Retry-After` header.
+   * `undefined` when the response carried no usable header. Present on rate-limit
+   * (429) and busy (503) refusals, so a caller can back off without guessing.
+   */
+  public readonly retryAfter: number | undefined
+
   constructor(
     message: string,
     statusCode: number,
     code?: number,
     type?: ErrorTypeValue,
     details?: Record<string, unknown>,
+    retryAfter?: number,
   ) {
     super(message)
     this.name = 'LedewireError'
@@ -90,6 +98,7 @@ export class LedewireError extends Error {
     this.code = code
     this.type = type
     this.details = details
+    this.retryAfter = retryAfter
     // Restore prototype chain (required for extending built-in Error in TS)
     Object.setPrototypeOf(this, new.target.prototype)
 
@@ -150,8 +159,9 @@ export class AuthError extends LedewireError {
     code?: number,
     type?: ErrorTypeValue,
     details?: Record<string, unknown>,
+    retryAfter?: number,
   ) {
-    super(message, 401, code, type, details)
+    super(message, 401, code, type, details, retryAfter)
     this.name = 'AuthError'
   }
 }
@@ -214,8 +224,9 @@ export class ForbiddenError extends LedewireError {
     code?: number,
     type?: ErrorTypeValue,
     details?: Record<string, unknown>,
+    retryAfter?: number,
   ) {
-    super(message, 403, code, type, details)
+    super(message, 403, code, type, details, retryAfter)
     this.name = 'ForbiddenError'
   }
 }
@@ -231,8 +242,9 @@ export class NotFoundError extends LedewireError {
     code?: number,
     type?: ErrorTypeValue,
     details?: Record<string, unknown>,
+    retryAfter?: number,
   ) {
-    super(message, 404, code, type, details)
+    super(message, 404, code, type, details, retryAfter)
     this.name = 'NotFoundError'
   }
 }

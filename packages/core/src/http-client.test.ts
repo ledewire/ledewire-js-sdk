@@ -565,3 +565,69 @@ describe('HttpClient spend-cap body validation', () => {
     expect((err as SpendCapReachedError).capCents).toBeUndefined()
   })
 })
+
+describe('Retry-After on error responses', () => {
+  function refuse(status: number, retryAfter?: string) {
+    return http.get(`${BASE}/v1/test`, () =>
+      HttpResponse.json(
+        { error: { code: status, message: 'refused' } },
+        { status, headers: retryAfter === undefined ? {} : { 'Retry-After': retryAfter } },
+      ),
+    )
+  }
+
+  it('exposes delta-seconds on a 429 as retryAfter', async () => {
+    server.use(refuse(429, '120'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 120 })
+  })
+
+  it('converts an HTTP-date into seconds from now', async () => {
+    const inThirtySeconds = new Date(Date.now() + 30_000).toUTCString()
+    server.use(refuse(503, inThirtySeconds))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toMatchObject({ statusCode: 503 })
+    const seconds = (error as LedewireError).retryAfter
+    expect(seconds).toBeGreaterThanOrEqual(29)
+    expect(seconds).toBeLessThanOrEqual(31)
+  })
+
+  it('treats an HTTP-date in the past as no wait', async () => {
+    server.use(refuse(429, new Date(Date.now() - 60_000).toUTCString()))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toMatchObject({ retryAfter: 0 })
+  })
+
+  it('leaves retryAfter undefined for an unparseable header', async () => {
+    server.use(refuse(429, 'soon, probably'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ retryAfter: undefined })
+  })
+
+  it('leaves retryAfter undefined when the header is absent', async () => {
+    server.use(refuse(429))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toMatchObject({ retryAfter: undefined })
+  })
+
+  it('carries retryAfter through the typed subclasses too', async () => {
+    server.use(refuse(404, '5'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(NotFoundError)
+    expect(error).toMatchObject({ retryAfter: 5 })
+  })
+})
