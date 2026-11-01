@@ -15,7 +15,7 @@ Does `docs/api/v1/ledewire.yml` cover every route the API serves?
 ## Result
 
 - **(a) Client-facing routes not in the spec: none.**
-- **(b) Documented paths not routed: none.** All 92 spec paths resolve to a route. Every `/v1/*`, `/oauth/*` and `/.well-known/*` path in the spec is routed, and the reverse also holds.
+- **(b) Documented paths not routed: none.** All 98 spec paths resolve to a route. Every `/v1/*`, `/oauth/*` and `/.well-known/*` path in the spec is routed, and the reverse also holds.
 - The retired `/v1/seller/{buyers,config,sales,sales/summary}` routes are gone from both routes and spec. Only `/v1/seller/content*` remains in both. This confirms the map's note that `@ledewire/node`'s `resources/seller/` targets routes the API no longer serves.
 
 ### Minor discrepancies (not gaps worth an SDK ticket)
