@@ -17,7 +17,7 @@
 # The review stamp catches forgetting, not dishonesty: `--reviewed` can be run
 # without reviewing. SHIP_SKIP_REVIEW=1 ships without one. SHIP_SKIP_CHANGESET=1
 # skips the local changeset check, for a PR that will carry the skip-changeset
-# label (docs-only, CI-only).
+# label (docs, CI config or tests only, as CONTRIBUTING.md allows).
 set -euo pipefail
 
 die() { echo "bin/ship: $*" >&2; exit 1; }
@@ -45,7 +45,7 @@ case "${1:-}" in
     [ -s "$body_file" ] || die "PR body file '$body_file' is missing or empty."
     body_file="$(cd "$(dirname "$body_file")" && pwd)/$(basename "$body_file")" ;;
   "") ;;
-  -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *) die "unrecognized argument: $1 (try --help)" ;;
 esac
 
@@ -59,9 +59,10 @@ case "$branch" in
 esac
 
 # Read only the two keys this script needs, rather than sourcing the whole file.
+# The first occurrence wins, matching bin/worktree, so the two never disagree on the base.
 env_value() {
   [ -f .env ] || return 0
-  sed -n "s/^$1=//p" .env | tail -n 1
+  sed -n "s/^$1=//p" .env | head -n 1   # first wins, as in bin/worktree
 }
 
 issue="$(env_value ISSUE_NUMBER)"
@@ -138,6 +139,7 @@ fi
 # this worktree's container; a failure stops the script (set -e) with the
 # command's own output above it.
 step "Running the CI checks in the container"
+# --prefer-offline: dependencies are pre-fetched into the image (see CLAUDE.md).
 bin/dexec pnpm install --frozen-lockfile --prefer-offline
 bin/dexec pnpm format:check
 bin/dexec pnpm typecheck
@@ -152,6 +154,8 @@ step "Checking generated files are committed"
 bin/dexec pnpm generate:types
 git diff --exit-code packages/core/src/api.gen.ts \
   || die "packages/core/src/api.gen.ts is out of date with ledewire.yml. Commit the regenerated file."
+cmp -s ledewire.yml docs/ledewire.yml \
+  || die "docs/ledewire.yml differs from ledewire.yml. Keep both copies identical (cp ledewire.yml docs/ledewire.yml)."
 bin/dexec pnpm run docs
 structural="$(git status --porcelain --untracked-files=all docs/api | grep -E '^(\?\?|D | D)' || true)"
 [ -z "$structural" ] || die "docs/api has added or removed pages. Commit the output of 'bin/dexec pnpm run docs':
@@ -167,7 +171,7 @@ else
   step "Checking for a changeset against $base"
   bin/dexec pnpm changeset status --since="origin/$base" \
     || die "no changeset since origin/$base. Add one under .changeset/ (see /issue), or for a
-docs-only or CI-only change re-run with SHIP_SKIP_CHANGESET=1 and label the PR skip-changeset."
+docs, CI-config or tests-only change re-run with SHIP_SKIP_CHANGESET=1 and label the PR skip-changeset."
 fi
 
 require_committed "the checks changed tracked files (a formatter or generator ran). Commit the

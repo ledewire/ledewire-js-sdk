@@ -79,7 +79,7 @@ Every change to a published method also touches:
 
   **All packages are pre-1.0, so a breaking change is `minor`, never `major`.** `major` would
   publish 1.0.0. New features are `minor`, fixes are `patch`. A change only in
-  `packages/core` bumps the packages that consume it. Docs-only and CI-only work carries no
+  `packages/core` bumps the packages that consume it. Docs, CI-config or tests-only work carries no
   changeset: label the PR `skip-changeset` and ship with `SHIP_SKIP_CHANGESET=1`.
 
 Commit with `/commit` (conventional format, `Refs #<number>` footer).
@@ -148,9 +148,14 @@ gh pr checks <pr> --watch && gh pr ready <pr>
 **merge it yourself**:
 
 ```bash
-gh pr merge <pr> --merge --delete-branch
+gh pr checks <pr>             # must exit 0: no ruleset guards feature/**, so this is the gate
+gh pr merge <pr> --merge      # not --delete-branch: inside a worktree its local checkout fails
+gh api -X DELETE repos/ledewire/ledewire-js-sdk/git/refs/heads/<branch>
 gh api repos/ledewire/ledewire-js-sdk/branches/<base> --jq .commit.sha   # confirm it moved
 ```
+
+Nothing on GitHub stops a red PR merging into a feature branch, so never merge while
+`gh pr checks` reports a failing or pending check.
 
 GitHub closes issues only on merges into `main`, so the slice's issue stays open. The
 feature branch's promotion PR into `main` lists `Closes #<n>` for every slice. Add this
