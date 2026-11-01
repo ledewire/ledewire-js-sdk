@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # feature/** so a slice PR into a feature branch gets the same checks (see /issue).
+    branches: [main, 'feature/**']
 
 concurrency:
   group: ci-${{ github.ref }}
