@@ -600,7 +600,7 @@ imported from `@ledewire/node`.
 import { SpendCapReachedError } from '@ledewire/node'
 
 try {
-  await client.purchases.create({ content_id })
+  await client.purchases.create({ content_id, price_cents })
 } catch (err) {
   if (err instanceof SpendCapReachedError) {
     // A daily policy limit, not a balance problem — do NOT prompt the buyer

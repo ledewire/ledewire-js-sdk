@@ -178,10 +178,10 @@ Every API error throws a `LedewireError` with:
 
 ```js
 try {
-  await lw.purchases.create({ contentId: '...' })
+  await lw.purchases.create({ content_id: '...', price_cents: 250 })
 } catch (err) {
-  if (err instanceof LedewireError && err.statusCode === 400) {
-    // Handle insufficient funds, already purchased, etc.
+  if (err instanceof LedewireError && err.statusCode === 422) {
+    // Price changed, insufficient funds, etc. (see err.type)
   }
 }
 ```
@@ -192,7 +192,7 @@ try {
 import { AuthError, InsufficientFundsError, PriceMismatchError } from '@ledewire/node';
 
 try {
-  await client.purchases.create({ contentId: '...' });
+  await client.purchases.create({ content_id: '...', price_cents: 250 });
 } catch (err) {
   if (err instanceof InsufficientFundsError) { ... }
   if (err instanceof PriceMismatchError) { ... }

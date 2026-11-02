@@ -13,7 +13,8 @@ import type { LicenseDocument, PurchaseCreateRequest, PurchaseResponse } from '@
  *
  * @example
  * ```ts
- * await lw.purchases.create({ content_id: 'content-id' })
+ * const content = await lw.content.getWithAccess('content-id')
+ * await lw.purchases.create({ content_id: content.id, price_cents: content.price_cents })
  * const all = await lw.purchases.list()
  * ```
  */
@@ -35,7 +36,9 @@ export class BrowserPurchasesNamespace {
    * A past purchase does not grant re-access: buying the same content again
    * is a new charge that delivers it again.
    *
-   * @param body - The content ID and expected price in cents.
+   * @param body - `content_id`, and `price_cents`: the price the buyer was
+   *   quoted (e.g. `price_cents` from `content.getWithAccess()` or a search
+   *   result). The API charges only when it equals the work's current price.
    * @returns The completed purchase record, including the delivered content.
    * @throws {SpendCapReachedError} `402` — the buyer's daily spend cap has
    *   been reached. There is no funding URL for this refusal: adding money
@@ -46,10 +49,21 @@ export class BrowserPurchasesNamespace {
    *   visibility is `unlisted` (non-public) and this buyer has no standing
    *   grant to see it. Non-public content is not purchasable through this
    *   endpoint.
+   * @throws {LedewireError} `422` — `price_cents` no longer matches the
+   *   work's current price (`Content (<id>) price appears to have changed`).
+   *   Nothing is charged: re-read the price, show it to the buyer, and buy
+   *   again at the new price. A `422` also covers `insufficient_funds`, `not_subscribed` and
+   *   the brokered-delivery refusals, which carry an `error.type`.
+   * @throws {LedewireError} `400` — `content_id` or `price_cents` missing or
+   *   of the wrong type. Nothing is charged.
    *
    * @example
    * ```ts
-   * const purchase = await lw.purchases.create({ content_id: 'content-id' })
+   * const content = await lw.content.getWithAccess('content-id')
+   * const purchase = await lw.purchases.create({
+   *   content_id: content.id,
+   *   price_cents: content.price_cents, // the price the buyer was shown
+   * })
    * await saveDeliveredContent(purchase) // persist now — one-time delivery
    *
    * if (purchase.content_body && purchase.content.content_type === 'markdown') {

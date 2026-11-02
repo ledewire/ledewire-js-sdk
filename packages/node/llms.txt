@@ -309,7 +309,10 @@ still spend today. Always handle `null` before doing arithmetic on a balance.
 ### client.purchases
 
 ```ts
-client.purchases.create({ content_id: string })   → Promise<PurchaseResponse>
+client.purchases.create({ content_id: string, price_cents: number }) → Promise<PurchaseResponse>
+// price_cents: the price the buyer was quoted (content.getWithAccess(), checkout.state()
+// or a search result). Must equal the work's current price, or LedewireError 422
+// (`Content (<id>) price appears to have changed`) and nothing is charged.
 client.purchases.list()                           → Promise<PurchaseResponse[]>
 client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
 client.purchases.licenseDocument(purchaseId)      → Promise<LicenseDocument>
@@ -349,7 +352,8 @@ them, and there is no route that serves the same delivery again, so persist it
 immediately.
 
 ```ts
-const purchase = await client.purchases.create({ content_id: 'article-123' })
+const { price_cents } = await client.content.getWithAccess('article-123')
+const purchase = await client.purchases.create({ content_id: 'article-123', price_cents })
 await saveDeliveredContent(purchase) // your own persistence — one-time delivery
 
 // content_body is always plain UTF-8 on the wire — never base64-encoded, no

@@ -133,7 +133,9 @@ await lw.auth.loginWithGoogle({ id_token: googleIdToken })</code></pre>
             for a purchase. There is no route that serves the same delivery
             again, so persist it immediately.
           </p>
-          <pre><code>const purchase = await lw.purchases.create({ content_id: 'content-id' })
+          <pre><code>// price_cents is the price the buyer was shown; a stale one is refused (422)
+const { price_cents } = await lw.checkout.state('content-id')
+const purchase = await lw.purchases.create({ content_id: 'content-id', price_cents })
 await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
 
 if (purchase.content_body) {

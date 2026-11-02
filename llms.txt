@@ -46,7 +46,7 @@ const client = createClient({
 - `lw.wallet.transactions()` → list of wallet transactions
 - `lw.wallet.createPaymentSession({ amount_cents })` → Stripe payment session
 - `lw.wallet.getPaymentStatus(sessionId)` → payment status
-- `lw.purchases.create({ content_id })` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `lw.purchases.create({ content_id, price_cents })` → `PurchaseResponse` — `price_cents` is the price the buyer was quoted (e.g. from `checkout.state()` or `content.getWithAccess()`); a stale price is refused with 422 and nothing is charged; completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `lw.purchases.list()` → list purchases (no delivered content)
 - `lw.purchases.get(id)` → single purchase (no delivered content)
 - `lw.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the purchase's licence document (PDF, or Markdown for an SEC filing), not JSON; 403 `ForbiddenError`, 404 `NotFoundError`
@@ -81,7 +81,7 @@ const client = createClient({
 - `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; accepts a merchant session or a store API-key token)
 - `client.merchant.content.*` — content CRUD + search: list, get, create, update, delete, search (all take `storeId`)
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
-- `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `client.purchases.create({ content_id, price_cents })` → `PurchaseResponse` — `price_cents` is the price the buyer was quoted and must equal the work's current price, or 422 and nothing is charged; completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `client.purchases.list()` / `client.purchases.get(id)` — no delivered content; each carries `license`, `content.publication`, `content.filing`
 - `client.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the licence document `license.document_url` points at (PDF, or Markdown for an SEC filing)
 - `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`

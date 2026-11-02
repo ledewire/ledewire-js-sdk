@@ -334,7 +334,7 @@ try {
       <pre><code>import { SpendCapReachedError } from '@ledewire/node'
 
 try {
-  await client.purchases.create({ content_id })
+  await client.purchases.create({ content_id, price_cents })
 } catch (err) {
   if (err instanceof SpendCapReachedError) {
     console.error(`Spend cap reached; resets at ${err.resetsAt}`)
@@ -437,7 +437,9 @@ try {
         <code>get()</code> — persist the delivery immediately, there is no route that serves it a
         second time.
       </p>
-      <pre><code>const purchase = await client.purchases.create({ content_id: 'content-id' })
+      <pre><code>// price_cents is the price the buyer was shown; a stale one is refused (422)
+const { price_cents } = await client.content.getWithAccess('content-id')
+const purchase = await client.purchases.create({ content_id: 'content-id', price_cents })
 await saveDeliveredContent(purchase) // one-time delivery
 
 if (purchase.content_body) {

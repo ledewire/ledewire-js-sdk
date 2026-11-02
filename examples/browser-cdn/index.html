@@ -69,7 +69,7 @@
         } else if (action === 'purchase') {
           document.getElementById('status').textContent = 'Purchase this article to read the full content.'
           btn.textContent = 'Buy article'
-          btn.onclick = () => purchase()
+          btn.onclick = () => purchase(state.price_cents)
         }
       }
 
@@ -110,12 +110,14 @@
         await checkAccess()
       }
 
-      async function purchase() {
+      async function purchase(priceCents) {
         // Purchases are single-use: the content is delivered directly in
         // this response, and this is the only place it will ever appear —
         // there is no route that serves the same delivery again, so persist
         // it immediately if you need it beyond this page view.
-        const purchase = await lw.purchases.create({ content_id: CONTENT_ID })
+        // priceCents is the price the buyer was quoted (checkout state). If the Seller
+        // has changed it since, the API refuses (422) and charges nothing.
+        const purchase = await lw.purchases.create({ content_id: CONTENT_ID, price_cents: priceCents })
         renderContent(purchase)
       }
 
