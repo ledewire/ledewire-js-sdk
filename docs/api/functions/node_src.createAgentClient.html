@@ -24,6 +24,10 @@ and the <code>TokenManager</code> refreshes the session in the background. If a 
 fails, the client logs in again with the key and retries the call once. No
 explicit <code>auth.loginWithBuyerApiKey()</code> call is needed. A wrong or revoked key
 rejects the call with the API's <code>AuthError</code> after a single login attempt.</p>
+<p>A client that already holds a token (from <code>storage</code>, or an explicit login)
+does not log in. Don't mix another identity on an agent client (another
+buyer key, or <code>storage</code> holding someone else's session): if that session's
+refresh fails, the client falls back to the configured key.</p>
 <p>Only buyer-relevant namespaces are exposed. <code>merchant</code> and <code>config</code> are
 intentionally absent.</p>
 </div>
@@ -39,7 +43,7 @@ intentionally absent.</p>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:383</li></ul></aside></div></li></ul></section></div>
+<li>Defined in node/src/client.ts:388</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

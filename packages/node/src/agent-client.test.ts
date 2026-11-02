@@ -70,7 +70,7 @@ describe('createAgentClient — namespace shape', () => {
 // createAgentClient — auth flow
 // ---------------------------------------------------------------------------
 
-describe('createAgentClient — auth.loginWithBuyerApiKey', () => {
+describe('createAgentClient — explicit auth.loginWithBuyerApiKey still works', () => {
   it('authenticates and stores tokens', async () => {
     const fixture = authTokenFixture({ access_token: 'agent-access-token' })
     server.use(http.post(`${BASE}/v1/auth/login/buyer-api-key`, () => HttpResponse.json(fixture)))

@@ -431,8 +431,9 @@ client.checkout.state(contentId)                  → Promise<CheckoutStateRespo
 
 ### client.user
 
-Manage buyer API keys. Keys are used with `auth.loginWithBuyerApiKey()` for
-agent authentication. The secret is shown **once** at creation — store it
+Manage buyer API keys. Keys are used with `createAgentClient({ key, secret })`
+(which logs in by itself) or `auth.loginWithBuyerApiKey()` for agent
+authentication. The secret is shown **once** at creation — store it
 immediately in a secrets manager.
 
 ```ts
@@ -818,7 +819,9 @@ It logs in by itself with `key` and `secret`: the first authenticated call runs
 `auth.loginWithBuyerApiKey()` (concurrent first calls share one login), the
 session refreshes in the background, and a failed refresh logs in again with
 the key and retries the call once. A wrong or revoked key rejects the call with
-the API's `AuthError` (401) after one login attempt.
+the API's `AuthError` (401) after one login attempt. A client that already holds
+a token (from `storage`, or an explicit login) does not log in; don't mix another
+identity on it, since a failed refresh falls back to the configured key.
 A Company Machine user's Buyer key works here too — the agent then spends the
 Company's money under the Machine user's membership cap.
 

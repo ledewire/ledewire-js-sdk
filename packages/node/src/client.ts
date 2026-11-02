@@ -353,6 +353,11 @@ export type AgentClient = Pick<
  * explicit `auth.loginWithBuyerApiKey()` call is needed. A wrong or revoked key
  * rejects the call with the API's `AuthError` after a single login attempt.
  *
+ * A client that already holds a token (from `storage`, or an explicit login)
+ * does not log in. Don't mix another identity on an agent client (another
+ * buyer key, or `storage` holding someone else's session): if that session's
+ * refresh fails, the client falls back to the configured key.
+ *
  * Only buyer-relevant namespaces are exposed. `merchant` and `config` are
  * intentionally absent.
  *
