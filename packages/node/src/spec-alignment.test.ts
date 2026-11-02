@@ -9,6 +9,7 @@ import type {
   CheckoutStateResponse,
   CompanyMemberUpdateRequest,
   ContentWithAccessResponse,
+  StoreAuthenticationResponse,
   WalletPaymentStatusResponse,
 } from '@ledewire/core'
 import type { OperationOk, Returns } from '@ledewire/core/test-utils'
@@ -54,7 +55,14 @@ describe('return types match the spec operation responses', () => {
     >()
   })
 
-  it('token refresh answers either token response', () => {
+  it('auth.loginWithApiKey answers the store token shape with store_id', () => {
+    type Op = OperationOk<'/v1/auth/login/api-key', 'post'>
+    expectTypeOf<Returns<NodeClient['auth']['loginWithApiKey']>>().toEqualTypeOf<Op>()
+    expectTypeOf<StoreAuthenticationResponse>().toEqualTypeOf<Op>()
+    expectTypeOf<Op['store_id']>().toEqualTypeOf<string>()
+  })
+
+  it('token refresh answers any of the token responses', () => {
     expectTypeOf<AuthTokenRefreshResponse>().toEqualTypeOf<
       OperationOk<'/v1/auth/token/refresh', 'post'>
     >()

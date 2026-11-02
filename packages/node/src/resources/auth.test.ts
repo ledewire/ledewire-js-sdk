@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, LedewireError, MemoryTokenStorage } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { authTokenFixture, errorResponseFixture } from '@ledewire/core/test-utils'
+import {
+  authTokenFixture,
+  errorResponseFixture,
+  storeAuthTokenFixture,
+} from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -222,7 +226,7 @@ describe('auth.loginWithGoogle', () => {
 
 describe('auth.loginWithApiKey', () => {
   it('returns the token response', async () => {
-    const fixture = authTokenFixture()
+    const fixture = storeAuthTokenFixture()
     server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
 
     const result = await makeClient().auth.loginWithApiKey({ key: 'my-api-key' })
@@ -230,8 +234,31 @@ describe('auth.loginWithApiKey', () => {
     expect(result).toEqual(fixture)
   })
 
+  it('resolves with the store_id the API returned, not one read from the token', async () => {
+    // The access token is opaque: store_id can only come from the response body.
+    const fixture = storeAuthTokenFixture({
+      access_token: 'opaque-not-a-jwt',
+      store_id: 'store-from-response',
+    })
+    server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
+
+    const { store_id } = await makeClient().auth.loginWithApiKey({ key: 'k', secret: 's' })
+
+    expect(store_id).toBe('store-from-response')
+  })
+
+  it('stores the store_id alongside the tokens as storeId', async () => {
+    const fixture = storeAuthTokenFixture({ store_id: 'store-from-response' })
+    server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
+
+    const storage = new MemoryTokenStorage()
+    await createClient({ storage }).auth.loginWithApiKey({ key: 'k', secret: 's' })
+
+    expect(storage.getTokens()?.storeId).toBe('store-from-response')
+  })
+
   it('stores tokens automatically after successful login', async () => {
-    const fixture = authTokenFixture({ access_token: 'api-key-access-token' })
+    const fixture = storeAuthTokenFixture({ access_token: 'api-key-access-token' })
     server.use(http.post(`${BASE}/v1/auth/login/api-key`, () => HttpResponse.json(fixture)))
 
     const storage = new MemoryTokenStorage()

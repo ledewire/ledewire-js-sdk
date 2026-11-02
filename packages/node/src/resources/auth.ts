@@ -16,6 +16,7 @@ import type {
   AuthLoginApiKeyRequest,
   AuthLoginBuyerApiKeyRequest,
   AuthenticationResponse,
+  StoreAuthenticationResponse,
   AuthPasswordResetRequestBody,
   AuthPasswordResetBody,
   AuthPasswordResetResponse,
@@ -138,25 +139,30 @@ export class AuthNamespace {
   }
 
   /**
-   * Log in using an API key. Provide `secret` alongside `key` for full
+   * Log in using a store API key. Provide `secret` alongside `key` for full
    * (read/write) access; omit it for view (read-only) access.
    * Tokens are stored automatically after successful authentication.
    *
+   * Resolves with `store_id`, the store the key belongs to: pass it to
+   * `client.merchant.*(storeId)`. It comes from the response, and is kept as
+   * `StoredTokens.storeId` (refreshes of this session carry it too).
+   *
    * @example
    * ```ts
-   * // View access
-   * await client.auth.loginWithApiKey({ key: process.env.LEDEWIRE_API_KEY })
-   *
    * // Full access
-   * await client.auth.loginWithApiKey({
+   * const { store_id } = await client.auth.loginWithApiKey({
    *   key: process.env.LEDEWIRE_API_KEY,
    *   secret: process.env.LEDEWIRE_API_SECRET,
    * })
+   * const summary = await client.merchant.sales.summary(store_id)
+   *
+   * // View access
+   * await client.auth.loginWithApiKey({ key: process.env.LEDEWIRE_API_KEY })
    * ```
    */
-  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/api-key', body)
-    await this.storeTokens(res)
+  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<StoreAuthenticationResponse> {
+    const res = await this.http.post<StoreAuthenticationResponse>('/v1/auth/login/api-key', body)
+    await this.storeTokens(res, res.store_id)
     return res
   }
 
@@ -202,11 +208,12 @@ export class AuthNamespace {
     return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset', body)
   }
 
-  private async storeTokens(res: AuthenticationResponse): Promise<void> {
+  private async storeTokens(res: AuthenticationResponse, storeId?: string): Promise<void> {
     await this.tokenManager.setTokens({
       accessToken: res.access_token,
       refreshToken: res.refresh_token,
       expiresAt: parseExpiresAt(res.expires_at),
+      ...(storeId !== undefined && { storeId }),
     })
   }
 }

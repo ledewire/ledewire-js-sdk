@@ -198,6 +198,42 @@ describe('createRefreshFn', () => {
     expect(result.expiresAt).toBe(new Date('2099-01-01T00:00:00Z').getTime())
   })
 
+  it('carries store_id from a store API-key refresh as storeId', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({
+          token_type: 'Bearer',
+          // Not a decodable JWT: storeId must come from the body, never the token.
+          access_token: 'opaque-store-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+          store_id: 'store-from-body',
+        }),
+      ),
+    )
+
+    const result = await createRefreshFn(BASE)('old-refresh')
+
+    expect(result.storeId).toBe('store-from-body')
+  })
+
+  it('leaves storeId unset when the refresh answers without store_id', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({
+          token_type: 'Bearer',
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+        }),
+      ),
+    )
+
+    const result = await createRefreshFn(BASE)('old-refresh')
+
+    expect(result).not.toHaveProperty('storeId')
+  })
+
   it('throws when the refresh endpoint returns a non-2xx status', async () => {
     server.use(
       http.post(`${BASE}/v1/auth/token/refresh`, () =>

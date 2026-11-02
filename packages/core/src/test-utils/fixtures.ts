@@ -58,6 +58,7 @@ type CompanyPendingTopUpSchema = components['schemas']['CompanyPendingTopUp']
 type CompanyWalletSchema = components['schemas']['CompanyWallet']
 type CompanyPurchaseSchema = components['schemas']['CompanyPurchase']
 type CompanyPurchaseMemberSchema = components['schemas']['CompanyPurchaseMember']
+type StoreAuthenticationResponseSchema = components['schemas']['StoreAuthenticationResponse']
 
 /**
  * Returns a valid authentication response fixture.
@@ -69,6 +70,24 @@ export function authTokenFixture(overrides?: Partial<AuthResponse>): AuthRespons
     access_token: 'test-access-token',
     refresh_token: 'test-refresh-token',
     expires_at: '2099-01-01T00:30:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a store API-key token response fixture: the buyer token shape plus
+ * the authenticated store's `store_id`, as `POST /v1/auth/login/api-key` and
+ * a refresh of that login's token answer.
+ */
+export function storeAuthTokenFixture(
+  overrides?: Partial<StoreAuthenticationResponseSchema>,
+): StoreAuthenticationResponseSchema {
+  return {
+    token_type: 'Bearer',
+    access_token: 'test-store-access-token',
+    refresh_token: 'test-store-refresh-token',
+    expires_at: '2099-01-01T00:30:00Z',
+    store_id: '87654321-dcba-4fed-ba98-76543210fedc',
     ...overrides,
   }
 }

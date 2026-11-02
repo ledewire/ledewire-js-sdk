@@ -34,9 +34,17 @@ export type InvitationRefusalReason = components['schemas']['InvitationRefusalRe
 export type MerchantAuthenticationResponse = components['schemas']['MerchantAuthenticationResponse']
 
 /**
+ * Token response for a store API key, from `client.auth.loginWithApiKey()` and
+ * from refreshing that login's token. `store_id` is the store the key belongs
+ * to: pass it to `client.merchant.*(storeId)`.
+ */
+export type StoreAuthenticationResponse = components['schemas']['StoreAuthenticationResponse']
+
+/**
  * Response from `POST /v1/auth/token/refresh`: a buyer refresh token answers with
  * an {@link AuthenticationResponse}, a merchant one with a
- * {@link MerchantAuthenticationResponse}. The SDK refreshes tokens itself, so
+ * {@link MerchantAuthenticationResponse}, and a store API-key one with a
+ * {@link StoreAuthenticationResponse}. The SDK refreshes tokens itself, so
  * application code rarely needs this.
  */
 export type AuthTokenRefreshResponse =
@@ -894,6 +902,12 @@ export interface StoredTokens {
   refreshToken: string
   /** Unix timestamp (ms) when the access token expires. */
   expiresAt: number
+  /**
+   * The store a store API-key session belongs to, from the `store_id` of the
+   * login or refresh response (never decoded from the token). Absent for every
+   * other kind of session.
+   */
+  storeId?: string
 }
 
 // ---------------------------------------------------------------------------

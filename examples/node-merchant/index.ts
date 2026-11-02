@@ -6,6 +6,8 @@
  * 2. Creating a content item in the store
  * 3. Viewing a sales summary for the store
  * 4. Listing recent individual sales
+ * 5. The same sales summary from a store API-key session, using the store_id
+ *    that loginWithApiKey resolves with
  *
  * Prerequisites:
  *   cp .env.example .env   # fill in LEDEWIRE_EMAIL, LEDEWIRE_PASSWORD,
@@ -16,8 +18,8 @@
  */
 import { createClient, LedewireError } from '@ledewire/node'
 
-// client.merchant.* accepts either a merchant session (email/password, used here)
-// or a store API-key token from client.auth.loginWithApiKey({ key, secret }).
+// client.merchant.* accepts either a merchant session (email/password, steps 1-4)
+// or a store API-key token from client.auth.loginWithApiKey({ key, secret }) (step 5).
 const client = createClient({
   apiKey: process.env['LEDEWIRE_API_KEY'],
   apiSecret: process.env['LEDEWIRE_API_SECRET'],
@@ -79,6 +81,23 @@ async function main(): Promise<void> {
     )
     for (const sale of sales.slice(0, 5)) {
       console.log(`   - ${sale.title}: ${sale.total_revenue_cents / 100} USD`)
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Store API-key session: loginWithApiKey resolves with the key's store_id
+    // -------------------------------------------------------------------------
+    const key = process.env['LEDEWIRE_API_KEY']
+    if (key) {
+      const keyClient = createClient({
+        baseUrl: process.env['LEDEWIRE_BASE_URL'] ?? 'https://api.ledewire.com',
+      })
+      const secret = process.env['LEDEWIRE_API_SECRET']
+      const { store_id } = await keyClient.auth.loginWithApiKey({
+        key,
+        ...(secret !== undefined && { secret }),
+      })
+      const keySummary = await keyClient.merchant.sales.summary(store_id)
+      console.log(`✓ API-key session for store ${store_id}: ${keySummary.total_sales} sales`)
     }
   } catch (err) {
     if (err instanceof LedewireError) {

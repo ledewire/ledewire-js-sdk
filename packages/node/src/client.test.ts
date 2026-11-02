@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
-import { authTokenFixture, errorResponseFixture } from '@ledewire/core/test-utils'
+import {
+  authTokenFixture,
+  errorResponseFixture,
+  storeAuthTokenFixture,
+} from '@ledewire/core/test-utils'
 import { MemoryTokenStorage } from '@ledewire/core'
 import { createClient } from './client.js'
 
@@ -128,6 +132,40 @@ describe('createClient refreshFn', () => {
     expect(onTokenRefreshed).toHaveBeenCalledWith(
       expect.objectContaining({ accessToken: 'refreshed' }),
     )
+  })
+
+  it('passes store_id from an API-key session refresh to onTokenRefreshed and storage', async () => {
+    const onTokenRefreshed = vi.fn()
+    const storage = new MemoryTokenStorage()
+    let refreshedWith: unknown
+    server.use(
+      http.post(`${BASE}/v1/auth/login/api-key`, () =>
+        HttpResponse.json(
+          storeAuthTokenFixture({
+            refresh_token: 'store-refresh',
+            expires_at: '2000-01-01T00:00:00Z',
+            store_id: 'store-1',
+          }),
+        ),
+      ),
+      http.post(`${BASE}/v1/auth/token/refresh`, async ({ request }) => {
+        refreshedWith = await request.json()
+        return HttpResponse.json(
+          storeAuthTokenFixture({ access_token: 'refreshed-store', store_id: 'store-1' }),
+        )
+      }),
+      http.get(`${BASE}/v1/merchant/store-1/sales/summary`, () => HttpResponse.json({})),
+    )
+
+    const client = createClient({ storage, onTokenRefreshed })
+    const { store_id } = await client.auth.loginWithApiKey({ key: 'k', secret: 's' })
+    await client.merchant.sales.summary(store_id)
+
+    expect(refreshedWith).toEqual({ refresh_token: 'store-refresh' })
+    expect(onTokenRefreshed).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'refreshed-store', storeId: 'store-1' }),
+    )
+    expect(storage.getTokens()?.storeId).toBe('store-1')
   })
 
   it('emits a console.warn in non-production when both storage and onTokenRefreshed are provided', () => {

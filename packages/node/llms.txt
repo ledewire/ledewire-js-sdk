@@ -16,12 +16,13 @@ npm install @ledewire/node
 ```ts
 import { createClient } from '@ledewire/node'
 
-// Store API key + secret — write access to client.merchant.* (pass storeId explicitly)
+// Store API key + secret — write access to client.merchant.*; the login resolves with store_id
 const client = createClient()
-await client.auth.loginWithApiKey({
+const { store_id } = await client.auth.loginWithApiKey({
   key: process.env.LEDEWIRE_API_KEY,
   secret: process.env.LEDEWIRE_API_SECRET,
 })
+const summary = await client.merchant.sales.summary(store_id)
 
 // Merchant JWT auth (no API key needed)
 const client = createClient()
@@ -98,7 +99,7 @@ client.auth.signup(body)                                             → Promise
 client.auth.loginWithEmail({ email, password })                      → Promise<AuthenticationResponse>
 client.auth.loginWithGoogle({ id_token })                            → Promise<AuthenticationResponse>
 client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise<AuthenticationResponse>
-client.auth.loginWithApiKey({ key, secret? })                        → Promise<AuthenticationResponse>
+client.auth.loginWithApiKey({ key, secret? })                        → Promise<StoreAuthenticationResponse>  // + store_id
 client.auth.requestPasswordReset({ email })                          → Promise<AuthPasswordResetResponse>  // { message }
 client.auth.resetPassword({ email, reset_code, password })           → Promise<AuthPasswordResetResponse>  // { message }
 ```
@@ -244,7 +245,8 @@ client.merchant.content.search(storeId, query, params?) → Promise<PaginatedCon
 ```
 
 `client.merchant.*` accepts a merchant JWT or a store API-key token
-(`client.auth.loginWithApiKey`). There is no `client.seller` namespace: it was
+(`client.auth.loginWithApiKey`, which resolves with the `store_id` to pass:
+`const { store_id } = await client.auth.loginWithApiKey({ key, secret })`). There is no `client.seller` namespace: it was
 removed because `/v1/seller/*` is retired. Map old calls as follows:
 
 ```ts

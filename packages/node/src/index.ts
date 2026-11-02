@@ -32,6 +32,7 @@
 export type {
   AuthenticationResponse,
   AuthTokenRefreshResponse,
+  StoreAuthenticationResponse,
   BuyerContentSearchRequest,
   ContentSearchPublication,
   ContentSearchResponse,
