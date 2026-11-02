@@ -434,6 +434,54 @@ describe('createClient with apiKey', () => {
     expect(t.calls).toEqual(['POST /v1/auth/login/api-key'])
   })
 
+  it('calls onAuthExpired once when the first automatic login fails', async () => {
+    const onAuthExpired = vi.fn()
+    const t = recordTraffic()
+    server.use(
+      t.login(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Invalid API key'), { status: 401 }),
+      ),
+      t.summary(),
+    )
+
+    const client = createClient({ apiKey: 'wrong', apiSecret: 's', onAuthExpired })
+    await expect(client.merchant.sales.summary(STORE)).rejects.toThrow('Invalid API key')
+
+    expect(onAuthExpired).toHaveBeenCalledOnce()
+  })
+
+  it('calls onAuthExpired once when two concurrent requests share a failed re-login', async () => {
+    const onAuthExpired = vi.fn()
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'stale',
+      refreshToken: 'dead-refresh',
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    })
+    const t = recordTraffic()
+    server.use(
+      t.summary(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Token expired'), { status: 401 }),
+      ),
+      t.refresh(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Bad refresh'), { status: 401 }),
+      ),
+      t.login(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'API key revoked'), { status: 401 }),
+      ),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 's', storage, onAuthExpired })
+    const results = await Promise.allSettled([
+      client.merchant.sales.summary(STORE),
+      client.merchant.sales.summary(STORE),
+    ])
+
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected'])
+    expect(t.loginBodies).toHaveLength(1)
+    expect(onAuthExpired).toHaveBeenCalledOnce()
+  })
+
   it('sends no login request when a token is already stored', async () => {
     const storage = new MemoryTokenStorage()
     storage.setTokens({

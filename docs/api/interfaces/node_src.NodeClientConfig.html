@@ -43,18 +43,22 @@
 <ul>
 <li>before its first authenticated request, when no token is stored
 (construction itself sends nothing; concurrent first requests share one login)</li>
-<li>again when a token refresh fails, retrying the request once; <code>onAuthExpired</code>
-fires only if that login fails too</li>
+<li>again when a token refresh fails, retrying the request once</li>
 </ul>
 <p>A client that already holds a token (from <code>storage</code>, or an explicit login)
 does not log in. A refused key rejects the request with an <code>AuthError</code>
-carrying the API's message.</p>
+carrying the API's message, and <code>onAuthExpired</code> fires once per failed login.</p>
+<p>On a client created with <code>apiKey</code>, clearing the stored tokens doesn't drop
+the credentials: the next request logs in again. To stop for good, create a
+client without <code>apiKey</code>. Don't mix another login (email, Google, merchant)
+on an <code>apiKey</code> client: if that session's refresh fails, the client falls
+back to the store key.</p>
 <p>To read the key's <code>store_id</code>, call <code>client.auth.loginWithApiKey()</code> once
 yourself; the client then holds a token and doesn't log in again.</p>
 <p>Omit when using merchant email/password or buyer auth.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:46</li></ul></aside></section>
+<li>Defined in node/src/client.ts:51</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="apisecret"><code class="tsd-tag">Optional</code><span>api<wbr/>Secret</span><a href="#apisecret" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">apiSecret</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -63,7 +67,7 @@ When combined with <code>apiKey</code>, grants <code>full</code> (read/write) st
 When omitted, <code>apiKey</code> alone grants <code>view</code> (read-only) store permission.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:52</li></ul></aside></section>
+<li>Defined in node/src/client.ts:57</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="baseurl"><code class="tsd-tag">Optional</code><span>base<wbr/>Url</span><a href="#baseurl" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">baseUrl</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -77,17 +81,17 @@ Defaults to <code>https://api.ledewire.com</code>.</p>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:62</li></ul></aside></section>
+<li>Defined in node/src/client.ts:67</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onauthexpired"><code class="tsd-tag">Optional</code><span>on<wbr/>Auth<wbr/>Expired</span><a href="#onauthexpired" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onAuthExpired</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
 <div class="tsd-comment tsd-typography"><p>Called when the session fully expires and cannot be refreshed.
 Handle this by prompting the user to re-authenticate.
-With <code>apiKey</code> set, the client first logs in again with the key, and this
-fires only if that login fails too.</p>
+With <code>apiKey</code> set, the client logs in again with the key instead, and this
+fires only when an automatic login fails (once per failed attempt).</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:111</li></ul></aside></section>
+<li>Defined in node/src/client.ts:116</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="ontokenrefreshed"><code class="tsd-tag">Optional</code><span>on<wbr/>Token<wbr/>Refreshed</span><a href="#ontokenrefreshed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onTokenRefreshed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">tokens</span><span class="tsd-signature-symbol">:</span> <a href="browser_src.StoredTokens.html" class="tsd-signature-type tsd-kind-interface">StoredTokens</a><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
@@ -108,7 +112,7 @@ will result in double-writes on every refresh.</p>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:104</li></ul></aside></section>
+<li>Defined in node/src/client.ts:109</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="storage"><code class="tsd-tag">Optional</code><span>storage</span><a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">storage</span><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a></div>
@@ -125,7 +129,7 @@ refresh — it is the canonical hook for persisting updated credentials.</p>
 
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:83</li></ul></aside></section></section></details></div>
+<li>Defined in node/src/client.ts:88</li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

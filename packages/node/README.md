@@ -99,9 +99,14 @@ Token refresh is handled automatically — you never need to call a refresh meth
 `apiKey` / `apiSecret` log in automatically: construction sends nothing, and the client logs in
 with the key (`POST /v1/auth/login/api-key`) before its first authenticated request when no
 token is stored. Concurrent first requests share one login. If a refresh fails later, the
-client logs in with the key again and retries the request once; `onAuthExpired` fires only if
-that login fails too. A refused key rejects the request with an `AuthError` carrying the API's
-message. A client that already holds a token (from `storage` or an explicit login) doesn't log in.
+client logs in with the key again and retries the request once. `onAuthExpired` fires only
+when an automatic login fails, once per failed attempt. A refused key rejects the request with
+an `AuthError` carrying the API's message. A client that already holds a token (from `storage`
+or an explicit login) doesn't log in.
+
+On a client created with `apiKey`, clearing the stored tokens doesn't drop the credentials: the next request logs in again. To stop for good, create a client without `apiKey`.
+
+Don't mix another login (email, Google, merchant) on an `apiKey` client: if that session's refresh fails, the client falls back to the store key.
 
 To get the key's `store_id`, call `client.auth.loginWithApiKey()` once yourself, as in the quick
 start: it resolves with `store_id`, and the client, now holding a token, doesn't log in again.

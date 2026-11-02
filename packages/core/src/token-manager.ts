@@ -49,7 +49,8 @@ export interface TokenManagerOptions {
    *
    * When set, the manager calls it instead of returning no token when nothing
    * is stored, and instead of giving up when a refresh fails. Concurrent
-   * callers share one in-flight login. It must not authenticate through this
+   * callers share one in-flight login, and a failed login fires
+   * `onAuthExpired` once for all of them. It must not authenticate through this
    * manager (use a credential-exchange request, `{ auth: false }`), or it
    * would wait on itself.
    */
@@ -63,6 +64,9 @@ export interface TokenManagerOptions {
  * - Handles reactive refresh on 401 responses from the HTTP client
  * - Deduplicates concurrent refresh calls (only one in-flight refresh at a time)
  * - Fires `onAuthExpired` when refresh fails so the UI can prompt re-login
+ * - With a `login` configured: logs in when nothing is stored and when a refresh
+ *   fails, sharing one in-flight login; `onAuthExpired` then fires only when that
+ *   login fails, once per failed attempt however many callers shared it
  *
  * This is an internal class - use the package-level client factories instead.
  */
@@ -138,8 +142,7 @@ export class TokenManager {
   /**
    * Recovers a lost session for a client that can log itself in: refreshes
    * when there is a refresh token, and logs in again when that fails or there
-   * is none. Fires `onAuthExpired` and rejects with the login's error only
-   * when the login fails too.
+   * is none. Rejects with the login's error when the login fails too.
    */
   private async refreshOrLogIn(
     refreshToken: string | undefined,
@@ -149,20 +152,24 @@ export class TokenManager {
       const refreshed = await this.performRefresh(refreshToken).catch(() => null)
       if (refreshed) return refreshed.accessToken
     }
-    try {
-      return await this.performLogin(login)
-    } catch (err) {
-      await this.onAuthExpired?.()
-      throw err
-    }
+    return this.performLogin(login)
   }
 
-  /** Runs `login`, sharing one in-flight attempt between concurrent callers. */
+  /**
+   * Runs `login`, sharing one in-flight attempt between concurrent callers.
+   * A failed attempt fires `onAuthExpired` once, for every caller that shared
+   * it, then rejects them all with the login's error.
+   */
   private performLogin(login: () => Promise<string>): Promise<string> {
     if (this.loginPromise) return this.loginPromise
-    this.loginPromise = login().finally(() => {
-      this.loginPromise = null
-    })
+    this.loginPromise = login()
+      .catch(async (err: unknown) => {
+        await this.onAuthExpired?.()
+        throw err
+      })
+      .finally(() => {
+        this.loginPromise = null
+      })
     return this.loginPromise
   }
 

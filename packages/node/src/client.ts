@@ -31,12 +31,17 @@ export interface NodeClientConfig {
    *
    * - before its first authenticated request, when no token is stored
    *   (construction itself sends nothing; concurrent first requests share one login)
-   * - again when a token refresh fails, retrying the request once; `onAuthExpired`
-   *   fires only if that login fails too
+   * - again when a token refresh fails, retrying the request once
    *
    * A client that already holds a token (from `storage`, or an explicit login)
    * does not log in. A refused key rejects the request with an `AuthError`
-   * carrying the API's message.
+   * carrying the API's message, and `onAuthExpired` fires once per failed login.
+   *
+   * On a client created with `apiKey`, clearing the stored tokens doesn't drop
+   * the credentials: the next request logs in again. To stop for good, create a
+   * client without `apiKey`. Don't mix another login (email, Google, merchant)
+   * on an `apiKey` client: if that session's refresh fails, the client falls
+   * back to the store key.
    *
    * To read the key's `store_id`, call `client.auth.loginWithApiKey()` once
    * yourself; the client then holds a token and doesn't log in again.
@@ -105,8 +110,8 @@ export interface NodeClientConfig {
   /**
    * Called when the session fully expires and cannot be refreshed.
    * Handle this by prompting the user to re-authenticate.
-   * With `apiKey` set, the client first logs in again with the key, and this
-   * fires only if that login fails too.
+   * With `apiKey` set, the client logs in again with the key instead, and this
+   * fires only when an automatic login fails (once per failed attempt).
    */
   onAuthExpired?: () => void | Promise<void>
 }
