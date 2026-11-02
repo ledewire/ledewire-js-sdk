@@ -140,14 +140,16 @@ describe('wrapFetchWithPayment', () => {
 
   it('sends the paid retry with redirect: "error", so PAYMENT-SIGNATURE never follows a redirect', async () => {
     const inits: (RequestInit | undefined)[] = []
-    const spyFetch: typeof globalThis.fetch = async (input, init) => {
+    const spyFetch: typeof globalThis.fetch = (_input, init) => {
       inits.push(init)
-      return init && new Headers(init.headers).has('PAYMENT-SIGNATURE')
-        ? HttpResponse.json({ data: 'content' })
-        : new HttpResponse(null, {
-            status: 402,
-            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
-          })
+      return Promise.resolve(
+        init && new Headers(init.headers).has('PAYMENT-SIGNATURE')
+          ? HttpResponse.json({ data: 'content' })
+          : new HttpResponse(null, {
+              status: 402,
+              headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+            }),
+      )
     }
     const res = await wrapFetchWithPayment(spyFetch, makeClient())(ORIGIN_URL)
     expect(res.status).toBe(200)
