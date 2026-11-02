@@ -78,7 +78,9 @@ Release workflow publishes to npm + GitHub Release + API docs
 
 1. **During your PR** — run `pnpm changeset` and commit the generated file in `.changeset/`
    - Select which packages changed: `@ledewire/browser` and/or `@ledewire/node`
-   - Select bump type: `patch` (bug fix) · `minor` (new feature) · `major` (breaking change)
+   - Select bump type: `patch` (bug fix) · `minor` (new feature, or a breaking change while the
+     packages are pre-1.0) · `major` (a breaking change after 1.0; on a 0.x package it would
+     publish 1.0.0)
    - Write a one-line summary — this becomes the CHANGELOG entry
    - Changes to `packages/core` should surface as a bump on the consuming packages
 

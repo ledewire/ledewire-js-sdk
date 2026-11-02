@@ -113,3 +113,17 @@ a failure.** Run it in the background and read its output, and check with `bin/w
 To move between worktrees in one session, `ExitWorktree action=keep` back to the launch
 directory first. `ExitWorktree` does not stop containers or remove the worktree; `bin/worktree rm`
 does that, from the host.
+
+## Shipping issue work: `/issue` and `bin/ship`
+
+`/issue <number>` drives an issue end to end (worktree, test-first build, reviews, PR). Its tail
+is `bin/ship`: `bin/ship --reviewed` records that both reviews ran on `HEAD`, then
+`bin/ship --body-file <path>` runs the CI checks in the container, pushes, verifies the remote
+SHA, and opens a draft PR against the worktree's `BASE_BRANCH`. Both read `ISSUE_NUMBER` and
+`BASE_BRANCH` from the worktree's `.env`, so a `bin/worktree new` branch, which has no issue,
+cannot ship.
+
+**Feature branches.** An issue whose body has a Base branch section naming `feature/<name>` is a
+slice. Its PR targets the feature branch, gets CI there, and the agent merges it once green. A
+human reviews the whole branch and merges its promotion PR into `main`. GitHub closes issues only
+on merges into `main`, so the promotion PR body carries a `Closes #<n>` line for each slice.
