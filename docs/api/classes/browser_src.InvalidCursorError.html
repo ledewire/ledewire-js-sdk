@@ -15,7 +15,7 @@
 <div class="tsd-comment tsd-typography"><p>Thrown when <code>content.search</code> refuses its <code>cursor</code>: HTTP <code>422</code> whose API error
 body's <code>error.type</code> is <code>'invalid_cursor'</code>. The cursor is invalid, expired (they
 last 24 hours), in an older format, or was issued for a different <code>query</code>,
-<code>tags</code>, <code>max_price_cents</code>, <code>metadata</code>, <code>publication</code> or <code>limit</code>. Nothing was
+<code>tags</code>, <code>max_price_cents</code>, <code>metadata</code>, <code>publication</code>, <code>form_type</code>, <code>ticker</code>, <code>cik</code> or <code>limit</code>. Nothing was
 searched.</p>
 <p>The remedy is the same for every reason: drop the cursor and start the search
 again from the first page, without one. The same cursor never succeeds on

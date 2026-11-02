@@ -290,8 +290,8 @@ export class RateLimitError extends LedewireError {
  * Thrown when `content.search` refuses its `cursor`: HTTP `422` whose API error
  * body's `error.type` is `'invalid_cursor'`. The cursor is invalid, expired (they
  * last 24 hours), in an older format, or was issued for a different `query`,
- * `tags`, `max_price_cents`, `metadata`, `publication` or `limit`. Nothing was
- * searched.
+ * `tags`, `max_price_cents`, `metadata`, `publication`, `form_type`, `ticker`,
+ * `cik` or `limit`. Nothing was searched.
  *
  * The remedy is the same for every reason: drop the cursor and start the search
  * again from the first page, without one. The same cursor never succeeds on
