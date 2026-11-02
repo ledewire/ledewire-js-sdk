@@ -46,6 +46,41 @@ describe('loginWithBuyerApiKey', () => {
     ).rejects.toThrow(AuthError)
   })
 
+  it('rejects a 401 with the API message from the ErrorResponse envelope', async () => {
+    const fetchFn = makeFetch(401, { error: { code: 401, message: 'Invalid API key or secret' } })
+    const error = await loginWithBuyerApiKey(
+      'bad',
+      'bad',
+      'https://api.ledewire.com',
+      fetchFn,
+    ).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(AuthError)
+    expect(error).toMatchObject({ statusCode: 401, message: 'Invalid API key or secret' })
+  })
+
+  it('rejects a 401 with a bare-string error body as its message', async () => {
+    const fetchFn = makeFetch(401, { error: 'Invalid credentials' })
+    await expect(
+      loginWithBuyerApiKey('bad', 'bad', 'https://api.ledewire.com', fetchFn),
+    ).rejects.toThrow('Invalid credentials')
+  })
+
+  it('falls back to a generic message when the 401 body is not JSON', async () => {
+    const fetchFn = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response('Unauthorized', { status: 401 })),
+    )
+    await expect(
+      loginWithBuyerApiKey('bad', 'bad', 'https://api.ledewire.com', fetchFn),
+    ).rejects.toThrow('Buyer API key authentication failed (401)')
+  })
+
+  it('carries the API message onto a 429 RateLimitError', async () => {
+    const fetchFn = makeFetch(429, { error: { code: 429, message: 'Rate limit exceeded' } })
+    await expect(
+      loginWithBuyerApiKey('k', 's', 'https://api.ledewire.com', fetchFn),
+    ).rejects.toThrow('Rate limit exceeded')
+  })
+
   it('throws RateLimitError, not AuthError, on 429 with retryAfter from Retry-After', async () => {
     const fetchFn = vi.fn<typeof fetch>(() =>
       Promise.resolve(

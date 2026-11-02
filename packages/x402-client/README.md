@@ -266,6 +266,9 @@ header on the paid leg, the same errors are inferred from the bare response inst
 spend-cap body maps to `SpendCapReachedError`, `422` to `InsufficientFundsError`, `401` to
 `AuthError`, and `403` to `ForbiddenError`.
 
+A failed buyer-key login (a wrong key or secret) rejects with `AuthError` before the paid retry,
+and `err.message` is the API's own message.
+
 A `402` on the _first_ (unpaid) request always means "here's your `PAYMENT-REQUIRED` challenge" —
 the API never refuses that first request, so a bare `402` with no `PAYMENT-REQUIRED` header
 passes straight through unchanged for the caller to inspect.

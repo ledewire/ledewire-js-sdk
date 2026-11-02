@@ -6,13 +6,15 @@ import {
   spendCapErrorFromBody,
 } from '@ledewire/core'
 import { LedewireAuthManager } from './auth.js'
-import { InsufficientFundsError, NonceExpiredError } from './errors.js'
+import { InsufficientFundsError, NonceExpiredError, extractPaymentErrorMessage } from './errors.js'
 import { parsePaymentRequired } from './parse.js'
 import type {
   LedewireFetchConfig,
   LedewirePaymentPayload,
   LedewirePaymentRefusal,
 } from './types.js'
+
+export { extractPaymentErrorMessage } from './errors.js'
 
 /**
  * Maps an HTTP status code from a paid-request retry to a typed SDK error.
@@ -40,26 +42,6 @@ export function throwPaymentError(status: number, message: string, retryAfter?: 
   if (status === 403) throw new ForbiddenError(message)
   if (status === 429) throw new RateLimitError(message, undefined, undefined, undefined, retryAfter)
   throw new LedewireError(message, status)
-}
-
-/**
- * Extracts a human-readable message from a parsed API error body, tolerating
- * both shapes seen in the wild: `{ error: "string" }` (some legacy Ledewire
- * responses) and `{ error: { code, message, type } }` (the documented
- * `ErrorResponse` envelope). Falls back to `fallback` — never throws.
- *
- * @param body - Parsed JSON body of an error response, or `undefined`/`null`.
- * @param fallback - Message to use when the body carries no usable string.
- */
-export function extractPaymentErrorMessage(body: unknown, fallback: string): string {
-  if (!body || typeof body !== 'object') return fallback
-  const raw = (body as Record<string, unknown>)['error']
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object') {
-    const message = (raw as Record<string, unknown>)['message']
-    if (typeof message === 'string') return message
-  }
-  return fallback
 }
 
 /**
