@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
   SpendCapReachedError,
 } from './errors.js'
 
@@ -107,6 +108,37 @@ describe('SpendCapReachedError', () => {
   })
 })
 
+describe('RateLimitError', () => {
+  it('has statusCode 429 and the given retryAfter', () => {
+    const err = new RateLimitError('Too many searches', { retryAfter: 60 })
+    expect(err.name).toBe('RateLimitError')
+    expect(err.statusCode).toBe(429)
+    expect(err.retryAfter).toBe(60)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toBeInstanceOf(RateLimitError)
+  })
+
+  it('leaves retryAfter, code, type and details undefined when not given', () => {
+    const err = new RateLimitError('Too many searches')
+    expect(err).toMatchObject({
+      statusCode: 429,
+      retryAfter: undefined,
+      code: undefined,
+      type: undefined,
+      details: undefined,
+    })
+  })
+
+  it('is recognized across bundle copies', async () => {
+    vi.resetModules()
+    const otherCopy = await import('./errors.js')
+    const err = new otherCopy.RateLimitError('Too many searches', { retryAfter: 5 })
+    expect(err).toBeInstanceOf(RateLimitError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(new otherCopy.NotFoundError('nope')).not.toBeInstanceOf(RateLimitError)
+  })
+})
+
 describe('instanceof checks across the hierarchy', () => {
   it('all subclasses satisfy instanceof LedewireError', () => {
     const errors = [
@@ -114,6 +146,7 @@ describe('instanceof checks across the hierarchy', () => {
       new ForbiddenError('b'),
       new NotFoundError('c'),
       new PurchaseError('d', 400),
+      new RateLimitError('e'),
     ]
     for (const err of errors) {
       expect(err).toBeInstanceOf(LedewireError)

@@ -397,6 +397,7 @@ import {
   ForbiddenError,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
   SpendCapReachedError,
 } from '@ledewire/browser'
 
@@ -406,12 +407,16 @@ class LedewireError extends Error {
   message: string           // human-readable description from API body
   type: ErrorTypeValue | undefined  // machine-readable error.type, e.g. 'daily_spend_cap_reached'
   details: Readonly<Record<string, unknown>> | undefined  // extra top-level error-body fields
+  retryAfter: number | undefined  // seconds from Retry-After (429/503), undefined when absent
 }
 
 class AuthError extends LedewireError {}       // 401 — bad credentials / session expired
 class ForbiddenError extends LedewireError {}  // 403 — authenticated but access denied
 class NotFoundError extends LedewireError {}   // 404 — resource not found
 class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+// 429 from any endpoint — e.g. content search allows 15 searches/min per buyer.
+// retryAfter: seconds from the Retry-After header, undefined when absent.
+class RateLimitError extends LedewireError {}
 
 // 402 — daily_spend_cap_reached, thrown by lw.purchases.create(). Funding the
 // wallet does NOT clear this — it resets at `resetsAt`, or via

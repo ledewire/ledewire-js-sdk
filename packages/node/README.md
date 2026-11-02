@@ -472,6 +472,7 @@ try {
 | `NotFoundError`        | 404     | Resource not found, wrong email/password on email login                                                       |
 | `PurchaseError`        | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)                                                 |
 | `SpendCapReachedError` | 402     | Buyer's daily spend cap reached — `purchases.create()`, the x402 content gate, and `acquisitions.authorize()` |
+| `RateLimitError`       | 429     | Too many requests, from any endpoint (`content.search`: 15/min per buyer); `retryAfter` is seconds to wait    |
 | `LedewireError`        | any     | Catch-all base class for all other API errors                                                                 |
 
 Every `LedewireError` also carries `type` (the API error body's machine-readable

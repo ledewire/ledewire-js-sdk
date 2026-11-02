@@ -143,6 +143,7 @@ export {
   MemoryTokenStorage,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
   SpendCapReachedError,
   parseExpiresAt,
 } from '@ledewire/core'

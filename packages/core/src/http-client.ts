@@ -1,4 +1,10 @@
-import { AuthError, ForbiddenError, LedewireError, NotFoundError } from './errors.js'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  NotFoundError,
+  RateLimitError,
+} from './errors.js'
 import type { ErrorTypeValue } from './errors.js'
 import { spendCapErrorFromBody } from './spend-cap.js'
 
@@ -301,6 +307,8 @@ export class HttpClient {
         throw new ForbiddenError(message, code, type, details, retryAfter)
       case 404:
         throw new NotFoundError(message, code, type, details, retryAfter)
+      case 429:
+        throw new RateLimitError(message, { retryAfter, code, type, details })
       default:
         throw new LedewireError(message, response.status, code, type, details, retryAfter)
     }

@@ -250,6 +250,50 @@ export class NotFoundError extends LedewireError {
 }
 
 /**
+ * Thrown for any HTTP `429 Too Many Requests` refusal: the caller has sent
+ * more requests than an endpoint allows in its window. `content.search`, for
+ * example, allows 15 searches a minute per buyer, and every request to it
+ * counts, including ones it refuses.
+ *
+ * {@link LedewireError.retryAfter} carries the response's `Retry-After`
+ * header as seconds to wait, or `undefined` when the response sent none (back
+ * off on your own schedule then). It is still an `instanceof LedewireError`
+ * with `statusCode` 429, so existing `statusCode === 429` checks keep working.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await client.content.search({ query: 'quantum computing' })
+ * } catch (err) {
+ *   if (err instanceof RateLimitError) {
+ *     const seconds = err.retryAfter ?? 60
+ *     console.warn(`Rate limited — retry in ${seconds}s`)
+ *   }
+ * }
+ * ```
+ */
+export class RateLimitError extends LedewireError {
+  static override readonly brand: string = 'RateLimitError'
+
+  constructor(
+    message: string,
+    options: {
+      /** Seconds to wait before retrying, from `Retry-After`. */
+      retryAfter?: number | undefined
+      /** Machine-readable error code from the API error body. */
+      code?: number | undefined
+      /** The API error body's `error.type`, if present. */
+      type?: ErrorTypeValue | undefined
+      /** Extra top-level fields from the API error body. */
+      details?: Record<string, unknown> | undefined
+    } = {},
+  ) {
+    super(message, 429, options.code, options.type, options.details, options.retryAfter)
+    this.name = 'RateLimitError'
+  }
+}
+
+/**
  * Thrown when the purchase cannot be completed due to a validation
  * failure, such as a price mismatch or a duplicate purchase.
  */

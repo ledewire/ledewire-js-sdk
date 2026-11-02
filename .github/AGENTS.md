@@ -111,7 +111,7 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`,
-`SpendCapReachedError`). `LedewireError` also carries an optional `type` (the API
+`SpendCapReachedError`, `RateLimitError`). `LedewireError` also carries an optional `type` (the API
 error body's machine-readable `error.type`, e.g. `'daily_spend_cap_reached'`) and
 `details` (extra top-level error-body fields). `instanceof` works even across the
 separately bundled copies of `@ledewire/core` in `@ledewire/node`, `@ledewire/browser`,
@@ -123,6 +123,9 @@ and `@ledewire/x402-client` (see the brand-list fallback in
 Funding the wallet does **not** clear it — it resets at `err.resetsAt`, or the
 cap can be raised/removed via `user.spendCap.update()` (for a Company member,
 only by an admin via `company.members.update()`).
+
+`RateLimitError` (429) is thrown by `HttpClient` for a 429 from any endpoint, with
+`retryAfter` read from `Retry-After` (`undefined` when the header is absent).
 
 #### Company members never see the Company balance
 
