@@ -322,12 +322,16 @@ export type AgentClient = Pick<
  *   secret: process.env.LEDEWIRE_BUYER_SECRET,
  * })
  *
- * const balance = await agent.wallet.balance()
- * const purchase = await agent.purchases.create({
- *   content_id: 'abc123',
- *   price_cents: 150,
- * })
- * const content = await agent.content.getWithAccess(purchase.content_id)
+ * // Check access before buying: a preview and access_info, never the deliverable
+ * const preview = await agent.content.getWithAccess('abc123')
+ * if (preview.access_info.next_required_action === 'purchase') {
+ *   // The purchase response is the only delivery (single-use): keep it now
+ *   const purchase = await agent.purchases.create({
+ *     content_id: preview.id,
+ *     price_cents: preview.price_cents,
+ *   })
+ *   const deliverable = purchase.content_body ?? purchase.content_uri
+ * }
  * ```
  */
 export function createAgentClient(config: AgentClientConfig): AgentClient {

@@ -49,7 +49,7 @@ const client = createClient({
 - `lw.purchases.create({ content_id })` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `lw.purchases.list()` → list purchases (no delivered content)
 - `lw.purchases.get(id)` → single purchase (no delivered content)
-- `lw.content.getWithAccess(contentId)` → content + access info (authenticated user implicit from token)
+- `lw.content.getWithAccess(contentId)` → content preview + the caller's access info (buyer token or none; never the deliverable)
 - `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
@@ -78,7 +78,7 @@ const client = createClient({
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `client.purchases.list()` / `client.purchases.get(id)` — no delivered content
-- `client.content.getWithAccess(contentId, userId?)` → content + access info (`userId` for merchant proxy lookups)
+- `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it

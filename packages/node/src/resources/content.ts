@@ -1,3 +1,4 @@
+import { decodeContentFields } from '@ledewire/core'
 import type { HttpClient } from '@ledewire/core'
 import type {
   BuyerContentSearchRequest,
@@ -18,39 +19,36 @@ export class ContentNamespace {
   constructor(protected readonly http: HttpClient) {}
 
   /**
-   * Returns a content item together with access information for a given user.
-   * Authenticated buyer calls omit `userId` — the token determines the user.
-   * Server-side merchant calls can pass `userId` to proxy-check a specific
-   * buyer's access state without impersonating them (e.g. to resolve a support
-   * ticket or verify entitlement before issuing a refund).
+   * Returns a content preview together with access information for the caller.
    *
-   * @param id - The content ID.
-   * @param userId - Optional buyer ID to check access for a specific user.
-   *   When omitted, access is evaluated for the token's authenticated user
-   *   (or returns generic/unauthenticated access info if no token is present).
-   * @returns The content item with access information.
+   * Buyer-only: call it with a buyer token (`auth.loginWithEmail`,
+   * `auth.loginWithGoogle`, `auth.loginWithBuyerApiKey`, or a
+   * `createAgentClient()`), or with no token for generic access info
+   * (`next_required_action: 'authenticate'`). A store credential (a merchant
+   * login, `auth.loginWithApiKey`, or `createClient({ apiKey, apiSecret })`) is
+   * refused with `403`, thrown as `ForbiddenError`. Access is always the
+   * caller's own; there is no way to look up another buyer.
+   *
+   * @param id - The content ID. URL-encoded by the SDK.
+   * @returns The content preview with the caller's `access_info`. `teaser` is
+   * returned as plain UTF-8 text (the SDK decodes the base64 wire format). The
+   * response never carries the deliverable: buy with `purchases.create()`.
+   * @throws {ForbiddenError} When the client holds a store credential.
    *
    * @example
    * ```ts
-   * // Buyer-facing: access evaluated from the bearer token
    * const result = await client.content.getWithAccess('article-123')
-   *
-   * // Merchant server-side: check a specific buyer's access
-   * const result = await client.content.getWithAccess('article-123', 'user-id-456')
-   * if (result.access_info.has_purchased) {
-   *   // buyer has already purchased — proceed with refund
+   * if (result.access_info.next_required_action === 'purchase') {
+   *   // Buy (or re-buy) via client.purchases.create(): has_purchased means
+   *   // only "has ever bought" and does not by itself grant access.
    * }
    * ```
    */
-  async getWithAccess(id: string, userId?: string): Promise<ContentWithAccessResponse> {
-    const params: Record<string, string> = {}
-    if (userId !== undefined) {
-      params['user_id'] = userId
-    }
-    return this.http.get<ContentWithAccessResponse>(
-      `/v1/content/${id}/with-access`,
-      Object.keys(params).length > 0 ? params : undefined,
+  async getWithAccess(id: string): Promise<ContentWithAccessResponse> {
+    const res = await this.http.get<ContentWithAccessResponse>(
+      `/v1/content/${encodeURIComponent(id)}/with-access`,
     )
+    return decodeContentFields(res)
   }
 
   /**
