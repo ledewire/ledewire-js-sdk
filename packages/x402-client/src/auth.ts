@@ -64,8 +64,12 @@ export class LedewireAuthManager {
   private accessToken: string | null = null
   private expiresAt = 0
 
-  /** @internal resolved apiBase — set on first use from PAYMENT-REQUIRED extension */
-  apiBase: string
+  /**
+   * @internal The configured Ledewire API base URL. Fixed at construction: the
+   * buyer-key login only ever goes here, whatever a `PAYMENT-REQUIRED`
+   * challenge says.
+   */
+  readonly apiBase: string
 
   constructor(
     key: string,

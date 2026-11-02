@@ -14,6 +14,7 @@ import {
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
   InsufficientFundsError,
+  PaymentOriginNotAllowedError,
 } from './errors.js'
 import {
   AuthError,
@@ -24,9 +25,12 @@ import {
 } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
-const ORIGIN_URL = 'https://blog.example.com/posts/article'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
 const CONTENT_ID = 'content-uuid-1'
+/** A paid resource on the configured Ledewire API origin. */
+const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
+/** A resource on some other origin — never paid, never authenticated against. */
+const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
 
 const makePaymentRequired = (overrides: Record<string, unknown> = {}) =>
   btoa(
@@ -181,27 +185,40 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
   })
 
   it('uses the default production apiBase when none is provided in config', async () => {
-    // Exercises `config.apiBase ?? 'https://api.ledewire.com'` default branch.
-    // The extension block overrides apiBase to API_BASE before the auth call.
+    const loginUrls: string[] = []
+    server.use(
+      http.post('https://api.ledewire.com/v1/auth/login/buyer-api-key', ({ request }) => {
+        loginUrls.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+    )
+    // No apiBase provided — exercises the `?? 'https://api.ledewire.com'` branch
     const client = new LedewirePaymentClient({ key: 'bk', secret: 's' })
-    const sig = await client.buildPaymentSignature(makePaymentRequired(), ORIGIN_URL)
-    const payload = JSON.parse(atob(sig)) as LedewirePaymentPayload
-    expect(payload.x402Version).toBe(2)
+    const sig = await client.buildPaymentSignature(
+      makePaymentRequired(),
+      `https://api.ledewire.com/v1/x402/contents/${CONTENT_ID}`,
+    )
+    expect(sig).toBeDefined()
+    expect(loginUrls).toEqual(['https://api.ledewire.com/v1/auth/login/buyer-api-key'])
   })
 
-  it('overrides apiBase from the extension block', async () => {
-    const stagingBase = 'http://api-staging.test'
-    const stagingUrls: string[] = []
+  it('ignores an apiBase named in the challenge and logs in at the configured base', async () => {
+    const otherHostHits: string[] = []
+    const loginUrls: string[] = []
     server.use(
-      http.post(`${stagingBase}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        stagingUrls.push(request.url)
+      http.all('https://evil.example/*', ({ request }) => {
+        otherHostHits.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        loginUrls.push(request.url)
         return HttpResponse.json(AUTH_RESPONSE)
       }),
     )
     const header = makePaymentRequired({
       extensions: {
         'ledewire-wallet': {
-          apiBase: stagingBase,
+          apiBase: 'https://evil.example',
           authEndpoint: '/v1/auth/login/buyer-api-key',
           schemeVersion: 'ledewire:v1',
           contentId: CONTENT_ID,
@@ -209,30 +226,74 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
       },
     })
     const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    await client.buildPaymentSignature(header, ORIGIN_URL)
-    expect(stagingUrls[0]).toContain(stagingBase)
-  })
-
-  it('uses default apiBase when none provided in config', async () => {
-    server.use(
-      http.post('https://api.ledewire.com/v1/auth/login/buyer-api-key', () =>
-        HttpResponse.json(AUTH_RESPONSE),
-      ),
-    )
-    // No apiBase provided — exercises the `?? 'https://api.ledewire.com'` branch
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's' })
-    const header = makePaymentRequired({
-      extensions: {
-        'ledewire-wallet': {
-          apiBase: 'https://api.ledewire.com',
-          authEndpoint: '/v1/auth/login/buyer-api-key',
-          schemeVersion: 'ledewire:v1',
-          contentId: CONTENT_ID,
-        },
-      },
-    })
     const sig = await client.buildPaymentSignature(header, ORIGIN_URL)
     expect(sig).toBeDefined()
+    expect(otherHostHits).toEqual([])
+    expect(loginUrls).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
+    expect(client.auth.apiBase).toBe(API_BASE)
+  })
+
+  it('throws PaymentOriginNotAllowedError for a url outside the configured API origin, without logging in', async () => {
+    const loginUrls: string[] = []
+    server.use(
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        loginUrls.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+    )
+    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
+    const err = await client
+      .buildPaymentSignature(makePaymentRequired(), THIRD_PARTY_URL)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentOriginNotAllowedError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as PaymentOriginNotAllowedError).statusCode).toBe(402)
+    expect((err as PaymentOriginNotAllowedError).name).toBe('PaymentOriginNotAllowedError')
+    expect((err as PaymentOriginNotAllowedError).message).toContain('https://blog.example.com')
+    expect((err as PaymentOriginNotAllowedError).message).toContain(API_BASE)
+    expect(loginUrls).toEqual([])
+  })
+})
+
+describe('LedewirePaymentClient.allowsPaymentTo', () => {
+  const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
+
+  it('allows a url on the configured API origin', () => {
+    expect(client.allowsPaymentTo(ORIGIN_URL)).toBe(true)
+    expect(client.allowsPaymentTo(`${API_BASE}/`)).toBe(true)
+    expect(client.allowsPaymentTo(`${API_BASE}/v1/x402/contents/x?y=1#z`)).toBe(true)
+  })
+
+  it('refuses a url on another host', () => {
+    expect(client.allowsPaymentTo(THIRD_PARTY_URL)).toBe(false)
+    expect(client.allowsPaymentTo('http://api.test.example.com/v1/x402')).toBe(false)
+    expect(client.allowsPaymentTo('http://sub.api.test/v1/x402')).toBe(false)
+  })
+
+  it('refuses a different scheme or port on the same host', () => {
+    expect(client.allowsPaymentTo('https://api.test/v1/x402')).toBe(false)
+    expect(client.allowsPaymentTo('http://api.test:8080/v1/x402')).toBe(false)
+  })
+
+  it('treats the default port as the same origin', () => {
+    expect(client.allowsPaymentTo('http://api.test:80/v1/x402')).toBe(true)
+    const prod = new LedewirePaymentClient({ key: 'bk', secret: 's' })
+    expect(prod.allowsPaymentTo('https://api.ledewire.com:443/v1/x402')).toBe(true)
+    expect(prod.allowsPaymentTo('https://api.ledewire.com/v1/x402')).toBe(true)
+    expect(prod.allowsPaymentTo('https://api-staging.ledewire.com/v1/x402')).toBe(false)
+  })
+
+  it('refuses relative and unparseable urls', () => {
+    expect(client.allowsPaymentTo('/v1/x402/contents/x')).toBe(false)
+    expect(client.allowsPaymentTo('v1/x402')).toBe(false)
+    expect(client.allowsPaymentTo('')).toBe(false)
+    expect(client.allowsPaymentTo('not a url')).toBe(false)
+    expect(client.allowsPaymentTo('http://')).toBe(false)
+  })
+
+  it('refuses everything when the configured apiBase is unparseable', () => {
+    const broken = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: 'nonsense' })
+    expect(broken.allowsPaymentTo(ORIGIN_URL)).toBe(false)
   })
 })
 

@@ -6,7 +6,12 @@ import {
   spendCapErrorFromBody,
 } from '@ledewire/core'
 import { LedewireAuthManager } from './auth.js'
-import { InsufficientFundsError, NonceExpiredError, extractApiErrorMessage } from './errors.js'
+import {
+  InsufficientFundsError,
+  NonceExpiredError,
+  PaymentOriginNotAllowedError,
+  extractApiErrorMessage,
+} from './errors.js'
 import { parsePaymentRequired } from './parse.js'
 import type {
   LedewireFetchConfig,
@@ -113,6 +118,10 @@ export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unkno
  * Core Ledewire x402 payment client. Holds buyer credentials, manages the
  * JWT lifecycle, and builds `PAYMENT-SIGNATURE` header values.
  *
+ * The client authenticates only against its configured `apiBase` and pays
+ * only for requests to that same origin (see {@link allowsPaymentTo}). A
+ * `PAYMENT-REQUIRED` challenge cannot change either.
+ *
  * Use this directly when integrating with HTTP clients other than `fetch`
  * (e.g. Axios, ky, got). For a drop-in `fetch` replacement use
  * {@link createLedewireFetch}; for an Axios instance use
@@ -124,8 +133,8 @@ export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unkno
  *
  * const client = new LedewirePaymentClient({ key, secret })
  *
- * // In a ky `beforeError` hook or any other HTTP client interceptor:
- * if (response.status === 402) {
+ * // In a ky `afterResponse` hook or any other HTTP client interceptor:
+ * if (response.status === 402 && client.allowsPaymentTo(request.url)) {
  *   const sig = await client.buildPaymentSignature(
  *     response.headers.get('PAYMENT-REQUIRED'),
  *     request.url,
@@ -153,9 +162,29 @@ export class LedewirePaymentClient {
   }
 
   /**
+   * Whether this client will pay for `url`: `true` only when `url` is an
+   * absolute URL on the same origin (scheme, host and port) as the configured
+   * `apiBase`. Relative or unparseable URLs return `false`.
+   *
+   * The fetch and Axios adapters call this before answering a `402`; a `402`
+   * from any other origin is returned to the caller unpaid.
+   *
+   * @param url - Full URL of the request that received the `402`.
+   */
+  allowsPaymentTo(url: string): boolean {
+    const origin = originOf(url)
+    return origin !== null && origin === originOf(this.auth.apiBase)
+  }
+
+  /**
    * Parses a raw `PAYMENT-REQUIRED` header value, authenticates with the
    * buyer API key, and returns the base64-encoded `PAYMENT-SIGNATURE` string
    * ready to set as a request header.
+   *
+   * Pays only for URLs on the configured Ledewire API origin — check
+   * {@link allowsPaymentTo} first to leave other `402`s unpaid. The buyer-key
+   * login always goes to the configured `apiBase`; the challenge's
+   * `extensions.ledewire-wallet.apiBase` is not used.
    *
    * A stable UUID is generated per call and included in the payload when the
    * server advertises `payment-identifier` support — enabling safe retries
@@ -164,20 +193,25 @@ export class LedewirePaymentClient {
    * @param paymentRequiredHeader - Raw value of the `PAYMENT-REQUIRED` response header.
    * @param url - Full URL of the resource being purchased.
    *
+   * @throws {PaymentOriginNotAllowedError} `url` is not on the configured
+   *   Ledewire API origin. Thrown before any parsing or login.
    * @throws {UnsupportedSchemeError} No `ledewire-wallet` entry in the `accepts` array.
    * @throws {MalformedPaymentRequiredError} Extension block is absent or malformed.
    * @throws {NonceExpiredError} Nonce `expiresAt` is in the past.
    * @throws {AuthError} Buyer API key credentials are invalid.
    */
   async buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string> {
+    if (!this.allowsPaymentTo(url)) {
+      throw new PaymentOriginNotAllowedError(
+        originOf(url) ?? url,
+        originOf(this.auth.apiBase) ?? this.auth.apiBase,
+      )
+    }
+
     const { paymentRequired, accepted, extension } = parsePaymentRequired(paymentRequiredHeader)
 
     if (Date.now() / 1000 > accepted.extra.expiresAt) {
       throw new NonceExpiredError()
-    }
-
-    if (extension.apiBase) {
-      this.auth.apiBase = extension.apiBase
     }
 
     const token = await this.auth.getAccessToken()
@@ -195,5 +229,15 @@ export class LedewirePaymentClient {
     }
 
     return btoa(JSON.stringify(paymentPayload))
+  }
+}
+
+/** The origin of an absolute URL, or `null` when it is relative or unparseable. */
+function originOf(url: string): string | null {
+  try {
+    const origin = new URL(url).origin
+    return origin === 'null' ? null : origin
+  } catch {
+    return null
   }
 }
