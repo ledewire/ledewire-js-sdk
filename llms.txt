@@ -8,7 +8,7 @@
 ## Packages
 
 - `@ledewire/browser` — Browser SDK (ESM + CDN IIFE `Ledewire` global). Buyer flows only.
-- `@ledewire/node` — Node.js SDK. Full API: merchant, seller, and buyer flows.
+- `@ledewire/node` — Node.js SDK. Full API: merchant (store) and buyer flows.
 
 ## Browser CDN usage
 
@@ -56,14 +56,11 @@ const client = createClient({
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
 - `lw.company.*` — Company wallets (same API as `client.company.*` below)
-- `lw.seller.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
-- `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
-- `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
-- `lw.seller.content.get(contentId)` → `ContentResponse` — get single content item
 
 ### @ledewire/node — createClient()
 - `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
 - `client.auth.*` — buyer auth (signup, email, google, password reset)
+- `client.auth.loginWithApiKey({ key, secret })` — store API-key login (key-only = view; key+secret = full); the token works with `client.merchant.*`
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
@@ -76,8 +73,8 @@ const client = createClient({
 - `client.merchant.sales.list(storeId)` → `SalesStatisticsItem[]`
 - `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse`
 - `client.merchant.buyers.list(storeId)` → `BuyerStatisticsItem[]`
-- `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; requires merchant auth)
-- `client.seller.content.*` — content CRUD + search
+- `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; accepts a merchant session or a store API-key token)
+- `client.merchant.content.*` — content CRUD + search: list, get, create, update, delete, search (all take `storeId`)
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `client.purchases.list()` / `client.purchases.get(id)` — no delivered content

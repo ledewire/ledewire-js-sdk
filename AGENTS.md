@@ -12,7 +12,7 @@ content marketplace platform. The SDK has two consumer-facing packages:
 | Package             | Purpose                                                                              |
 | ------------------- | ------------------------------------------------------------------------------------ |
 | `@ledewire/browser` | Buyer flows (auth, wallet, purchases, checkout) for browsers. CDN IIFE bundle + ESM. |
-| `@ledewire/node`    | Full API surface — merchant, seller, and buyer flows for Node.js server-side code.   |
+| `@ledewire/node`    | Full API surface — merchant (store) and buyer flows for Node.js server-side code.    |
 | `packages/core`     | Shared internals (not published). HTTP client, TokenManager, error classes.          |
 
 ## Key conventions
@@ -46,8 +46,7 @@ packages/node/src/
   client.ts              ← createClient() / createAgentClient() factories
   resources/
     auth.ts              ← buyer auth
-    merchant/{auth,users,sales,buyers,config}.ts
-    seller/content.ts
+    merchant/{auth,users,content,sales,buyers,config}.ts
     wallet.ts / purchases.ts / content.ts / checkout.ts
     acquisitions.ts      ← bulk licensing: quote, authorize, corpus, signed manifest
     publications.ts      ← bulk-licensing catalog (public)

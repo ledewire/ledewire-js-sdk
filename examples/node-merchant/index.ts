@@ -1,9 +1,9 @@
 /**
- * Node.js merchant + seller walkthrough.
+ * Node.js merchant walkthrough.
  *
  * Demonstrates:
  * 1. Merchant email/password authentication + store discovery (single call)
- * 2. Creating a content item as a seller (API key + secret)
+ * 2. Creating a content item in the store
  * 3. Viewing a sales summary for the store
  * 4. Listing recent individual sales
  *
@@ -16,9 +16,8 @@
  */
 import { createClient, LedewireError } from '@ledewire/node'
 
-// A single client instance can be used for both merchant and seller workflows.
-// Merchant operations use email/password session tokens; seller operations use
-// the API key + secret pair.
+// client.merchant.* accepts either a merchant session (email/password, used here)
+// or a store API-key token from client.auth.loginWithApiKey({ key, secret }).
 const client = createClient({
   apiKey: process.env['LEDEWIRE_API_KEY'],
   apiSecret: process.env['LEDEWIRE_API_SECRET'],
@@ -51,9 +50,9 @@ async function main(): Promise<void> {
     console.log(`✓ Using store: ${firstStore.store_name} (${storeId})`)
 
     // -------------------------------------------------------------------------
-    // 2. Create a content item (seller API key + secret required)
+    // 2. Create a content item
     // -------------------------------------------------------------------------
-    const article = await client.seller.content.create(storeId, {
+    const article = await client.merchant.content.create(storeId, {
       content_type: 'markdown',
       title: 'Getting Started with LedeWire',
       content_body: '# Welcome\n\nThis is your first LedeWire article.',

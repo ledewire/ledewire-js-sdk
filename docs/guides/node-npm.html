@@ -166,9 +166,9 @@ pnpm add @ledewire/node</code></pre>
         </thead>
         <tbody>
           <tr>
-            <td><strong>API key + secret</strong></td>
-            <td>Seller operations: automated content publishing, sales dashboards</td>
-            <td><code>apiKey</code> + <code>apiSecret</code></td>
+            <td><strong>Store API key + secret</strong></td>
+            <td>Automated content publishing, sales dashboards via <code>client.merchant.*</code></td>
+            <td>Call <code>client.auth.loginWithApiKey()</code></td>
           </tr>
           <tr>
             <td><strong>Email / password</strong></td>
@@ -183,18 +183,69 @@ pnpm add @ledewire/node</code></pre>
         </tbody>
       </table>
 
-      <h3>Quick start — seller (API key)</h3>
+      <h3>Quick start — store API key</h3>
       <pre><code>import { createClient } from '@ledewire/node'
 
 const client = createClient({
-  apiKey: process.env.LEDEWIRE_API_KEY,
-  apiSecret: process.env.LEDEWIRE_API_SECRET,
   onAuthExpired: () => { throw new Error('Session expired') },
 })
+await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+})
 
-// List your content
-const items = await client.seller.content.list()
-console.log(items)</code></pre>
+// Pass the store's id explicitly
+const storeId = process.env.LEDEWIRE_STORE_ID
+if (!storeId) throw new Error('LEDEWIRE_STORE_ID is not set')
+const { data } = await client.merchant.content.list(storeId)
+console.log(data)</code></pre>
+
+      <h3 id="migrating-from-client-seller">Migrating from <code>client.seller</code></h3>
+      <p>
+        <code>client.seller</code> has been removed: the API retired <code>/v1/seller/*</code>, and
+        <code>client.merchant.*</code> accepts store API-key tokens. Every replacement takes the
+        store's id as its first argument. Until <code>loginWithApiKey</code> returns the store's id,
+        pass it explicitly (for example from configuration).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Before</th>
+            <th>After</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>seller.sales.summary()</code></td>
+            <td><code>merchant.sales.summary(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.sales.list()</code></td>
+            <td>
+              <code>merchant.sales.list(storeId)</code> (paginated, one row per content item)
+            </td>
+          </tr>
+          <tr>
+            <td><code>seller.buyers.list()</code></td>
+            <td><code>merchant.buyers.list(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.config.get()</code></td>
+            <td><code>merchant.config.get(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.content.*(storeId, …)</code></td>
+            <td><code>merchant.content.*(storeId, …)</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The <code>ContentSearchRequest</code> type is gone; use
+        <code>MerchantContentSearchRequest</code>. In <code>@ledewire/browser</code>,
+        <code>lw.seller</code> (including <code>lw.seller.loginWithApiKey</code> and
+        <code>lw.seller.content.*</code>) has been removed: the browser SDK is buyer-only, and a
+        store API key does not belong in a browser.
+      </p>
 
       <h3>Quick start — merchant (email login)</h3>
       <pre><code>import { createClient } from '@ledewire/node'
@@ -221,7 +272,7 @@ console.log(`Revenue: ${summary.total_revenue_cents / 100} USD`)</code></pre>
       <pre><code>import { createClient, LedewireError, NotFoundError, AuthError } from '@ledewire/node'
 
 try {
-  const content = await client.seller.content.get('some-id')
+  const content = await client.merchant.content.get(storeId, 'some-id')
 } catch (err) {
   if (err instanceof NotFoundError) {
     console.log('Content not found')
@@ -286,7 +337,7 @@ try {
             <td>get</td>
           </tr>
           <tr>
-            <td><code>client.seller.content.*</code></td>
+            <td><code>client.merchant.content.*</code></td>
             <td>create, list, get, update, delete, search</td>
           </tr>
           <tr>

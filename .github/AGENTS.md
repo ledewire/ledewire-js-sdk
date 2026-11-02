@@ -13,7 +13,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 | ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `packages/core`        | (private — not published) | HTTP client, token manager, error classes, shared types                                                            |
 | `packages/browser`     | `@ledewire/browser`       | Buyer-facing SDK for browsers. CDN `<script>` tag + npm                                                            |
-| `packages/node`        | `@ledewire/node`          | Full API surface for Node.js. Merchant + seller + buyer                                                            |
+| `packages/node`        | `@ledewire/node`          | Full API surface for Node.js. Merchant + buyer                                                                     |
 | `packages/x402-client` | `@ledewire/x402-client`   | Runtime-agnostic x402 fetch wrapper — pays `402` content challenges automatically via the `ledewire-wallet` scheme |
 
 ## Key Files
@@ -54,16 +54,12 @@ client.company.purchases.*      everything the Company paid for, per member (adm
 client.company.spend.*          spend per membership over a date range (admin)
 client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
 client.merchant.users.*         team management (invite, list, remove, update)
-client.merchant.content.*       content CRUD + search (merchant JWT auth)
+client.merchant.content.*       content CRUD + search (merchant JWT or store API key)
 client.merchant.sales.*         sales list, summary, sale detail
 client.merchant.buyers.*        anonymized buyer statistics
 client.merchant.config.*        store configuration
 client.merchant.pricingRules.*  x402 URL-based pricing rules (list, create, deactivate)
 client.merchant.domains.*       x402 domain verification (list, add, verify, remove)
-client.seller.content.*         seller content CRUD + search (API key auth)
-client.seller.sales.*           seller sales summary + per-content statistics
-client.seller.buyers.*          anonymized buyer statistics (API key auth)
-client.seller.config.*          store configuration (API key auth)
 client.wallet.*                 balance (incl. held_cents/holds; null for a Company member), payment sessions, transactions
 client.purchases.*              create (single-use delivery), list, get, verify purchases
 client.content.*                public content with buyer access info
@@ -102,7 +98,6 @@ lw.user.apiKeys.*    buyer API key management (list, create, revoke)
 lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
 lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
 lw.company.*         Company wallets — same surface as client.company.*
-lw.seller.*          loginWithApiKey (view or full), content list/search/get
 ```
 
 ## Critical Patterns
@@ -172,13 +167,13 @@ All list endpoints return a `{ data, pagination }` envelope — never a plain ar
 
 ```ts
 const { data, pagination } = await client.merchant.sales.list(storeId)
-const { data, pagination } = await client.seller.content.list(storeId, { page: 2, per_page: 10 })
+const { data, pagination } = await client.merchant.content.list(storeId, { page: 2, per_page: 10 })
 ```
 
 The shared parameter type is `PaginationParams { page?: number; per_page?: number }`,
 exported from `@ledewire/node`. Affected methods: `merchant.users.list`,
-`merchant.sales.list`, `merchant.buyers.list`, `seller.content.list`,
-`seller.content.search`.
+`merchant.sales.list`, `merchant.buyers.list`, `merchant.content.list`,
+`merchant.content.search`.
 
 ### `MerchantLoginStore` vs `ManageableStore` — do not confuse these
 

@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@ledewire/node)](https://www.npmjs.com/package/@ledewire/node)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-Node.js SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — full API surface for building merchant stores, managing sellers, and processing buyer flows on the server side.
+Node.js SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — full API surface for building merchant stores, managing store content, and processing buyer flows on the server side.
 
 ## Install
 
@@ -16,11 +16,15 @@ npm install @ledewire/node
 ```ts
 import { createClient } from '@ledewire/node'
 
-// Full access: API key + secret grants read/write seller permissions
-const client = createClient({
-  apiKey: process.env.LEDEWIRE_API_KEY,
-  apiSecret: process.env.LEDEWIRE_API_SECRET,
+// Store API key: key + secret grants read/write access to client.merchant.*
+const client = createClient()
+await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
 })
+const storeId = process.env.LEDEWIRE_STORE_ID
+if (!storeId) throw new Error('LEDEWIRE_STORE_ID is not set')
+const items = await client.merchant.content.list(storeId)
 
 // Merchant email/password auth
 const client = createClient()
@@ -48,23 +52,19 @@ const stores = await client.merchant.auth.listStores()
 | `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
 | `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
 | `client.merchant.users`        | Merchant user management (invite, list, update, remove)                                       |
-| `client.merchant.content`      | Merchant content CRUD + search (merchant JWT auth)                                            |
+| `client.merchant.content`      | Content CRUD + search (merchant JWT or store API key)                                         |
 | `client.merchant.buyers`       | Buyer statistics within a store                                                               |
 | `client.merchant.sales`        | Sales reporting and revenue statistics                                                        |
 | `client.merchant.config`       | Store configuration                                                                           |
 | `client.merchant.domains`      | x402 domain verification for URL-based content gating                                         |
 | `client.merchant.pricingRules` | x402 URL pattern-based pricing rules                                                          |
-| `client.seller.content`        | Seller content CRUD + search (API key auth)                                                   |
-| `client.seller.sales`          | Seller sales statistics and revenue reporting                                                 |
-| `client.seller.buyers`         | Anonymized buyer statistics (API key auth)                                                    |
-| `client.seller.config`         | Store configuration (API key auth)                                                            |
 
 ## Configuration
 
 ```ts
 const client = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
-  apiSecret: process.env.LEDEWIRE_API_SECRET, // omit for read-only seller access
+  apiSecret: process.env.LEDEWIRE_API_SECRET, // omit for read-only store API-key access
   baseUrl: 'https://api-staging.ledewire.com', // optional, defaults to production
 
   // Persist tokens across server restarts (optional)
@@ -184,7 +184,7 @@ const stores = await client.merchant.auth.listStores()
 const storeId = stores[0].id
 
 // Create a markdown article
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'markdown',
   title: 'Hello World',
   content_body: btoa('# Hello World\nFull article body here.'),
@@ -193,7 +193,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Create an external reference (e.g. a Vimeo video)
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'external_ref',
   title: 'Intro to Machine Learning',
   content_uri: 'https://vimeo.com/987654321',
@@ -203,7 +203,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Inline HTML — content_body and content_uri are mutually exclusive for 'html'
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'html',
   title: 'Interactive Report',
   content_body: '<h1>Q3 Results</h1><p>...</p>',
@@ -212,7 +212,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Remote HTML, PDF, image, and video all require content_uri (never content_body)
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'pdf',
   title: 'Annual Report (PDF)',
   content_uri: 'https://cdn.example.com/reports/annual-2026.pdf',
@@ -220,14 +220,14 @@ await client.seller.content.create(storeId, {
   visibility: 'public',
 })
 
-const items = await client.seller.content.list(storeId)
+const items = await client.merchant.content.list(storeId)
 // items.data — ContentListItem[]
 // items.pagination — PaginationMeta
 
 // Search by title (partial match), URI, and/or metadata
-const results = await client.seller.content.search(storeId, { title: 'intro' })
-const byUri = await client.seller.content.search(storeId, { uri: 'vimeo.com' })
-const combined = await client.seller.content.search(storeId, {
+const results = await client.merchant.content.search(storeId, { title: 'intro' })
+const byUri = await client.merchant.content.search(storeId, { uri: 'vimeo.com' })
+const combined = await client.merchant.content.search(storeId, {
   title: 'tutorial',
   metadata: { category: 'ml' },
 })

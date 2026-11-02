@@ -16,7 +16,6 @@ import { MerchantNamespace } from './resources/merchant/index.js'
 import { PublicationsNamespace } from './resources/publications.js'
 import { TopicsNamespace } from './resources/topics.js'
 import { PurchasesNamespace } from './resources/purchases.js'
-import { SellerNamespace } from './resources/seller/index.js'
 import { UserNamespace } from './resources/user/index.js'
 import { WalletNamespace } from './resources/wallet.js'
 import { X402Namespace } from './resources/x402.js'
@@ -27,14 +26,14 @@ import { X402Namespace } from './resources/x402.js'
 export interface NodeClientConfig {
   /**
    * LedeWire API key.
-   * Required for all seller and buyer operations.
+   * Required for store API-key and buyer API-key operations.
    * Omit when using merchant email/password auth exclusively.
    */
   apiKey?: string
   /**
    * LedeWire API secret.
-   * When combined with `apiKey`, grants `full` (read/write) seller permission.
-   * When omitted, `apiKey` alone grants `view` (read-only) seller permission.
+   * When combined with `apiKey`, grants `full` (read/write) store permission.
+   * When omitted, `apiKey` alone grants `view` (read-only) store permission.
    */
   apiSecret?: string
   /**
@@ -99,7 +98,7 @@ export interface NodeClientConfig {
 /**
  * Creates a fully configured LedeWire Node.js client.
  *
- * @example API key + secret (seller / buyer access):
+ * @example API key + secret (store / buyer access):
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
@@ -188,9 +187,6 @@ export class NodeClient {
   /** Merchant operations: store auth, team management, content, sales */
   readonly merchant: MerchantNamespace
 
-  /** Seller content and sales management (API key auth) */
-  readonly seller: SellerNamespace
-
   /** Buyer wallet: balance, fund, transactions */
   readonly wallet: WalletNamespace
 
@@ -230,7 +226,6 @@ export class NodeClient {
     this.config = new ConfigNamespace(_http)
     this.auth = new AuthNamespace(_http, _tokenManager)
     this.merchant = new MerchantNamespace(_http, _tokenManager)
-    this.seller = new SellerNamespace(_http)
     this.wallet = new WalletNamespace(_http)
     this.purchases = new PurchasesNamespace(_http)
     this.content = new ContentNamespace(_http)
@@ -309,8 +304,8 @@ export type AgentClient = Pick<
  * `TokenManager` then refreshes it proactively in the background — the agent
  * never needs to call `auth.loginWithBuyerApiKey()` manually.
  *
- * Only buyer-relevant namespaces are exposed. `merchant`, `seller`, and
- * `config` are intentionally absent.
+ * Only buyer-relevant namespaces are exposed. `merchant` and `config` are
+ * intentionally absent.
  *
  * @example
  * ```ts

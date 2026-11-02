@@ -155,7 +155,6 @@ export type {
   MerchantDomainVerifyResponse,
 } from './resources/merchant/domains.js'
 export type { MerchantContentSearchRequest } from './resources/merchant/content.js'
-export type { ContentSearchRequest } from './resources/seller/content.js'
 export type { AcquisitionCreateRequest, CorpusDownloadResult } from './resources/acquisitions.js'
 
 // Package exports (implementations added in build step 4)
