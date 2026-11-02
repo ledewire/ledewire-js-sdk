@@ -5,7 +5,13 @@ import { wrapFetchWithPayment } from './fetch.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
 import { InsufficientFundsError } from '../errors.js'
-import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  RateLimitError,
+  SpendCapReachedError,
+} from '@ledewire/core'
 
 /** Base64-encode an x402 v2 `SettleResponse` refusal for the `PAYMENT-RESPONSE` header. */
 function paymentResponseHeader(errorReason: string, overrides?: Record<string, unknown>): string {
@@ -188,7 +194,7 @@ describe('wrapFetchWithPayment', () => {
     await expect(fetch(ORIGIN_URL)).rejects.toThrow(LedewireError)
   })
 
-  it('throws LedewireError with statusCode 429 when the paid retry is rate-limited', async () => {
+  it('throws RateLimitError with retryAfter when the paid retry is rate-limited', async () => {
     server.use(
       http.get(ORIGIN_URL, ({ request }) => {
         if (!request.headers.get('PAYMENT-SIGNATURE')) {
@@ -206,8 +212,53 @@ describe('wrapFetchWithPayment', () => {
     const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
 
     const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
     expect(error).toBeInstanceOf(LedewireError)
-    expect(error).toMatchObject({ statusCode: 429 })
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 30, message: 'Too many requests' })
+  })
+
+  it('throws RateLimitError with retryAfter undefined when a 429 paid retry has no Retry-After', async () => {
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        return HttpResponse.json({ error: 'Too many requests' }, { status: 429 })
+      }),
+    )
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+
+    const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: undefined })
+  })
+
+  it('throws RateLimitError when the buyer-key login is rate-limited', async () => {
+    server.use(
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
+        HttpResponse.json(
+          { error: { code: 429, message: 'Too many requests' } },
+          { status: 429, headers: { 'Retry-After': '45' } },
+        ),
+      ),
+      http.get(
+        ORIGIN_URL,
+        () =>
+          new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          }),
+      ),
+    )
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+
+    const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).not.toBeInstanceOf(AuthError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 45 })
   })
 
   it('accepts a URL object as input', async () => {

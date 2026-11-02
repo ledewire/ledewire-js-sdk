@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   LedewireError,
   NotFoundError,
+  RateLimitError,
   SpendCapReachedError,
 } from './errors.js'
 import { createTestServer, http, HttpResponse } from './test-utils/server.js'
@@ -620,6 +621,60 @@ describe('Retry-After on error responses', () => {
       .get('/v1/test')
       .catch((err: unknown) => err)
     expect(error).toMatchObject({ retryAfter: undefined })
+  })
+
+  it('throws a 429 as RateLimitError carrying Retry-After', async () => {
+    server.use(refuse(429, '60'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({
+      name: 'RateLimitError',
+      statusCode: 429,
+      retryAfter: 60,
+      message: 'refused',
+    })
+  })
+
+  it('throws a 429 without Retry-After as RateLimitError with retryAfter undefined', async () => {
+    server.use(refuse(429))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: undefined })
+  })
+
+  it('keeps the error body type, code and details on a RateLimitError', async () => {
+    server.use(
+      http.get(`${BASE}/v1/test`, () =>
+        HttpResponse.json(
+          { error: { code: 429, message: 'slow down', type: 'rate_limited' }, limit: 15 },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        ),
+      ),
+    )
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({
+      code: 429,
+      type: 'rate_limited',
+      details: { limit: 15 },
+      retryAfter: 30,
+    })
+  })
+
+  it('does not throw RateLimitError for a 503 that carries Retry-After', async () => {
+    server.use(refuse(503, '10'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).not.toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 503, retryAfter: 10 })
   })
 
   it('carries retryAfter through the typed subclasses too', async () => {

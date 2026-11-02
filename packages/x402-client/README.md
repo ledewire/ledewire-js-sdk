@@ -245,7 +245,7 @@ try {
 }
 ```
 
-`AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError` are re-exported from
+`AuthError`, `ForbiddenError`, `LedewireError`, `RateLimitError`, and `SpendCapReachedError` are re-exported from
 `@ledewire/core` — LedeWire's private shared internals, not published to npm. Always import them
 from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` directly.
 
@@ -258,6 +258,7 @@ from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` 
 | `NonceExpiredError`             | —                                       | Payment nonce expired before retry — simply retry `fetch()`     |
 | `UnsupportedSchemeError`        | —                                       | 402 response uses a non-`ledewire-wallet` scheme                |
 | `MalformedPaymentRequiredError` | —                                       | `PAYMENT-REQUIRED` header is invalid or missing required fields |
+| `RateLimitError`                | — (HTTP `429`)                          | Paid retry or buyer-key login rate-limited — see `.retryAfter`  |
 | `LedewireError`                 | any other value, on `err.type`          | All other Ledewire API errors — check `.statusCode`/`.type`     |
 
 **Legacy (pre-api#1066, removed once the API always sends `PAYMENT-RESPONSE`):** without that

@@ -1,5 +1,6 @@
 import type { AxiosError, AxiosInstance } from 'axios'
 import type { PaymentSigner } from '../types.js'
+import { parseRetryAfter } from '@ledewire/core'
 import { throwLegacyPaymentError, throwPaymentRefusal } from '../payment-client.js'
 import { parsePaymentRefusal } from '../parse.js'
 
@@ -102,7 +103,8 @@ export function wrapAxiosWithPayment(
 
         // Legacy (pre-api#1066): no payment-response header — the refusal
         // lives directly in the response status/body. Remove once api#1066 ships.
-        throwLegacyPaymentError(retryStatus, errorData)
+        const retryAfterHeader = retryHeaders?.['retry-after'] as string | undefined
+        throwLegacyPaymentError(retryStatus, errorData, parseRetryAfter(retryAfterHeader))
       }
     },
   )

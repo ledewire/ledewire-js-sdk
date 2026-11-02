@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { LedewireAuthManager, loginWithBuyerApiKey } from './auth.js'
-import { AuthError } from '@ledewire/core'
+import { AuthError, RateLimitError } from '@ledewire/core'
 
 const mockTokenResponse = {
   token_type: 'Bearer' as const,
@@ -44,6 +44,32 @@ describe('loginWithBuyerApiKey', () => {
     await expect(
       loginWithBuyerApiKey('bad', 'bad', 'https://api.ledewire.com', fetchFn),
     ).rejects.toThrow(AuthError)
+  })
+
+  it('throws RateLimitError, not AuthError, on 429 with retryAfter from Retry-After', async () => {
+    const fetchFn = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'Too many requests' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
+        }),
+      ),
+    )
+    const error = await loginWithBuyerApiKey('k', 's', 'https://api.ledewire.com', fetchFn).catch(
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).not.toBeInstanceOf(AuthError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 60 })
+  })
+
+  it('throws RateLimitError with retryAfter undefined on 429 without Retry-After', async () => {
+    const fetchFn = makeFetch(429, { error: 'Too many requests' })
+    const error = await loginWithBuyerApiKey('k', 's', 'https://api.ledewire.com', fetchFn).catch(
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ retryAfter: undefined })
   })
 })
 

@@ -74,6 +74,8 @@ export class ContentNamespace {
    *
    * @param body - The search criteria, and the `cursor` from the previous page if any.
    * @returns One page of results.
+   * @throws {RateLimitError} `429` — the buyer's search rate limit is exhausted. The SDK
+   *   does not retry automatically; wait `err.retryAfter` seconds, when it is set.
    * @example
    * ```ts
    * let cursor: string | null | undefined

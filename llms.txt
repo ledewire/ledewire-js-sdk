@@ -137,6 +137,8 @@ class AuthError extends LedewireError {}       // statusCode 401 — bad credent
 class ForbiddenError extends LedewireError {}  // statusCode 403 — authenticated but wrong role
 class NotFoundError extends LedewireError {}   // statusCode 404
 class PurchaseError extends LedewireError {}   // statusCode 409/422
+class RateLimitError extends LedewireError {} // statusCode 429 from any endpoint (content.search: 15/min per buyer);
+                                              // retryAfter = seconds from Retry-After, undefined when absent
 class SpendCapReachedError extends LedewireError {
   // statusCode 402, type 'daily_spend_cap_reached' — thrown by purchases.create(),
   // the x402 content gate, and acquisitions.authorize(). Funding the wallet does

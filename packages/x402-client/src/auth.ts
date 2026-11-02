@@ -1,4 +1,4 @@
-import { AuthError } from '@ledewire/core'
+import { AuthError, RateLimitError, parseRetryAfter } from '@ledewire/core'
 import type { AuthenticationResponse } from '@ledewire/core'
 
 const DEFAULT_API_BASE = 'https://api.ledewire.com'
@@ -21,6 +21,15 @@ export async function loginWithBuyerApiKey(
     body: JSON.stringify({ key, secret }),
   })
 
+  if (res.status === 429) {
+    throw new RateLimitError(
+      `Buyer API key authentication rate-limited (429)`,
+      undefined,
+      undefined,
+      undefined,
+      parseRetryAfter(res.headers.get('Retry-After')),
+    )
+  }
   if (!res.ok) {
     throw new AuthError(`Buyer API key authentication failed (${String(res.status)})`)
   }

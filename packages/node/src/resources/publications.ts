@@ -103,7 +103,7 @@ export class PublicationsNamespace {
    * @param params - Optional `from`/`to` date bounds (inclusive, `YYYY-MM-DD`),
    *   `cursor` for the next page, and `limit` (defaults to the maximum, 1000).
    * @returns A page of the publication's works.
-   * @throws {LedewireError} With `statusCode === 429` when the endpoint's rate
+   * @throws {RateLimitError} (`statusCode === 429`) when the endpoint's rate
    *   limit is exhausted. The SDK does not retry automatically. Wait
    *   `err.retryAfter` seconds before calling again, when it is set.
    */
