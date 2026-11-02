@@ -117,10 +117,17 @@ export class BrowserPurchasesNamespace {
    * if (purchase.license?.document_url) {
    *   const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
    *   // Offer it as a download; never render it inline.
+   *   // Pass the type through only for the two expected ones, so a server-sent
+   *   // text/html can never run in this origin.
+   *   const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+   *     ? contentType
+   *     : 'application/octet-stream'
+   *   const url = URL.createObjectURL(new Blob([body], { type }))
    *   const a = document.createElement('a')
-   *   a.href = URL.createObjectURL(new Blob([body], { type: contentType }))
+   *   a.href = url
    *   a.download = 'licence'
    *   a.click()
+   *   URL.revokeObjectURL(url)
    * }
    * ```
    */

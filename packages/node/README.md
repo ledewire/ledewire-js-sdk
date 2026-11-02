@@ -474,6 +474,8 @@ To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings c
 and `query` can be left out to list them newest first. Each result's `filing` describes
 the filing (`filer_name`, `ticker`, `cik`, `form_type`, `filing_date`,
 `period_of_report`, `accession_number`), and is `null` for every other work.
+Only Buyers whose Company subscribes to SEC filings are shown filings: for any other
+Buyer, these filters return no results.
 
 ```ts
 // Apple's annual reports, amendments (10-K/A) included.
@@ -502,7 +504,12 @@ const purchase = await client.purchases.get(purchaseId)
 console.log(purchase.license?.type, purchase.content.publication?.name)
 if (purchase.license?.document_url) {
   const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
-  const file = contentType.startsWith('text/markdown') ? 'licence.md' : 'licence.pdf'
+  const ext = contentType.startsWith('application/pdf')
+    ? 'pdf'
+    : contentType.startsWith('text/markdown')
+      ? 'md'
+      : 'bin'
+  const file = `licence.${ext}`
   await writeFile(file, Buffer.from(body))
 }
 ```

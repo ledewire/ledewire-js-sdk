@@ -142,7 +142,12 @@ export class PurchasesNamespace {
    * const purchase = await client.purchases.get('purchase-id')
    * if (purchase.license?.document_url) {
    *   const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
-   *   await writeFile(contentType.startsWith('application/pdf') ? 'licence.pdf' : 'licence.md', Buffer.from(body))
+   *   const ext = contentType.startsWith('application/pdf')
+   *     ? 'pdf'
+   *     : contentType.startsWith('text/markdown')
+   *       ? 'md'
+   *       : 'bin'
+   *   await writeFile(`licence.${ext}`, Buffer.from(body))
    * }
    * ```
    */

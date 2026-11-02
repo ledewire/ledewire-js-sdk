@@ -183,7 +183,7 @@ lw.wallet.getPaymentStatus(sessionId: string)          → Promise<WalletPayment
 
 ```ts
 lw.purchases.create({ content_id: string })           → Promise<PurchaseResponse>
-lw.purchases.list(params?: PaginationParams)          → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
+lw.purchases.list()                                   → Promise<PurchaseResponse[]>
 lw.purchases.get(purchaseId: string)                  → Promise<PurchaseResponse>
 lw.purchases.licenseDocument(purchaseId: string)      → Promise<LicenseDocument>
 // LicenseDocument: { body: ArrayBuffer, contentType: string } — not JSON. Usually
@@ -207,10 +207,17 @@ Licence and source fields on every `PurchaseResponse`:
 const purchase = await lw.purchases.get(purchaseId)
 if (purchase.license?.document_url) {
   const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+  // Pass the type through only for the two expected ones, so a server-sent
+  // text/html can never run in this origin.
+  const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+    ? contentType
+    : 'application/octet-stream'
+  const url = URL.createObjectURL(new Blob([body], { type }))
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([body], { type: contentType }))
+  a.href = url
   a.download = 'licence'
   a.click()
+  URL.revokeObjectURL(url)
 }
 ```
 
