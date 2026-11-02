@@ -133,7 +133,9 @@ await lw.auth.loginWithGoogle({ id_token: googleIdToken })</code></pre>
             for a purchase. There is no route that serves the same delivery
             again, so persist it immediately.
           </p>
-          <pre><code>const purchase = await lw.purchases.create({ content_id: 'content-id' })
+          <pre><code>// price_cents is the price the buyer was shown; a stale one is refused (422)
+const { price_cents } = await lw.checkout.state('content-id')
+const purchase = await lw.purchases.create({ content_id: 'content-id', price_cents })
 await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
 
 if (purchase.content_body) {
@@ -174,6 +176,22 @@ if (purchase.content_body) {
             <code>next_required_action</code> is never
             <code>'fund_wallet'</code>. Their cap is set by a Company admin
             (<code>lw.company.members.update()</code>).
+          </div>
+          <div class="callout">
+            <strong>Licences:</strong> each purchase carries
+            <code>license</code> (<code>type</code>, <code>permissions</code>,
+            <code>document_url</code>, or <code>null</code> when none was
+            recorded), <code>content.publication</code> and
+            <code>content.filing</code> (an SEC filing, else <code>null</code>).
+            <code>lw.purchases.licenseDocument(id)</code> downloads the licence
+            document as <code>{ body: ArrayBuffer, contentType }</code> —
+            usually a PDF. Offer it as a download, building the Blob with
+            <code>type: 'application/octet-stream'</code> unless
+            <code>contentType</code> is <code>application/pdf</code> or
+            <code>text/markdown</code>, so a server-sent
+            <code>text/html</code> can never run in your origin; call
+            <code>URL.revokeObjectURL()</code> after the click. Never render it
+            inline.
           </div>
         </div>
       </div>

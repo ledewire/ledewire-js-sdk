@@ -13,9 +13,18 @@
 <h1>Type Alias PurchaseResponse</h1></div>
 <div class="tsd-signature"><span class="tsd-kind-type-alias">PurchaseResponse</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">components</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;schemas&quot;</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;PurchaseResponse&quot;</span><span class="tsd-signature-symbol">]</span></div>
 <div class="tsd-comment tsd-typography"><p>A purchase record.</p>
+<ul>
+<li><code>license</code> is the <a href="browser_src.PurchaseLicense.html" class="tsd-kind-type-alias">PurchaseLicense</a> the purchase was delivered under, or <code>null</code>
+when none was recorded (every Store work, and brokered purchases made before licences
+were recorded). <code>null</code> means &quot;not recorded&quot;, never &quot;no rights granted&quot;.</li>
+<li><code>content.publication</code> is the <a href="browser_src.PurchasePublication.html" class="tsd-kind-type-alias">PurchasePublication</a> a brokered work was published
+under; <code>null</code> for a Store's work.</li>
+<li><code>content.filing</code> is the <a href="browser_src.ContentSearchFiling.html" class="tsd-kind-type-alias">ContentSearchFiling</a> for an SEC filing; <code>null</code> for every
+other work, and for a filing bought before its filer was recorded.</li>
+</ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in core/dist/index.d.ts:2572</li></ul></aside></div>
+<li>Defined in core/dist/index.d.ts:11721</li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
