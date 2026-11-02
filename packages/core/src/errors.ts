@@ -287,6 +287,42 @@ export class RateLimitError extends LedewireError {
 }
 
 /**
+ * Thrown when `content.search` refuses its `cursor`: HTTP `422` whose API error
+ * body's `error.type` is `'invalid_cursor'`. The cursor is invalid, expired (they
+ * last 24 hours), in an older format, or was issued for a different `query`,
+ * `tags`, `max_price_cents`, `metadata`, `publication`, `form_type`, `ticker`,
+ * `cik` or `limit`. Nothing was searched.
+ *
+ * The remedy is the same for every reason: drop the cursor and start the search
+ * again from the first page, without one. The same cursor never succeeds on
+ * retry. `message` says which reason applied, as prose; branch on the class, not
+ * on the message.
+ *
+ * Matched on `error.type` alone. Any other `422` stays a plain {@link LedewireError}.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   page = await client.content.search({ query, cursor })
+ * } catch (err) {
+ *   if (err instanceof InvalidCursorError) {
+ *     page = await client.content.search({ query }) // restart from the first page
+ *   } else {
+ *     throw err
+ *   }
+ * }
+ * ```
+ */
+export class InvalidCursorError extends LedewireError {
+  static override readonly brand: string = 'InvalidCursorError'
+
+  constructor(message: string, code?: number, details?: Record<string, unknown>) {
+    super(message, 422, code, 'invalid_cursor', details)
+    this.name = 'InvalidCursorError'
+  }
+}
+
+/**
  * Thrown when the purchase cannot be completed due to a validation
  * failure, such as a price mismatch or a duplicate purchase.
  */

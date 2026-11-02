@@ -111,7 +111,7 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`,
-`SpendCapReachedError`, `RateLimitError`). `LedewireError` also carries an optional `type` (the API
+`SpendCapReachedError`, `RateLimitError`, `InvalidCursorError`). `LedewireError` also carries an optional `type` (the API
 error body's machine-readable `error.type`, e.g. `'daily_spend_cap_reached'`) and
 `details` (extra top-level error-body fields). `instanceof` works even across the
 separately bundled copies of `@ledewire/core` in `@ledewire/node`, `@ledewire/browser`,
@@ -126,6 +126,10 @@ only by an admin via `company.members.update()`).
 
 `RateLimitError` (429) is thrown by `HttpClient` for a 429 from any endpoint, with
 `retryAfter` read from `Retry-After` (`undefined` when the header is absent).
+
+`InvalidCursorError` (422) is thrown when the API answers with `error.type: 'invalid_cursor'`:
+a `content.search` cursor that is invalid, expired, in an older format, or sent with changed
+filters. Drop the cursor and start the search again. It is matched on the type, never the status.
 
 #### Company members never see the Company balance
 

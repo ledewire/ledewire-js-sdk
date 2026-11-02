@@ -3,6 +3,7 @@ import {
   LedewireError,
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   NotFoundError,
   PurchaseError,
   RateLimitError,
@@ -145,6 +146,25 @@ describe('RateLimitError', () => {
   })
 })
 
+describe('InvalidCursorError', () => {
+  it('has statusCode 422 and type invalid_cursor', () => {
+    const err = new InvalidCursorError('The cursor has expired.', 422)
+    expect(err.name).toBe('InvalidCursorError')
+    expect(err).toMatchObject({ statusCode: 422, code: 422, type: 'invalid_cursor' })
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toBeInstanceOf(InvalidCursorError)
+  })
+
+  it('is recognized across bundle copies', async () => {
+    vi.resetModules()
+    const otherCopy = await import('./errors.js')
+    const err = new otherCopy.InvalidCursorError('The cursor has expired.')
+    expect(err).toBeInstanceOf(InvalidCursorError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(new otherCopy.LedewireError('Bad filter', 422)).not.toBeInstanceOf(InvalidCursorError)
+  })
+})
+
 describe('instanceof checks across the hierarchy', () => {
   it('all subclasses satisfy instanceof LedewireError', () => {
     const errors = [
@@ -153,6 +173,7 @@ describe('instanceof checks across the hierarchy', () => {
       new NotFoundError('c'),
       new PurchaseError('d', 400),
       new RateLimitError('e'),
+      new InvalidCursorError('f'),
     ]
     for (const err of errors) {
       expect(err).toBeInstanceOf(LedewireError)

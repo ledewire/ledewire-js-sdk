@@ -3,13 +3,18 @@ import { HttpClient } from './http-client.js'
 import {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   NotFoundError,
   RateLimitError,
   SpendCapReachedError,
 } from './errors.js'
 import { createTestServer, http, HttpResponse } from './test-utils/server.js'
-import { errorResponseFixture, spendCapReachedErrorFixture } from './test-utils/fixtures.js'
+import {
+  errorResponseFixture,
+  invalidCursorErrorFixture,
+  spendCapReachedErrorFixture,
+} from './test-utils/fixtures.js'
 
 const BASE = 'https://api.ledewire.com'
 
@@ -642,6 +647,47 @@ describe('HttpClient spend-cap body validation', () => {
     expect((err as LedewireError).type).toBe('daily_spend_cap_reached')
     // Never NaN/'undefined' fields smuggled onto the generic error.
     expect((err as SpendCapReachedError).capCents).toBeUndefined()
+  })
+})
+
+describe('refused search cursor (invalid_cursor)', () => {
+  function refuse(body: Parameters<typeof HttpResponse.json>[0], status = 422) {
+    return http.post(`${BASE}/v1/test`, () => HttpResponse.json(body, { status }))
+  }
+
+  it('throws a 422 with error.type invalid_cursor as InvalidCursorError', async () => {
+    server.use(refuse(invalidCursorErrorFixture('The cursor has expired.')))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InvalidCursorError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toMatchObject({
+      name: 'InvalidCursorError',
+      statusCode: 422,
+      code: 422,
+      type: 'invalid_cursor',
+      message: 'The cursor has expired.',
+    })
+  })
+
+  it('keeps any other 422 a plain LedewireError', async () => {
+    server.use(refuse(errorResponseFixture(422, 'The cursor has expired.', 'client_error')))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).not.toBeInstanceOf(InvalidCursorError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toMatchObject({ statusCode: 422, type: 'client_error' })
+  })
+
+  it('keeps a 422 with no error.type a plain LedewireError', async () => {
+    server.use(refuse({ error: { code: 422, message: 'Invalid cursor' } }))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).not.toBeInstanceOf(InvalidCursorError)
+    expect(err).toMatchObject({ name: 'LedewireError', statusCode: 422 })
   })
 })
 

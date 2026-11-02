@@ -159,6 +159,7 @@ export type {
 export {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   MemoryTokenStorage,
   NotFoundError,

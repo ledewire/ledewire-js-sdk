@@ -105,7 +105,7 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
 - `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
-- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present
@@ -154,6 +154,8 @@ class NotFoundError extends LedewireError {}   // statusCode 404
 class PurchaseError extends LedewireError {}   // statusCode 409/422
 class RateLimitError extends LedewireError {} // statusCode 429 from any endpoint (content.search: 15/min per buyer);
                                               // retryAfter = seconds from Retry-After, undefined when absent
+class InvalidCursorError extends LedewireError {} // statusCode 422, type 'invalid_cursor' — content.search refused its
+                                                  // cursor (expired, invalid, or other filters): drop it and restart
 class SpendCapReachedError extends LedewireError {
   // statusCode 402, type 'daily_spend_cap_reached' — thrown by purchases.create(),
   // the x402 content gate, and acquisitions.authorize(). Funding the wallet does

@@ -438,6 +438,7 @@ import {
   NotFoundError,
   PurchaseError,
   RateLimitError,
+  InvalidCursorError,
   SpendCapReachedError,
 } from '@ledewire/browser'
 
@@ -457,6 +458,10 @@ class PurchaseError extends LedewireError {}   // 409/422 — purchase validatio
 // 429 from any endpoint — e.g. content search allows 15 searches/min per buyer.
 // retryAfter: seconds from the Retry-After header, undefined when absent.
 class RateLimitError extends LedewireError {}
+// 422 with error.type 'invalid_cursor' — a content search refused its cursor
+// (expired, invalid, or issued for different filters). Any other 422 is a plain
+// LedewireError. Drop the cursor and restart the search from the first page.
+class InvalidCursorError extends LedewireError {}
 
 // 402 — daily_spend_cap_reached, thrown by lw.purchases.create(). Funding the
 // wallet does NOT clear this — it resets at `resetsAt`, or via

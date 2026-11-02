@@ -44,6 +44,7 @@ type CorpusManifestResponseSchema = components['schemas']['CorpusManifestRespons
 type SigningKeyHistoryResponseSchema = components['schemas']['SigningKeyHistoryResponse']
 type X402BazaarDiscoveryResponseSchema = components['schemas']['X402BazaarDiscoveryResponse']
 type DailySpendCapReachedErrorSchema = components['schemas']['DailySpendCapReachedError']
+type InvalidCursorErrorSchema = components['schemas']['InvalidCursorError']
 type CompanyMembershipSchema = components['schemas']['CompanyMembership']
 type CompanyInvitationSchema = components['schemas']['CompanyInvitation']
 type CompanyMemberSchema = components['schemas']['CompanyMember']
@@ -859,6 +860,17 @@ export function spendCapReachedErrorFixture(
     message: 'Daily spend cap reached.',
     ...overrides,
   }
+}
+
+/**
+ * Returns a refused-search-cursor error body fixture, as returned with HTTP `422`
+ * by `POST /v1/content/search` for a cursor that is invalid, expired, in an older
+ * format, or issued for a different search.
+ */
+export function invalidCursorErrorFixture(
+  message = 'The cursor has expired. Start again without one.',
+): InvalidCursorErrorSchema {
+  return { error: { code: 422, message, type: 'invalid_cursor' }, message }
 }
 
 /**
