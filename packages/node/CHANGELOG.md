@@ -1,5 +1,97 @@
 # @ledewire/node
 
+## 0.16.0
+
+### Minor Changes
+
+- 739adaf: Exported request, response and query-parameter types that copied a spec schema by hand are now aliases of the generated types, with a type test pinning each one to `ledewire.yml`, so they can no longer drift from the API. Their names are unchanged.
+
+  - **Breaking:** `StoreConfig` (`client.merchant.config.get`) has a required `google_client_id: string | null`, as the API sends it, not an optional `string`. Handle `null` (no Google client ID configured).
+  - **Breaking:** `PublicationListParams`, `PublicationWorksParams`, `AcquisitionWorksParams`, `X402DiscoveryParams`, `CompanyReportFilters`, `CompanyPurchasesParams` and `CompanySpendParams` no longer carry a `[key: string]` index signature, so a parameter the endpoint does not take is a type error. Pass only the documented parameters.
+  - `MerchantPricingRuleCreateRequest` (`client.merchant.pricingRules.create`) is now exported from `@ledewire/node`.
+
+- 2a8270b: `ContentSearchRequest` is now the buyer search request that `client.content.search()` takes.
+
+  **Breaking:** in 0.14.0 `ContentSearchRequest` was the seller content search shape (`title`,
+  `uri`, `external_identifier`). That shape is now exported only as
+  `MerchantContentSearchRequest`, and `ContentSearchRequest` names the buyer's
+  `POST /v1/content/search` body (`query`, `tags`, `max_price_cents`, `publication`,
+  `form_type`, `ticker`, `cik`, `cursor`, `limit`, …). Code that typed a seller search with
+  `ContentSearchRequest` must switch to `MerchantContentSearchRequest`. `BuyerContentSearchRequest`
+  is kept as the same type under its earlier name, marked `@deprecated` in favour of
+  `ContentSearchRequest`.
+
+- 139015f: `createClient({ apiKey, apiSecret })` now logs in with the store API key, as documented. The options were previously accepted and ignored, so a client built that way sent its first `client.merchant.*` request unauthenticated and got a `401`. The client now logs in through `POST /v1/auth/login/api-key` (the same login as `client.auth.loginWithApiKey()`, secret omitted for a `view` key) before its first authenticated request when no token is stored; construction itself sends nothing, and concurrent first requests share one login. When a token refresh fails, it logs in with the key again and retries the request once. `onAuthExpired` fires only when an automatic login fails, once per failed attempt however many requests shared it. A refused key rejects the request with an `AuthError` carrying the API's message, after one attempt. A client that already holds a token (from `storage` or an explicit `loginWithApiKey()`) doesn't log in, and a client created without `apiKey` behaves as before. To read the key's `store_id`, keep calling `client.auth.loginWithApiKey()` once yourself.
+- 7b7991f: - **Breaking:** `client.content.getWithAccess(id)` no longer takes a `userId`, and no longer sends `user_id`. `GET /v1/content/{id}/with-access` is a Buyer route: call it with a buyer token (or none), and it reports only the caller's own access. A store credential (a merchant login, `auth.loginWithApiKey`, or `createClient({ apiKey, apiSecret })`) gets `403`, thrown as `ForbiddenError`. There is no replacement for looking up another buyer's access.
+  - **Breaking:** `client.content.getWithAccess` now returns `teaser` as plain UTF-8 text, decoded from base64, as `@ledewire/browser` does. Drop any `atob` / `Buffer.from(teaser, 'base64')` on its result.
+  - `client.content.getWithAccess` URL-encodes `id`, so an id containing `/` reaches the right content.
+- d6290bc: Add `InvalidCursorError`, thrown when `content.search` refuses its `cursor` (`422` with `error.type` `'invalid_cursor'`): the cursor is invalid, expired, in an older format, or was issued for different filters. Drop the cursor and restart the search from the first page; the same cursor never succeeds on retry. It extends `LedewireError` with `statusCode` 422 and is matched on `error.type` alone, so any other 422 stays a plain `LedewireError`. Needs an API that sends `invalid_cursor` (ledewire/api#1692). Syncs `ledewire.yml` from the API (ledewire/api `3eb80e29831f41310acdd370dd15f5306096195d`): `ErrorType` gains `'invalid_cursor'`.
+- afcfb66: `client.auth.loginWithApiKey()` now resolves with `store_id`, the store the API key belongs to, typed by the new `StoreAuthenticationResponse`: `const { store_id } = await client.auth.loginWithApiKey({ key, secret })`, then pass it to `client.merchant.*(store_id)`. It is read from the API response (added in ledewire/api#1675), never decoded from the token.
+  `StoredTokens` gains an optional `storeId`, set on a store API-key login and on every refresh of that session, so `storage.setTokens` and `onTokenRefreshed` see it. It is absent for every other session.
+- 1ad8d22: Follow the API's merchant changes.
+
+  - New `client.auth.getInviteInfo(token)` (`GET /v1/auth/invite-info/{token}`): the pending store invitation behind an emailed token, as an `InviteInfoResponse`. A public call that sends no `Authorization` header. 404 is a `NotFoundError`; 409 (already accepted) and 410 (expired) are `LedewireError`s with that `statusCode`.
+  - New `client.merchant.auth.acceptInvitation({ invitation_token })` (`POST /v1/auth/merchant/accept-invitation`): joins the signed-in merchant to the store and returns a `MerchantInvitationAcceptedResponse`. A refusal carries `type === 'invitation_not_accepted'` and `details.reason` (`not_found`, `wrong_email`, `already_accepted`, `already_member`, `expired`, `invalid`), as `company.invitations.accept()` does.
+  - New exported types `InviteInfoResponse`, `MerchantAcceptInvitationRequest` and `MerchantInvitationAcceptedResponse`, with `createMockClient()` stubs for both methods.
+  - `merchant.users.invite` now percent-encodes `storeId` in the path, like the other `merchant.users` methods.
+  - The JSDoc, README, guide and `llms.txt` say which merchant methods need a **full** store API key (key and secret) or an owner login: `merchant.content` create/update/delete, `merchant.users` list/invite/update/remove, `merchant.pricingRules` create/deactivate and `merchant.domains` add/verify/remove. A `view` key gets a 403 `ForbiddenError` from them.
+  - `merchant.sales.get` documents the opaque `buyer_ref` and nullable `fees.*_cents` (the type change itself is the **Breaking** `MerchantSaleResponse` entry in the spec-sync changeset).
+
+- ba39f03: Add `purchases.licenseDocument(id)` to `@ledewire/node` and `@ledewire/browser`, which downloads the licence document a purchase's `license.document_url` points at. It resolves to a `LicenseDocument`, `{ body: ArrayBuffer, contentType }`, because the document is a PDF, Markdown (an SEC filing's terms) or other bytes rather than JSON. It throws `AuthError` (401), `ForbiddenError` (403) and `NotFoundError` (404), and is stubbed in `createMockClient()`.
+  Export the `PurchaseLicense`, `PurchasePublication`, `ContentSearchFiling` and `LicenseDocument` types, and document `license`, `content.publication` and `content.filing` on purchases, `filing` on search results, and the `publication`, `form_type`, `ticker` and `cik` filters on `content.search()` (SEC EDGAR filings).
+- f59fe79: Add `RateLimitError`, thrown for a `429 Too Many Requests` from any endpoint (for example `content.search`, which allows 15 searches a minute per buyer). Its `retryAfter` carries the `Retry-After` header as seconds to wait, or `undefined` when the response sent none. It extends `LedewireError` with `statusCode` 429, so existing `statusCode === 429` checks keep working. `@ledewire/x402-client` re-exports it and throws it for a 429 on the paid retry or the buyer-key login (which used to surface as an `AuthError`).
+- 0338e5f: Remove `client.seller` from `@ledewire/node` and `lw.seller` from `@ledewire/browser`.
+
+  **Breaking:** the API retired `/v1/seller/{sales,sales/summary,buyers,config}`, and
+  `/v1/seller/content*` is past its 2026-09-01 sunset, so the `seller` namespaces called routes
+  that no longer work. Node's `client.seller` (`content`, `sales`, `buyers`, `config`) is gone,
+  along with its `createMockClient()` stubs and the seller-shaped `ContentSearchRequest` type (use
+  `MerchantContentSearchRequest`; `ContentSearchRequest` now names the buyer search request).
+  `client.merchant.*` accepts store API-key tokens from
+  `client.auth.loginWithApiKey()`; every replacement takes the store's id, which you pass
+  explicitly for now:
+
+  | Before                         | After                                                                |
+  | ------------------------------ | -------------------------------------------------------------------- |
+  | `seller.sales.summary()`       | `merchant.sales.summary(storeId)`                                    |
+  | `seller.sales.list()`          | `merchant.sales.list(storeId)` (paginated, one row per content item) |
+  | `seller.buyers.list()`         | `merchant.buyers.list(storeId)`                                      |
+  | `seller.config.get()`          | `merchant.config.get(storeId)`                                       |
+  | `seller.content.*(storeId, …)` | `merchant.content.*(storeId, …)`                                     |
+
+  In `@ledewire/browser`, the whole `lw.seller` namespace is removed: `lw.seller.content.*`
+  and `lw.seller.loginWithApiKey()`, plus the `SellerContentSearchRequest` type. The browser SDK
+  is buyer-only, and a store API key does not belong in a browser; manage store content from a
+  server with `@ledewire/node`'s `client.merchant.content.*`. Buyer API-key login
+  (`lw.auth.loginWithBuyerApiKey()`) is unaffected.
+
+- ce474c3: Sync `ledewire.yml` from the API (ledewire/api `8d0afc18e7a21132b5b99003d2b6ff8fd6ad6cfe`) and regenerate the types. `content.getWithAccess`, `checkout.state` and `wallet.getPaymentStatus` now return exactly what their operation's 200 declares, and a type test pins them (plus signup and password reset) to the spec.
+
+  - **Breaking:** `AuthPasswordResetResponse` (buyer `auth.requestPasswordReset` / `auth.resetPassword`) is now the flat `{ message: string }` the API sends, not `{ data?: { message?: string } }`. Read `result.message`.
+  - **Breaking:** `auth.loginWithEmail` and `auth.loginWithGoogle` request bodies now require `email` and `password`, and `id_token`, matching the spec.
+  - **Breaking:** `CheckoutStateResponse.content_title` (and `CheckoutState`) is `string | null`.
+  - **Breaking:** `WalletPaymentStatusResponse.status` can be `'reverted'`, so an exhaustive `switch` on it needs a new case. `balance_cents` stays `number | null`.
+  - **Breaking:** `LedewireSettlementResponse.accessToken` (`@ledewire/x402-client`) is an optional `string`, never `null`.
+  - **Breaking:** `X402BazaarResource.metadata.title` is `string | null`.
+  - **Breaking:** `CompanyMemberUpdateRequest` (`company.members.update`) requires `role` or `daily_spend_limit_cents`. An empty body no longer type-checks.
+  - **Breaking:** `ContentWithAccessResponse` is the API's closed shape: `id`, `content_type`, `title` (nullable), `teaser`, `price_cents`, `visibility: 'public'`, `resource_url` (nullable) and `access_info`. `content_body`, `content_uri`, `external_identifier` and `metadata` are gone. The deliverable comes only from `purchases.create()`.
+  - **Breaking:** `MerchantSaleResponse` has `buyer_ref` in place of `buyer_id` and `buyer`, and its `fees.*_cents` are nullable (null until a sale completes).
+  - **Breaking:** `PurchaseCreateRequest` requires `content_id` and `price_cents`.
+  - **Breaking:** `PublicConfigResponse.google_client_id` is `string | null`.
+  - **Breaking:** `PurchaseResponse.license`, `PurchaseResponse.content.filing`, `ContentSearchResult.filing` and `Publication.homepage` are required (nullable) fields. Reading code is unaffected; code that builds these objects, such as test mocks, must set them.
+  - `AuthTokenRefreshRequest.refresh_token` is now required in the spec, but that type is not exported by the SDK, so it needs no migration.
+  - `auth.signup` documents the API's `201 Created`.
+  - New `AuthTokenRefreshResponse` (`@ledewire/node`): `POST /v1/auth/token/refresh` answers an `AuthenticationResponse` or a `MerchantAuthenticationResponse`.
+  - Additive from the regeneration: `ContentSearchRequest` gains `cik`, `ticker`, `form_type` and `publication` filters; `ErrorType` gains `not_subscribed`, `selection_too_large` and `selection_value_too_large`; `CorpusResponse.state` gains `not_ready` and `nothing_purchased`; acquisition exclusion reasons gain `excluded_not_sold_in_bulk`; `AuthSignupRequest.name` is optional.
+
+- c64b260: Add `client.x402.verifyOrigin({ url, store_id? })` and `client.x402.getJwks()` (both public, no auth), with the `X402VerifyOriginParams`, `X402VerifyOriginResponse` and `X402JwksResponse` types. A `429` from `verifyOrigin` throws `RateLimitError` with `retryAfter`; a `503` from `getJwks` throws `LedewireError` with message `'JWKS unavailable'`.
+  **Breaking:** `LedewireSettlementResponse` is now a type alias of the spec's generated `SettlementResponse`, so `network` is typed as `'ledewire:v1'` instead of `string`: construct with `network: 'ledewire:v1'`; the type no longer supports declaration merging.
+  A failed buyer-key login in `@ledewire/x402-client` now rejects with the API's own error message instead of a generic one.
+
+### Patch Changes
+
+- ff5f513: `purchases.create()` documents `price_cents`: the price the buyer was quoted, which must equal the work's current price or the API refuses with a `422` and charges nothing. Every `purchases.create()` example in the READMEs, `llms.txt`, guides and JSDoc (including `SpendCapReachedError`) now passes it.
+
 ## 0.15.0
 
 ### Minor Changes
