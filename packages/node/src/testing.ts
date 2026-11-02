@@ -137,6 +137,7 @@ export function createMockClient(
       loginWithApiKey: stub(),
       requestPasswordReset: stub(),
       resetPassword: stub(),
+      getInviteInfo: stub(),
     },
     merchant: {
       auth: {
@@ -147,6 +148,7 @@ export function createMockClient(
         loginWithGoogleAndListStores: stub(),
         requestPasswordReset: stub(),
         resetPassword: stub(),
+        acceptInvitation: stub(),
       },
       users: {
         list: stub(),

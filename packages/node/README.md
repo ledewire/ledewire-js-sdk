@@ -37,7 +37,7 @@ const stores = await client.merchant.auth.listStores()
 | Namespace                      | Description                                                                                   |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |
 | `client.config`                | Platform-level public config (no auth required)                                               |
-| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset                              |
+| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset, store invitation lookup     |
 | `client.wallet`                | Buyer wallet balance (incl. `held_cents`/`holds` from bulk acquisitions) and payment sessions |
 | `client.purchases`             | Buyer purchase history, create purchases, verify ownership                                    |
 | `client.content`               | Fetch content with buyer access info; search every Store and Publication                      |
@@ -50,7 +50,7 @@ const stores = await client.merchant.auth.listStores()
 | `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
 | `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
-| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
+| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset, accept a store invitation   |
 | `client.merchant.users`        | Merchant user management (invite, list, update, remove)                                       |
 | `client.merchant.content`      | Content CRUD + search (merchant JWT or store API key)                                         |
 | `client.merchant.buyers`       | Buyer statistics within a store                                                               |
@@ -235,6 +235,53 @@ const combined = await client.merchant.content.search(storeId, {
 // Fetch Google OAuth client ID before the user has signed in
 const { google_client_id } = await client.config.getPublic()
 // google.accounts.id.initialize({ client_id: google_client_id, callback })
+```
+
+### Full and view keys
+
+A store API key logged in with its secret (`client.auth.loginWithApiKey({ key, secret })`) has
+`full` permission; with the key alone it has `view`. Reads work with either. These need a **full**
+key or an owner's merchant login, and a `view` key gets a `403` `ForbiddenError`:
+
+- `merchant.content.create` / `update` / `delete` (an `is_author` member may write only their own items)
+- `merchant.users.list` / `invite` / `update` / `remove`
+- `merchant.pricingRules.create` / `deactivate`
+- `merchant.domains.add` / `verify` / `remove`
+
+### Sales rows and buyers
+
+`merchant.sales.get()` names the buyer only by `buyer_ref` (`bref_v1_…`), an opaque, store-scoped
+reference that matches `merchant.buyers.list()`. The buyer's user id and name are not disclosed.
+`fees.*_cents` are `null` until the sale completes.
+
+```ts
+const sale = await client.merchant.sales.get(storeId, saleId)
+const { data: buyers } = await client.merchant.buyers.list(storeId)
+const buyer = buyers.find((b) => b.buyer_ref === sale.buyer_ref)
+```
+
+### Store invitations
+
+`merchant.users.invite()` emails an `invitation_token` to someone without an account. Show the
+invitation with the public `auth.getInviteInfo()`, then let the invitee join through
+`auth.signup()` / `auth.loginWithGoogle()` with `invitation_token`, or, if they are already a
+merchant, through `merchant.auth.acceptInvitation()`:
+
+```ts
+import { LedewireError } from '@ledewire/node'
+
+const invite = await client.auth.getInviteInfo(token) // no auth; 404 / 409 / 410 when unusable
+console.log(`Join ${invite.store_name}`)
+
+try {
+  await client.merchant.auth.loginWithEmail({ email, password })
+  const membership = await client.merchant.auth.acceptInvitation({ invitation_token: token })
+  console.log(`Joined ${membership.store_name} as ${membership.role}`)
+} catch (err) {
+  if (err instanceof LedewireError && err.type === 'invitation_not_accepted') {
+    // err.details.reason: 'not_found' | 'wrong_email' | 'already_accepted' | 'already_member' | 'expired' | 'invalid'
+  }
+}
 ```
 
 ## Example: Buyer Spend Cap & MCP API Keys

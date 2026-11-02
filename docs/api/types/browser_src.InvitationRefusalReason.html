@@ -13,11 +13,13 @@
 <h1>Type Alias InvitationRefusalReason</h1></div>
 <div class="tsd-signature"><span class="tsd-kind-type-alias">InvitationRefusalReason</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">components</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;schemas&quot;</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;InvitationRefusalReason&quot;</span><span class="tsd-signature-symbol">]</span></div>
 <div class="tsd-comment tsd-typography"><p>Why a store or Company invitation was not accepted. Carried by an
-<a href="browser_src.InvitationOutcome.html" class="tsd-kind-type-alias">InvitationOutcome</a>, and by a refused signup or Google sign-in as
-<code>LedewireError.details.reason</code> (with <code>type === 'invitation_not_accepted'</code>).</p>
+<a href="browser_src.InvitationOutcome.html" class="tsd-kind-type-alias">InvitationOutcome</a>, and by a refused signup, Google sign-in or
+invitation accept (<code>company.invitations.accept</code>,
+<code>merchant.auth.acceptInvitation</code>) as <code>LedewireError.details.reason</code> (with
+<code>type === 'invitation_not_accepted'</code>).</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in core/dist/index.d.ts:11529</li></ul></aside></div>
+<li>Defined in core/dist/index.d.ts:11531</li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

@@ -73,4 +73,22 @@ describe('return types match the spec operation responses', () => {
     expectTypeOf<{ daily_spend_limit_cents: 500 }>().toExtend<CompanyMemberUpdateRequest>()
     expectTypeOf<Record<string, never>>().not.toExtend<CompanyMemberUpdateRequest>()
   })
+
+  it('merchant.sales.get names the buyer only by buyer_ref', () => {
+    type Sale = Returns<NodeClient['merchant']['sales']['get']>
+    expectTypeOf<Sale>().toEqualTypeOf<OperationOk<'/v1/merchant/{store_id}/sales/{id}', 'get'>>()
+    expectTypeOf<Sale['buyer_ref']>().toEqualTypeOf<string>()
+    expectTypeOf<Sale>().not.toHaveProperty('buyer_id')
+    expectTypeOf<Sale>().not.toHaveProperty('buyer')
+    expectTypeOf<Sale['fees']['store_net_cents']>().toEqualTypeOf<number | null>()
+  })
+
+  it('invitation lookup and accept', () => {
+    expectTypeOf<Returns<NodeClient['auth']['getInviteInfo']>>().toEqualTypeOf<
+      OperationOk<'/v1/auth/invite-info/{token}', 'get'>
+    >()
+    expectTypeOf<Returns<NodeClient['merchant']['auth']['acceptInvitation']>>().toEqualTypeOf<
+      OperationOk<'/v1/auth/merchant/accept-invitation', 'post'>
+    >()
+  })
 })

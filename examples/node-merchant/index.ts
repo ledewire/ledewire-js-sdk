@@ -5,8 +5,9 @@
  * 1. Merchant email/password authentication + store discovery (single call)
  * 2. Creating a content item in the store
  * 3. Viewing a sales summary for the store
- * 4. Listing recent individual sales
- * 5. The same sales summary from a store API-key session, using the store_id
+ * 4. Listing per-title sales statistics
+ * 5. Listing top buyers by their opaque buyer_ref
+ * 6. The same sales summary from a store API-key session, using the store_id
  *    that loginWithApiKey resolves with
  *
  * Prerequisites:
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
     const [firstStore] = stores
     if (!firstStore) return // narrowing — length guard above makes this unreachable
     const storeId = firstStore.id
-    console.log(`✓ Using store: ${firstStore.store_name} (${storeId})`)
+    console.log(`✓ Using store: ${firstStore.name} (${storeId})`)
 
     // -------------------------------------------------------------------------
     // 2. Create a content item
@@ -84,7 +85,20 @@ async function main(): Promise<void> {
     }
 
     // -------------------------------------------------------------------------
-    // 5. Store API-key session: loginWithApiKey resolves with the key's store_id
+    // 5. Top buyers — identified only by an opaque, store-scoped buyer_ref
+    // -------------------------------------------------------------------------
+    // A single sale (client.merchant.sales.get) names its buyer by the same
+    // buyer_ref, never by user id or name, so the two can be matched.
+    const { data: buyers } = await client.merchant.buyers.list(storeId)
+    for (const buyer of buyers.slice(0, 5)) {
+      console.log(
+        `   - ${buyer.buyer_ref}: ${buyer.purchases_count} purchases, ` +
+          `${buyer.total_spent_cents / 100} USD net`,
+      )
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Store API-key session: loginWithApiKey resolves with the key's store_id
     // -------------------------------------------------------------------------
     const key = process.env['LEDEWIRE_API_KEY']
     if (key) {

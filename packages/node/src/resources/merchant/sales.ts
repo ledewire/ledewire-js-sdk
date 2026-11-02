@@ -54,9 +54,21 @@ export class MerchantSalesNamespace {
   /**
    * Returns full detail for a single sale, including the platform fee breakdown.
    *
+   * The buyer is identified only by `buyer_ref` (`bref_v1_…`), an opaque,
+   * store-scoped reference: the same value `merchant.buyers.list()` returns, so
+   * a sale can be matched to that ranking. The buyer's user id and name are
+   * not disclosed. The `fees.*_cents` are `null` until the sale completes (and
+   * on sales recorded before fee snapshots existed).
+   *
    * @param storeId - The merchant store ID.
    * @param id - The sale (purchase) ID.
    * @returns The sale detail with fee split.
+   *
+   * @example
+   * ```ts
+   * const sale = await client.merchant.sales.get(storeId, saleId)
+   * console.log(sale.buyer_ref, sale.fees.store_net_cents ?? 'pending')
+   * ```
    */
   async get(storeId: string, id: string): Promise<MerchantSaleResponse> {
     return this.http.get<MerchantSaleResponse>(

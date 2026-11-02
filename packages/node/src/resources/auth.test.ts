@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, LedewireError, MemoryTokenStorage } from '@ledewire/core'
+import { AuthError, LedewireError, MemoryTokenStorage, NotFoundError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   authTokenFixture,
   errorResponseFixture,
+  inviteInfoFixture,
   storeAuthTokenFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
@@ -429,5 +430,95 @@ describe('auth.resetPassword', () => {
     })
 
     expect(storage.getTokens()).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// auth.getInviteInfo
+// ---------------------------------------------------------------------------
+
+describe('auth.getInviteInfo', () => {
+  const URL_PATTERN = `${BASE}/v1/auth/invite-info/:token`
+
+  it('returns the pending store invitation', async () => {
+    const fixture = inviteInfoFixture({ role: 'owner' })
+    server.use(http.get(URL_PATTERN, () => HttpResponse.json(fixture)))
+
+    await expect(makeClient().auth.getInviteInfo('invite-token')).resolves.toEqual(fixture)
+  })
+
+  it('sends no Authorization header, even with a session stored', async () => {
+    let authHeader: string | null = 'unset'
+    server.use(
+      http.get(URL_PATTERN, ({ request }) => {
+        authHeader = request.headers.get('Authorization')
+        return HttpResponse.json(inviteInfoFixture())
+      }),
+    )
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'live-access',
+      refreshToken: 'live-refresh',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    })
+
+    await createClient({ storage }).auth.getInviteInfo('invite-token')
+
+    expect(authHeader).toBeNull()
+  })
+
+  it('percent-encodes the token', async () => {
+    let capturedPath = ''
+    server.use(
+      http.get(URL_PATTERN, ({ request }) => {
+        capturedPath = new URL(request.url).pathname
+        return HttpResponse.json(inviteInfoFixture())
+      }),
+    )
+
+    await makeClient().auth.getInviteInfo('a/b')
+
+    expect(capturedPath).toBe('/v1/auth/invite-info/a%2Fb')
+  })
+
+  it('throws NotFoundError when no invitation has this token (404)', async () => {
+    server.use(
+      http.get(URL_PATTERN, () =>
+        HttpResponse.json(errorResponseFixture(404, 'Invitation not found'), { status: 404 }),
+      ),
+    )
+
+    await expect(makeClient().auth.getInviteInfo('nope')).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it('throws a 409 LedewireError when the invitation was already accepted', async () => {
+    server.use(
+      http.get(URL_PATTERN, () =>
+        HttpResponse.json(errorResponseFixture(409, 'Invitation already accepted'), {
+          status: 409,
+        }),
+      ),
+    )
+
+    const err = await makeClient()
+      .auth.getInviteInfo('used')
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).statusCode).toBe(409)
+  })
+
+  it('throws a 410 LedewireError when the invitation has expired', async () => {
+    server.use(
+      http.get(URL_PATTERN, () =>
+        HttpResponse.json(errorResponseFixture(410, 'Invitation has expired'), { status: 410 }),
+      ),
+    )
+
+    const err = await makeClient()
+      .auth.getInviteInfo('old')
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).statusCode).toBe(410)
+    expect((err as LedewireError).message).toBe('Invitation has expired')
   })
 })

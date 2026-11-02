@@ -20,6 +20,7 @@ import type {
   AuthPasswordResetRequestBody,
   AuthPasswordResetBody,
   AuthPasswordResetResponse,
+  InviteInfoResponse,
 } from '@ledewire/core'
 
 /**
@@ -206,6 +207,37 @@ export class AuthNamespace {
    */
   async resetPassword(body: AuthPasswordResetBody): Promise<AuthPasswordResetResponse> {
     return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset', body)
+  }
+
+  /**
+   * Look up the pending store invitation behind an emailed `invitation_token`,
+   * so a signup page can show which store it is for before the invitee has an
+   * account. A public call: it sends no `Authorization` header and needs no
+   * session, because the token is the credential. Invitations expire 7 days
+   * after they were sent.
+   *
+   * To act on the invitation, pass the same token as `invitation_token` to
+   * {@link signup} or {@link loginWithGoogle}, or, for an existing merchant,
+   * to `merchant.auth.acceptInvitation()`.
+   *
+   * @param token - The `invitation_token` from the store invitation email.
+   * @returns The invited address, store name, role and expiry.
+   * @throws {NotFoundError} When no invitation has this token (404).
+   * @throws {LedewireError} With `statusCode === 409` when the invitation was
+   *   already accepted, or `statusCode === 410` when it has expired.
+   *
+   * @example
+   * ```ts
+   * const invite = await client.auth.getInviteInfo(token)
+   * console.log(`Join ${invite.store_name} as ${invite.invited_email ?? 'you'}`)
+   * ```
+   */
+  async getInviteInfo(token: string): Promise<InviteInfoResponse> {
+    return this.http.get<InviteInfoResponse>(
+      `/v1/auth/invite-info/${encodeURIComponent(token)}`,
+      undefined,
+      { auth: false },
+    )
   }
 
   private async storeTokens(res: AuthenticationResponse, storeId?: string): Promise<void> {

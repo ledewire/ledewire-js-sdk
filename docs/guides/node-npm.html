@@ -201,6 +201,45 @@ const summary = await client.merchant.sales.summary(store_id)
 const { data } = await client.merchant.content.list(store_id)
 console.log(summary, data)</code></pre>
 
+      <h3 id="full-and-view-keys">Full and view keys</h3>
+      <p>
+        A store API key logged in with its secret has <code>full</code> permission; logged in with
+        the key alone it has <code>view</code> permission. Reads work with either. Content writes,
+        member admin and x402 setup need a <strong>full</strong> key (or an owner's merchant
+        login), and a <code>view</code> key gets a <code>403</code> <code>ForbiddenError</code>:
+      </p>
+      <ul>
+        <li>
+          <code>merchant.content.create</code>, <code>update</code>, <code>delete</code> (an
+          <code>is_author</code> member may also write, but only their own items)
+        </li>
+        <li>
+          <code>merchant.users.list</code>, <code>invite</code>, <code>update</code>,
+          <code>remove</code>
+        </li>
+        <li><code>merchant.pricingRules.create</code>, <code>deactivate</code></li>
+        <li>
+          <code>merchant.domains.add</code>, <code>verify</code>, <code>remove</code>
+        </li>
+      </ul>
+
+      <h3 id="store-invitations">Store invitations</h3>
+      <p>
+        <code>merchant.users.invite()</code> emails an <code>invitation_token</code> to someone
+        without an account. A signup page can show the invitation first with the public
+        <code>client.auth.getInviteInfo(token)</code>, which sends no credentials. The invitee
+        then joins through <code>client.auth.signup()</code> or
+        <code>client.auth.loginWithGoogle()</code> with <code>invitation_token</code>, or, already
+        a merchant, through <code>client.merchant.auth.acceptInvitation()</code>. A refused
+        invitation carries <code>err.type === 'invitation_not_accepted'</code> and the reason in
+        <code>err.details.reason</code>.
+      </p>
+      <pre><code>const invite = await client.auth.getInviteInfo(token) // 404 unknown, 409 used, 410 expired
+console.log(`Join ${invite.store_name}`)
+
+await client.merchant.auth.loginWithEmail({ email, password })
+const membership = await client.merchant.auth.acceptInvitation({ invitation_token: token })</code></pre>
+
       <h3 id="migrating-from-client-seller">Migrating from <code>client.seller</code></h3>
       <p>
         <code>client.seller</code> has been removed: the API retired <code>/v1/seller/*</code>, and
@@ -314,14 +353,15 @@ try {
           <tr>
             <td><code>client.auth.*</code></td>
             <td>
-              signup, loginWithEmail, loginWithGoogle, logout, requestPasswordReset, resetPassword
+              signup, loginWithEmail, loginWithGoogle, loginWithBuyerApiKey, loginWithApiKey,
+              requestPasswordReset, resetPassword, getInviteInfo
             </td>
           </tr>
           <tr>
             <td><code>client.merchant.auth.*</code></td>
             <td>
               loginWithEmail, loginWithGoogle, listStores, loginWithEmailAndListStores,
-              loginWithGoogleAndListStores, requestPasswordReset, resetPassword
+              loginWithGoogleAndListStores, requestPasswordReset, resetPassword, acceptInvitation
             </td>
           </tr>
           <tr>
@@ -330,7 +370,7 @@ try {
           </tr>
           <tr>
             <td><code>client.merchant.sales.*</code></td>
-            <td>summary, list, get, statistics</td>
+            <td>summary, list, get</td>
           </tr>
           <tr>
             <td><code>client.merchant.config.*</code></td>
@@ -346,11 +386,11 @@ try {
           </tr>
           <tr>
             <td><code>client.purchases.*</code></td>
-            <td>create, list, get (single-use delivery — see below)</td>
+            <td>create, list, get, verify (single-use delivery — see below)</td>
           </tr>
           <tr>
             <td><code>client.content.*</code></td>
-            <td>getWithAccess (buyer token only; a store credential gets 403)</td>
+            <td>getWithAccess (buyer token only; a store credential gets 403), search</td>
           </tr>
           <tr>
             <td><code>client.checkout.*</code></td>
@@ -373,7 +413,7 @@ try {
           </tr>
           <tr>
             <td><code>client.publications.*</code></td>
-            <td>list, listWorks</td>
+            <td>list, get, listWorks</td>
           </tr>
           <tr>
             <td><code>client.acquisitions.*</code></td>

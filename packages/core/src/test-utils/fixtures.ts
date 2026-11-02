@@ -57,6 +57,8 @@ type CompanyMachineUserMcpKeyCreateResponseSchema =
 type CompanyPendingTopUpSchema = components['schemas']['CompanyPendingTopUp']
 type CompanyWalletSchema = components['schemas']['CompanyWallet']
 type CompanyPurchaseSchema = components['schemas']['CompanyPurchase']
+type InviteInfoSchema = components['schemas']['InviteInfoResponse']
+type MerchantInvitationAcceptedSchema = components['schemas']['MerchantInvitationAcceptedResponse']
 type CompanyPurchaseMemberSchema = components['schemas']['CompanyPurchaseMember']
 type StoreAuthenticationResponseSchema = components['schemas']['StoreAuthenticationResponse']
 
@@ -1055,6 +1057,36 @@ export function companyPurchaseFixture(
     status: 'completed',
     amount_cents: 150,
     occurred_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a pending store invitation fixture (`GET /v1/auth/invite-info/{token}`).
+ */
+export function inviteInfoFixture(overrides?: Partial<InviteInfoSchema>): InviteInfoSchema {
+  return {
+    invited_email: 'author@example.com',
+    store_name: 'Test Store',
+    role: null,
+    expires_at: '2099-01-08T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns the store membership an accepted invitation created
+ * (`POST /v1/auth/merchant/accept-invitation`).
+ */
+export function merchantInvitationAcceptedFixture(
+  overrides?: Partial<MerchantInvitationAcceptedSchema>,
+): MerchantInvitationAcceptedSchema {
+  return {
+    id: '7f3c1a2e-0000-4000-8000-000000000001',
+    store_id: '7f3c1a2e-0000-4000-8000-000000000002',
+    store_name: 'Test Store',
+    role: 'author',
+    accepted_at: '2099-01-02T00:00:00Z',
     ...overrides,
   }
 }

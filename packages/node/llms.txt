@@ -102,6 +102,9 @@ client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise
 client.auth.loginWithApiKey({ key, secret? })                        → Promise<StoreAuthenticationResponse>  // + store_id
 client.auth.requestPasswordReset({ email })                          → Promise<AuthPasswordResetResponse>  // { message }
 client.auth.resetPassword({ email, reset_code, password })           → Promise<AuthPasswordResetResponse>  // { message }
+client.auth.getInviteInfo(token)                                     → Promise<InviteInfoResponse>  // public, no auth
+// InviteInfoResponse = { invited_email: string | null, store_name: string, role: 'owner' | null, expires_at: string }
+// 404 NotFoundError (unknown token), 409 LedewireError (already accepted), 410 LedewireError (expired, 7 days)
 ```
 
 `loginWithBuyerApiKey` is intended for agents and buyer-facing dashboards that
@@ -128,7 +131,18 @@ client.merchant.auth.loginWithEmailAndListStores({ email, password }) → Promis
 client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promise<MerchantLoginResult>
 client.merchant.auth.requestPasswordReset({ email })         → Promise<MerchantPasswordResetResponse>
 client.merchant.auth.resetPassword({ email, reset_code, password }) → Promise<MerchantPasswordResetResponse>
+client.merchant.auth.acceptInvitation({ invitation_token })  → Promise<MerchantInvitationAcceptedResponse>
+// MerchantInvitationAcceptedResponse = { id, store_id, store_name: string | null, role: 'owner' | 'author' | null, accepted_at }
 ```
+
+**Store invitations.** `merchant.users.invite()` emails an `invitation_token` to
+someone without an account. Show it with the public `client.auth.getInviteInfo(token)`,
+then join via `auth.signup` / `auth.loginWithGoogle` with `invitation_token`, or, for a
+signed-in merchant, `merchant.auth.acceptInvitation({ invitation_token })`. Every refusal
+from `acceptInvitation` has `err.type === 'invitation_not_accepted'` and
+`err.details.reason`: 404 `NotFoundError` (`not_found`), 403 `ForbiddenError`
+(`wrong_email`; a 403 with no `type` means the session is not a merchant one), 409
+(`already_accepted`, `already_member`), 410 (`expired`), 422 (`invalid`).
 
 `MerchantLoginResult = { tokens: StoredTokens, stores: MerchantLoginStore[] }`
 // StoredTokens = { accessToken: string, refreshToken: string, expiresAt: number (Unix ms) }
@@ -182,20 +196,34 @@ merchant auth methods: `loginWithEmail`, `loginWithGoogle`, `loginWithEmailAndLi
 ### client.merchant.users
 
 ```ts
-client.merchant.users.list(storeId, params?)   → Promise<PaginatedUsersList>
-client.merchant.users.invite(storeId, body)    → Promise<MerchantUser>
-client.merchant.users.remove(storeId, userId)  → Promise<void>
-client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) → Promise<MerchantUser>
-// MerchantUserUpdateRequest: { author_fee_bps?: number | null }
+client.merchant.users.list(storeId, params?)   → Promise<PaginatedUsersList>             // full key
+client.merchant.users.invite(storeId, body)    → Promise<MerchantUser | MerchantInviteResponse>  // full key
+client.merchant.users.remove(storeId, userId)  → Promise<void>                           // full key
+client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) → Promise<MerchantUser>  // full key
+// MerchantUserUpdateRequest: { is_author?: boolean, author_fee_bps?: number | null }
 // author_fee_bps in basis points (1800 = 18%). null reverts to store default.
 ```
+
+### Full-key methods
+
+A store API key logged in with its secret (`loginWithApiKey({ key, secret })`) has
+`full` permission; with the key alone it has `view`. A `view` key reads, but gets a
+403 `ForbiddenError` from every method marked "full key" here: `merchant.content`
+create / update / delete, `merchant.users` list / invite / update / remove,
+`merchant.pricingRules` create / deactivate, and `merchant.domains` add / verify /
+remove. An owner's merchant JWT can call all of them; an `is_author` member can
+write only their own content.
 
 ### client.merchant.sales
 
 ```ts
 client.merchant.sales.summary(storeId)              → Promise<SalesSummaryResponse>
-client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>
+client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>   // rows: SalesStatisticsItem, one per title
 client.merchant.sales.get(storeId, saleId)           → Promise<MerchantSaleResponse>
+// MerchantSaleResponse: { id, content_id, content, buyer_ref, seller_id, seller, amount_cents, fees, status, timestamp }
+// buyer_ref ('bref_v1_…') is an opaque, store-scoped buyer reference — the same value
+// merchant.buyers.list() returns. There is no buyer_id or buyer { id, name }.
+// fees.{platform_fee_cents,store_net_cents,author_net_cents}: number | null (null until the sale completes)
 ```
 
 ### client.merchant.buyers
@@ -218,8 +246,8 @@ via `client.merchant.domains` before a rule can be created.
 
 ```ts
 client.merchant.pricingRules.list(storeId)              → Promise<MerchantPricingRule[]>
-client.merchant.pricingRules.create(storeId, body)      → Promise<MerchantPricingRule>
-client.merchant.pricingRules.deactivate(storeId, ruleId) → Promise<MerchantPricingRule>
+client.merchant.pricingRules.create(storeId, body)      → Promise<MerchantPricingRule>  // full key
+client.merchant.pricingRules.deactivate(storeId, ruleId) → Promise<MerchantPricingRule>  // full key
 ```
 
 ### client.merchant.domains
@@ -229,8 +257,9 @@ DNS TXT record instructions; the platform verifies asynchronously.
 
 ```ts
 client.merchant.domains.list(storeId)               → Promise<MerchantDomainVerification[]>
-client.merchant.domains.add(storeId, body)          → Promise<MerchantDomainVerification>
-client.merchant.domains.remove(storeId, domainId)   → Promise<void>
+client.merchant.domains.add(storeId, body)          → Promise<MerchantDomainVerification>  // full key
+client.merchant.domains.verify(storeId, { domain }) → Promise<MerchantDomainVerifyResponse>  // full key
+client.merchant.domains.remove(storeId, domainId)   → Promise<void>                        // full key
 ```
 
 ### client.merchant.content
@@ -238,9 +267,9 @@ client.merchant.domains.remove(storeId, domainId)   → Promise<void>
 ```ts
 client.merchant.content.list(storeId, params?)         → Promise<PaginatedContentList>
 client.merchant.content.get(storeId, contentId)        → Promise<ContentResponse>
-client.merchant.content.create(storeId, body)          → Promise<ContentResponse>
-client.merchant.content.update(storeId, contentId, body) → Promise<ContentResponse>
-client.merchant.content.delete(storeId, contentId)     → Promise<void>
+client.merchant.content.create(storeId, body)          → Promise<ContentResponse>  // full key
+client.merchant.content.update(storeId, contentId, body) → Promise<ContentResponse>  // full key
+client.merchant.content.delete(storeId, contentId)     → Promise<void>  // full key
 client.merchant.content.search(storeId, query, params?) → Promise<PaginatedContentList>
 ```
 
