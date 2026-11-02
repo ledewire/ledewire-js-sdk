@@ -810,9 +810,15 @@ client.x402.getJwks() → Promise<X402JwksResponse>
 
 ## createAgentClient()
 
-A convenience factory for autonomous (headless) agents. Wraps `createClient()`
-and exposes only the buyer-relevant namespaces: `auth`, `wallet`, `purchases`,
-`content`, `checkout`, `user`, `company`, `publications`, `acquisitions`, `x402`.
+A convenience factory for autonomous (headless) agents. It exposes only the
+buyer-relevant namespaces: `auth`, `wallet`, `purchases`, `content`, `checkout`,
+`user`, `company`, `publications`, `topics`, `acquisitions`, `x402`.
+
+It logs in by itself with `key` and `secret`: the first authenticated call runs
+`auth.loginWithBuyerApiKey()` (concurrent first calls share one login), the
+session refreshes in the background, and a failed refresh logs in again with
+the key and retries the call once. A wrong or revoked key rejects the call with
+the API's `AuthError` (401) after one login attempt.
 A Company Machine user's Buyer key works here too — the agent then spends the
 Company's money under the Machine user's membership cap.
 
@@ -826,13 +832,7 @@ const agent = createAgentClient({
   // storage: myRedisAdapter,  // required for serverless — default is MemoryTokenStorage
 })
 
-// Step 1: authenticate
-await agent.auth.loginWithBuyerApiKey({
-  key: process.env.LEDEWIRE_BUYER_KEY,
-  secret: process.env.LEDEWIRE_BUYER_SECRET,
-})
-
-// Step 2: use wallet, purchases, content, checkout normally
+// No explicit login: the first call logs in with the key
 const balance = await agent.wallet.balance()
 // Check access before buying: getWithAccess is a preview, never the deliverable
 const preview = await agent.content.getWithAccess('abc123')
@@ -846,7 +846,7 @@ if (preview.access_info.next_required_action === 'purchase') {
 }
 ```
 
-`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'company' | 'publications' | 'acquisitions' | 'x402'>`.
+`AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'company' | 'publications' | 'topics' | 'acquisitions' | 'x402'>`.
 The `merchant` and `config` namespaces are intentionally absent.
 
 **Serverless warning:** `MemoryTokenStorage` (default) resets on every cold start.
