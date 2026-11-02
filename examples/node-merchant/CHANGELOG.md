@@ -1,5 +1,12 @@
 # example-node-merchant
 
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies [9d85e8d]
+  - @ledewire/node@0.15.0
+
 ## 0.1.15
 
 ### Patch Changes
