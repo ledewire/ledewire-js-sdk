@@ -198,6 +198,7 @@ export function createMockClient(
       list: stub(),
       get: stub(),
       verify: stub(),
+      licenseDocument: stub(),
     },
     content: {
       getWithAccess: stub(),

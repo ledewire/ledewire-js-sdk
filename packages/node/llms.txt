@@ -312,6 +312,33 @@ still spend today. Always handle `null` before doing arithmetic on a balance.
 client.purchases.create({ content_id: string })   → Promise<PurchaseResponse>
 client.purchases.list(params?)                    → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
 client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
+client.purchases.licenseDocument(purchaseId)      → Promise<LicenseDocument>
+// LicenseDocument: { body: ArrayBuffer, contentType: string } — not JSON. Usually
+// application/pdf; text/markdown for an SEC filing. contentType is the server's header
+// verbatim ('application/octet-stream' if absent). Throws AuthError 401, ForbiddenError
+// 403 (not a buyer credential), NotFoundError 404 (unknown, not completed, or not captured).
+```
+
+Licence and source fields on every `PurchaseResponse`:
+
+- `license: PurchaseLicense | null` — `{ type, permissions: string[], document_url: string | null }`,
+  exactly as the work's source granted it. `type` is e.g. `ON_DEMAND_LICENSE`,
+  `ON_DEMAND_FULL_USE_LICENSE` or `public-domain` (SEC filing; `permissions` empty).
+  `null` means "not recorded" (every Store work, older brokered purchases), never
+  "no rights granted". When `document_url` is set, `licenseDocument(purchase.id)` downloads it.
+- `content.publication: PurchasePublication | null` — `{ id, name }` of the Publication a
+  brokered work was published under; `null` for a Store's work.
+- `content.filing: ContentSearchFiling | null` — for an SEC filing: `{ filer_name, ticker,
+  cik, form_type, filing_date, period_of_report, accession_number }`; `null` otherwise.
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  await writeFile(contentType.startsWith('text/markdown') ? 'licence.md' : 'licence.pdf', Buffer.from(body))
+}
 ```
 
 Single-use delivery: `purchases.create()`'s response is the only place
@@ -354,10 +381,18 @@ client.content.getWithAccess(contentId) → Promise<ContentWithAccessResponse>
 
 client.content.search(body)                                             → Promise<ContentSearchResponse>
 // Buyer search across every Store and brokered Publication (Buyer or Machine user credentials).
-// body: { query?, tags?, max_price_cents?, metadata?, cursor?, limit? }  (limit defaults to 20)
+// body: { query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? }
+// (limit defaults to 20). publication: a Publication id or exact name (any case).
+// form_type ('10-K' | '10-Q' | '8-K' | '20-F' | 'S-1' | 'DEF 14A', amendments included), ticker
+// and cik return only SEC EDGAR filings, and query may then be omitted (newest first).
+// Each result's filing is a ContentSearchFiling for an SEC filing, null otherwise.
 // Page with next_cursor until it is null. partial_results: true means part of the search was missed.
 // unavailable_providers is deprecated and always empty.
 // Searches with a query are rate-limited to 15/minute per buyer: a 429 throws LedewireError with statusCode 429.
+
+// SEC EDGAR: Apple's annual reports, newest first, no query needed.
+const { data } = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+for (const r of data) console.log(r.filing?.form_type, r.filing?.filing_date, r.title)
 ```
 
 ### client.checkout
@@ -575,7 +610,11 @@ client.topics.list()  → Promise<TopicDirectoryResponse>
 ### client.publications
 
 Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
-required, requests always sent without credentials.
+required, requests always sent without credentials. (The API also takes an
+optional Buyer token on list/get, and then shows a subscribed Company's Buyer the
+Publications its Subscription opens, such as SEC EDGAR. The SDK never sends one
+here, so these calls return the anonymous list; find SEC filings with
+`content.search({ form_type, ticker, cik })`.)
 
 ```ts
 client.publications.list(params?: PublicationListParams)                → Promise<PublicationListResponse>

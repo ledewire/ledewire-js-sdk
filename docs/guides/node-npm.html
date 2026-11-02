@@ -386,7 +386,7 @@ try {
           </tr>
           <tr>
             <td><code>client.purchases.*</code></td>
-            <td>create, list, get, verify (single-use delivery — see below)</td>
+            <td>create, list, get (single-use delivery — see below), verify, licenseDocument</td>
           </tr>
           <tr>
             <td><code>client.content.*</code></td>
@@ -445,6 +445,60 @@ if (purchase.content_body) {
 } else if (purchase.content_uri) {
   // Check the scheme before following or linking to it.
 }</code></pre>
+
+      <h3>Purchase licences</h3>
+      <p>
+        Every purchase carries <code>license</code>: a
+        <code>PurchaseLicense</code> (<code>type</code>, <code>permissions</code>,
+        <code>document_url</code>) exactly as the work's source granted it, or
+        <code>null</code> when none was recorded (every Store work, and older brokered purchases).
+        <code>null</code> means “not recorded”, never “no rights granted”.
+        <code>license.type</code> is the source's own value, such as <code>ON_DEMAND_LICENSE</code>,
+        <code>ON_DEMAND_FULL_USE_LICENSE</code> or <code>public-domain</code> for an SEC filing.
+        <code>content.publication</code> names a brokered work's Publication, and
+        <code>content.filing</code> describes an SEC filing; both are <code>null</code> otherwise.
+      </p>
+      <p>
+        <code>client.purchases.licenseDocument(id)</code> downloads the document
+        <code>license.document_url</code> points at. It is not JSON: it resolves to
+        <code>{ body: ArrayBuffer, contentType }</code>, usually <code>application/pdf</code>, or
+        <code>text/markdown</code> for an SEC filing's terms. A missing, incomplete or uncaptured
+        purchase throws <code>NotFoundError</code>; a non-buyer credential throws
+        <code>ForbiddenError</code>.
+      </p>
+      <pre><code>import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  const file = contentType.startsWith('text/markdown') ? 'licence.md' : 'licence.pdf'
+  await writeFile(file, Buffer.from(body))
+}</code></pre>
+
+      <h3>Buyer content search</h3>
+      <p>
+        <code>client.content.search()</code> searches every Store and brokered Publication. Page
+        with <code>next_cursor</code>, sending the same filters, until it is <code>null</code>.
+        <code>publication</code> keeps one Publication's works (its id, or its exact name).
+        <code>form_type</code>, <code>ticker</code> and <code>cik</code> return only SEC EDGAR
+        filings, and <code>query</code> may then be left out to list them newest first. Each
+        result's <code>filing</code> gives the filer, ticker, CIK, form, filing date, period of
+        report and accession number, and is <code>null</code> for every other work.
+      </p>
+      <pre><code>// Apple's annual reports, amendments (10-K/A) included.
+let cursor
+do {
+  const page = await client.content.search({ ticker: 'AAPL', form_type: '10-K', cursor })
+  for (const result of page.data) {
+    console.log(result.filing?.form_type, result.filing?.filing_date, result.title)
+  }
+  cursor = page.next_cursor
+} while (cursor)</code></pre>
+      <p>
+        <code>client.publications.list()</code> and <code>get()</code> are sent without credentials,
+        so they return the public catalog. The API shows SEC EDGAR there only to a Buyer whose
+        Company holds a Subscription; search filings with the filters above instead.
+      </p>
 
       <h3>Bulk licensing (agents)</h3>
       <p>

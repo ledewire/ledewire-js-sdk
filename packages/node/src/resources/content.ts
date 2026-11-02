@@ -58,9 +58,13 @@ export class ContentNamespace {
    * archived works never appear.
    *
    * The search is paged by one opaque cursor. Send each page's `next_cursor` back as
-   * `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`,
-   * until it comes back `null`. A cursor lasts 24 hours. Without a `query`, only Store
-   * works are searched, filtered by the other fields.
+   * `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata`,
+   * `publication`, `form_type`, `ticker`, `cik` and `limit`, until it comes back `null`.
+   * A cursor lasts 24 hours. Without a `query`, only Store works are searched, filtered
+   * by the other fields — unless `form_type`, `ticker` or `cik` is given, which lists
+   * the SEC EDGAR filings they name. Each result's `filing`
+   * describes an SEC filing (filer, ticker, CIK, form, dates, accession number) and is
+   * `null` for every other work; `publication` names a brokered work's Publication.
    *
    * A page can be shorter than `limit`, or empty, while `next_cursor` is not `null`.
    * Keep paging. When `partial_results` is `true`, part of the search could not run and
@@ -82,6 +86,16 @@ export class ContentNamespace {
    *   for (const result of page.data) console.log(result.title, result.publication?.name)
    *   cursor = page.next_cursor
    * } while (cursor)
+   *
+   * // SEC EDGAR filings: `form_type`, `ticker` and `cik` return only filings, and
+   * // `query` may be left out to list them newest first. `10-K` includes `10-K/A`.
+   * const filings = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+   * for (const result of filings.data) {
+   *   console.log(result.filing?.form_type, result.filing?.filing_date, result.filing?.cik)
+   * }
+   *
+   * // Only works from one Publication, by id or exact name.
+   * const atlantic = await client.content.search({ query: 'housing', publication: 'The Atlantic' })
    * ```
    */
   async search(body: BuyerContentSearchRequest): Promise<ContentSearchResponse> {

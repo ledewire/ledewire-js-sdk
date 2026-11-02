@@ -1,5 +1,6 @@
 import type { HttpClient } from '@ledewire/core'
 import type {
+  LicenseDocument,
   PurchaseCreateRequest,
   PurchaseResponse,
   PurchaseVerifyResponse,
@@ -110,5 +111,50 @@ export class PurchasesNamespace {
     return this.http.get<PurchaseVerifyResponse>(
       `/v1/purchase/verify?content_id=${encodeURIComponent(contentId)}`,
     )
+  }
+
+  /**
+   * Downloads the licence document one of the buyer's own purchases was delivered
+   * under — the URL a purchase's `license.document_url` points at.
+   *
+   * For a brokered work, this is the licence document the work's source granted, as
+   * LedeWire captured it at purchase time (usually `application/pdf`). For an SEC
+   * filing (`license.type === 'public-domain'`), it is LedeWire's terms for SEC filings
+   * as `text/markdown`, in the version the filing was delivered under.
+   *
+   * The response is not JSON, so the bytes come back as an `ArrayBuffer` with the
+   * server's `Content-Type` — see {@link LicenseDocument}. The type is chosen by the
+   * work's source, so treat the document as an attachment: never render it inline on
+   * your own origin.
+   *
+   * @param id - The purchase ID.
+   * @returns The document's bytes and content type.
+   * @throws {AuthError} `401` — missing or invalid credentials.
+   * @throws {ForbiddenError} `403` — the credential is not a buyer token (or an MCP key
+   *   without the `mcp:search` scope).
+   * @throws {NotFoundError} `404` — no such purchase for this buyer, the purchase is not
+   *   completed, or its document has not been captured yet. All look the same.
+   *
+   * @example
+   * ```ts
+   * import { writeFile } from 'node:fs/promises'
+   *
+   * const purchase = await client.purchases.get('purchase-id')
+   * if (purchase.license?.document_url) {
+   *   const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+   *   await writeFile(contentType.startsWith('application/pdf') ? 'licence.pdf' : 'licence.md', Buffer.from(body))
+   * }
+   * ```
+   */
+  async licenseDocument(id: string): Promise<LicenseDocument> {
+    // The document's type is the source's choice, so accept anything.
+    const response = await this.http.getRaw(
+      `/v1/purchases/${encodeURIComponent(id)}/license_document`,
+      '*/*',
+    )
+    return {
+      body: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+    }
   }
 }

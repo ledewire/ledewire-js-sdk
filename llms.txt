@@ -49,6 +49,8 @@ const client = createClient({
 - `lw.purchases.create({ content_id })` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `lw.purchases.list()` → list purchases (no delivered content)
 - `lw.purchases.get(id)` → single purchase (no delivered content)
+- `lw.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the purchase's licence document (PDF, or Markdown for an SEC filing), not JSON; 403 `ForbiddenError`, 404 `NotFoundError`
+- `PurchaseResponse.license` (`PurchaseLicense | null`: `type`, `permissions`, `document_url`), `content.publication` (`PurchasePublication | null`) and `content.filing` (`ContentSearchFiling | null`, SEC filings only)
 - `lw.content.getWithAccess(contentId)` → content preview + the caller's access info (buyer token or none; never the deliverable)
 - `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
@@ -80,7 +82,8 @@ const client = createClient({
 - `client.merchant.content.*` — content CRUD + search: list, get, create, update, delete, search (all take `storeId`)
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
 - `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
-- `client.purchases.list()` / `client.purchases.get(id)` — no delivered content
+- `client.purchases.list()` / `client.purchases.get(id)` — no delivered content; each carries `license`, `content.publication`, `content.filing`
+- `client.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the licence document `license.document_url` points at (PDF, or Markdown for an SEC filing)
 - `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
@@ -95,7 +98,7 @@ const client = createClient({
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
 - `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
-- `client.content.search({ query?, tags?, max_price_cents?, metadata?, cursor?, limit? })` → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present

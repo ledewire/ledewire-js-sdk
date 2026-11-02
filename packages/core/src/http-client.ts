@@ -178,12 +178,12 @@ export class HttpClient {
    * can read the body as a stream, blob, or array buffer.
    *
    * @param path - API path (e.g. `/v1/acquisitions/{id}/corpus/download`)
+   * @param accept - The `Accept` header to send. Defaults to
+   *   `application/gzip, application/json`, what the corpus download serves.
    * @returns The raw `Response`. Callers are responsible for reading its body.
    */
-  async getRaw(path: string): Promise<Response> {
-    return this.performRequest('GET', this.buildUrl(path), {
-      Accept: 'application/gzip, application/json',
-    })
+  async getRaw(path: string, accept = 'application/gzip, application/json'): Promise<Response> {
+    return this.performRequest('GET', this.buildUrl(path), { Accept: accept })
   }
 
   // ---------------------------------------------------------------------------
