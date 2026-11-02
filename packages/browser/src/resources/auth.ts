@@ -5,8 +5,8 @@
  * Tokens are stored automatically in the `TokenManager` after every
  * successful call — callers never need to manage tokens directly.
  *
- * For seller/API key authentication, use {@link BrowserSellerNamespace.loginWithApiKey}
- * via `lw.seller.loginWithApiKey()`.
+ * Store API-key authentication is not offered in the browser: a store API key
+ * must stay server-side. Use `client.merchant.*` in `@ledewire/node` instead.
  *
  * @module
  */
@@ -43,7 +43,7 @@ export class BrowserAuthNamespace {
 
   /**
    * Register a new buyer account with email and password.
-   * Tokens are stored automatically after successful signup.
+   * Tokens are stored automatically after successful signup (`201 Created`).
    *
    * Pass `company_invitation_token` (from a Company invitation email) to sign
    * up and join the Company in one step, or `invitation_token` (from a store
@@ -154,7 +154,7 @@ export class BrowserAuthNamespace {
    * @example
    * ```ts
    * await lw.auth.requestPasswordReset({ email: 'buyer@example.com' })
-   * // → { data: { message: 'If an account with this email exists, a reset code has been sent.' } }
+   * // → { message: 'If an account with this email exists, a reset code has been sent.' }
    * ```
    */
   async requestPasswordReset(

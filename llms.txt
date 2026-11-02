@@ -8,7 +8,7 @@
 ## Packages
 
 - `@ledewire/browser` — Browser SDK (ESM + CDN IIFE `Ledewire` global). Buyer flows only.
-- `@ledewire/node` — Node.js SDK. Full API: merchant, seller, and buyer flows.
+- `@ledewire/node` — Node.js SDK. Full API: merchant (store) and buyer flows.
 
 ## Browser CDN usage
 
@@ -26,9 +26,16 @@
 
 ```ts
 import { createClient } from '@ledewire/node'
+// Logs in with the store API key before its first authenticated request
+// (not at construction), and again when a refresh fails.
 const client = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
   apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+// For the key's store_id, log in explicitly once (the client won't repeat it):
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
 })
 ```
 
@@ -46,42 +53,45 @@ const client = createClient({
 - `lw.wallet.transactions()` → list of wallet transactions
 - `lw.wallet.createPaymentSession({ amount_cents })` → Stripe payment session
 - `lw.wallet.getPaymentStatus(sessionId)` → payment status
-- `lw.purchases.create({ content_id })` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `lw.purchases.create({ content_id, price_cents })` → `PurchaseResponse` — `price_cents` is the price the buyer was quoted (e.g. from `checkout.state()` or `content.getWithAccess()`); a stale price is refused with 422 and nothing is charged; completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
 - `lw.purchases.list()` → list purchases (no delivered content)
 - `lw.purchases.get(id)` → single purchase (no delivered content)
-- `lw.content.getWithAccess(contentId)` → content + access info (authenticated user implicit from token)
+- `lw.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the purchase's licence document (PDF, or Markdown for an SEC filing), not JSON; 403 `ForbiddenError`, 404 `NotFoundError`
+- `PurchaseResponse.license` (`PurchaseLicense | null`: `type`, `permissions`, `document_url`), `content.publication` (`PurchasePublication | null`) and `content.filing` (`ContentSearchFiling | null`, SEC filings only)
+- `lw.content.getWithAccess(contentId)` → content preview + the caller's access info (buyer token or none; never the deliverable)
 - `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
 - `lw.company.*` — Company wallets (same API as `client.company.*` below)
-- `lw.seller.loginWithApiKey({ key, secret? })` — seller API key login (key-only = view; key+secret = full)
-- `lw.seller.content.list()` → `ContentResponse[]` — list store content (requires API key login)
-- `lw.seller.content.search({ title?, uri?, metadata? })` → `ContentResponse[]` — search store content
-- `lw.seller.content.get(contentId)` → `ContentResponse` — get single content item
 
 ### @ledewire/node — createClient()
 - `client.config.getPublic()` → `PublicConfigResponse` — public platform config, **no auth required** (use to get `google_client_id` before sign-in)
 - `client.auth.*` — buyer auth (signup, email, google, password reset)
+- `client.auth.loginWithApiKey({ key, secret })` → `StoreAuthenticationResponse` — store API-key login (key-only = view; key+secret = full); resolves with `store_id` to pass to `client.merchant.*`, e.g. `const { store_id } = await client.auth.loginWithApiKey({ key, secret })` then `client.merchant.sales.summary(store_id)`
 - `client.merchant.auth.loginWithEmail({ email, password })` — merchant email login
 - `client.merchant.auth.loginWithGoogle({ id_token })` — merchant Google login
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
 - `client.merchant.auth.requestPasswordReset({ email })` → `MerchantPasswordResetResponse` — send password reset code to merchant email
 - `client.merchant.auth.resetPassword({ email, reset_code, password })` → `MerchantPasswordResetResponse` — complete merchant password reset with code
-- `client.merchant.users.list(storeId)` → team members
-- `client.merchant.users.invite(storeId, body)` → invite team member
-- `client.merchant.users.remove(storeId, userId)` → remove team member
+- `client.auth.getInviteInfo(token)` → `InviteInfoResponse` — the pending store invitation behind an emailed token, **no auth required** (404 unknown, 409 accepted, 410 expired)
+- `client.merchant.auth.acceptInvitation({ invitation_token })` → `MerchantInvitationAcceptedResponse` — join the store as the signed-in merchant; refusals carry `type: 'invitation_not_accepted'` and `details.reason`
+- Content writes, member admin, pricing rules and domains need a **full** key (key+secret) or an owner's merchant login; a `view` key gets `403 ForbiddenError`
+- `client.merchant.users.list(storeId)` → team members (full key)
+- `client.merchant.users.invite(storeId, body)` → invite team member (full key)
+- `client.merchant.users.remove(storeId, userId)` → remove team member (full key)
 - `client.merchant.sales.summary(storeId)` → `SalesSummaryResponse`
-- `client.merchant.sales.list(storeId)` → `SalesStatisticsItem[]`
-- `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse`
+- `client.merchant.sales.list(storeId)` → `PaginatedSalesList` (one `SalesStatisticsItem` per title)
+- `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse` — the buyer appears only as an opaque `buyer_ref` (`bref_v1_…`, matches `merchant.buyers.list()`); `fees.*_cents` are `null` until the sale completes
 - `client.merchant.buyers.list(storeId)` → `BuyerStatisticsItem[]`
-- `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; requires merchant auth)
-- `client.seller.content.*` — content CRUD + search
+- `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; accepts a merchant session or a store API-key token)
+- `client.merchant.content.*` — content CRUD + search: list, get, create, update, delete, search (all take `storeId`)
 - `client.wallet.*` — balance, transactions, createPaymentSession, getPaymentStatus
-- `client.purchases.create(body)` → `PurchaseResponse` — completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
-- `client.purchases.list()` / `client.purchases.get(id)` — no delivered content
-- `client.content.getWithAccess(contentId, userId?)` → content + access info (`userId` for merchant proxy lookups)
+- `client.purchases.create({ content_id, price_cents })` → `PurchaseResponse` — `price_cents` is the price the buyer was quoted and must equal the work's current price, or 422 and nothing is charged; completes the purchase and delivers the content in this response (`content_body` plain UTF-8, or `content_uri`); single-use — never repeated on `get`/`list`
+- `client.purchases.list()` / `client.purchases.get(id)` — no delivered content; each carries `license`, `content.publication`, `content.filing`
+- `client.purchases.licenseDocument(id)` → `LicenseDocument` `{ body: ArrayBuffer, contentType }` — the licence document `license.document_url` points at (PDF, or Markdown for an SEC filing)
+- `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
@@ -95,7 +105,7 @@ const client = createClient({
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
 - `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
-- `client.content.search({ query?, tags?, max_price_cents?, metadata?, cursor?, limit? })` → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results
 - `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present
@@ -109,6 +119,8 @@ const client = createClient({
 - `client.acquisitions.getManifest(id)` → `CorpusManifestResponse` — signed audit manifest (409 until first assembly)
 - `client.acquisitions.signingKeyHistory()` → `SigningKeyHistoryResponse` — public, verifies `manifest.signing_kid`
 - `client.x402.discoverResources({ limit?, offset? })` → `X402BazaarDiscoveryResponse` — public x402 Bazaar catalog
+- `client.x402.verifyOrigin({ url, store_id? })` → `X402VerifyOriginResponse` — public; `{ verified: true, content_id, store_id, amount, title }` or `{ verified: false }`; 429 → `RateLimitError` with `retryAfter`
+- `client.x402.getJwks()` → `X402JwksResponse` — public JWKS that verifies an x402 settlement `accessToken`; 503 → `LedewireError` with message `'JWKS unavailable'`
 - `createAgentClient({ key, secret })` → buyer-scoped client also exposing `company`, `publications`, `acquisitions`, `x402` (plus `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`); a Company Machine user's Buyer key works here
 
 ## Key types (packages/core)
@@ -116,7 +128,7 @@ const client = createClient({
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean
@@ -140,6 +152,10 @@ class AuthError extends LedewireError {}       // statusCode 401 — bad credent
 class ForbiddenError extends LedewireError {}  // statusCode 403 — authenticated but wrong role
 class NotFoundError extends LedewireError {}   // statusCode 404
 class PurchaseError extends LedewireError {}   // statusCode 409/422
+class RateLimitError extends LedewireError {} // statusCode 429 from any endpoint (content.search: 15/min per buyer);
+                                              // retryAfter = seconds from Retry-After, undefined when absent
+class InvalidCursorError extends LedewireError {} // statusCode 422, type 'invalid_cursor' — content.search refused its
+                                                  // cursor (expired, invalid, or other filters): drop it and restart
 class SpendCapReachedError extends LedewireError {
   // statusCode 402, type 'daily_spend_cap_reached' — thrown by purchases.create(),
   // the x402 content gate, and acquisitions.authorize(). Funding the wallet does

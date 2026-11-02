@@ -16,7 +16,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">BrowserClientConfig</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#apikey">apiKey</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#baseurl">baseUrl</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#onauthexpired">onAuthExpired</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#storage">storage</a><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in browser/src/client.ts:22</li></ul></aside>
+<li>Defined in browser/src/client.ts:21</li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -39,7 +39,7 @@
 Obtained from the LedeWire merchant dashboard.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in browser/src/client.ts:27</li></ul></aside></section>
+<li>Defined in browser/src/client.ts:26</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="baseurl"><code class="tsd-tag">Optional</code><span>base<wbr/>Url</span><a href="#baseurl" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">baseUrl</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -47,7 +47,7 @@ Obtained from the LedeWire merchant dashboard.</p>
 Defaults to <code>https://api.ledewire.com</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in browser/src/client.ts:32</li></ul></aside></section>
+<li>Defined in browser/src/client.ts:31</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onauthexpired"><code class="tsd-tag">Optional</code><span>on<wbr/>Auth<wbr/>Expired</span><a href="#onauthexpired" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onAuthExpired</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span></div>
@@ -56,12 +56,12 @@ Use this to show a re-authentication prompt.</p>
 </div>
 <div class="tsd-comment tsd-typography">
 <div class="tsd-tag-example">
-<h4 class="tsd-anchor-link" id="example">Example<a href="#example" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-14">onAuthExpired</span><span class="hl-7">: () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-9">showLoginModal</span><span class="hl-7">()</span>
+<h4 class="tsd-anchor-link" id="example">Example<a href="#example" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-15">onAuthExpired</span><span class="hl-7">: () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-9">showLoginModal</span><span class="hl-7">()</span>
 </code><button type="button">Copy</button></pre>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in browser/src/client.ts:54</li></ul></aside></section>
+<li>Defined in browser/src/client.ts:53</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="storage"><code class="tsd-tag">Optional</code><span>storage</span><a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">storage</span><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a></div>
@@ -74,7 +74,7 @@ Defaults to <a href="../classes/browser_src.MemoryTokenStorage.html" class="tsd-
 
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in browser/src/client.ts:44</li></ul></aside></section></section></details></div>
+<li>Defined in browser/src/client.ts:43</li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

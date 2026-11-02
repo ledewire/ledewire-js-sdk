@@ -4,19 +4,25 @@ import { setupServer } from 'msw/node'
 import {
   LedewirePaymentClient,
   throwPaymentError,
-  extractPaymentErrorMessage,
   throwLegacyPaymentError,
   throwPaymentRefusal,
 } from './payment-client.js'
 import type { LedewirePaymentPayload, LedewirePaymentRefusal } from './types.js'
 import {
+  extractApiErrorMessage,
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
   InsufficientFundsError,
   PaymentOriginNotAllowedError,
 } from './errors.js'
-import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  RateLimitError,
+  SpendCapReachedError,
+} from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
@@ -320,22 +326,38 @@ describe('throwPaymentError', () => {
     expect(() => throwPaymentError(403, 'forbidden')).toThrow(ForbiddenError)
   })
 
+  it('throws RateLimitError on 429, carrying retryAfter when given', () => {
+    let error: unknown
+    try {
+      throwPaymentError(429, 'slow down', 20)
+    } catch (err) {
+      error = err
+    }
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 20, message: 'slow down' })
+  })
+
+  it('throws RateLimitError on 429 with retryAfter undefined when not given', () => {
+    expect(() => throwPaymentError(429, 'slow down')).toThrow(RateLimitError)
+  })
+
   it('throws LedewireError for any other status', () => {
     // Exercises the final `throw new LedewireError` — false branch of the known statuses
     expect(() => throwPaymentError(500, 'internal')).toThrow(LedewireError)
   })
 })
 
-describe('extractPaymentErrorMessage', () => {
+describe('extractApiErrorMessage', () => {
   it('reads error as a plain string', () => {
-    expect(extractPaymentErrorMessage({ error: 'Insufficient balance' }, 'fallback')).toBe(
+    expect(extractApiErrorMessage({ error: 'Insufficient balance' }, 'fallback')).toBe(
       'Insufficient balance',
     )
   })
 
   it('reads error.message from an object-shaped error', () => {
     expect(
-      extractPaymentErrorMessage(
+      extractApiErrorMessage(
         {
           error: {
             code: 402,
@@ -349,16 +371,16 @@ describe('extractPaymentErrorMessage', () => {
   })
 
   it('falls back when error is missing', () => {
-    expect(extractPaymentErrorMessage({ code: 42 }, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage({ code: 42 }, 'fallback')).toBe('fallback')
   })
 
   it('falls back when body is not an object', () => {
-    expect(extractPaymentErrorMessage(undefined, 'fallback')).toBe('fallback')
-    expect(extractPaymentErrorMessage(null, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage(undefined, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage(null, 'fallback')).toBe('fallback')
   })
 
   it('falls back when error.message is not a string', () => {
-    expect(extractPaymentErrorMessage({ error: { code: 42 } }, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage({ error: { code: 42 } }, 'fallback')).toBe('fallback')
   })
 })
 
@@ -378,6 +400,12 @@ describe('throwLegacyPaymentError', () => {
   it('falls back to throwPaymentError when the body is not a spend-cap refusal', () => {
     expect(() => throwLegacyPaymentError(422, { error: 'Insufficient balance' })).toThrow(
       InsufficientFundsError,
+    )
+  })
+
+  it('passes retryAfter through to a RateLimitError on 429', () => {
+    expect(() => throwLegacyPaymentError(429, { error: 'slow down' }, 7)).toThrow(
+      expect.objectContaining({ statusCode: 429, retryAfter: 7 }) as Error,
     )
   })
 

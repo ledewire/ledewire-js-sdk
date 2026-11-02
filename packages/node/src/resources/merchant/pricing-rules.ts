@@ -4,35 +4,7 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantPricingRule } from '@ledewire/core'
-
-/** Request body for creating a pricing rule. */
-export interface MerchantPricingRuleCreateRequest {
-  /**
-   * Glob URL pattern to gate. Must begin with `http://` or `https://`.
-   * Supports `*` (single segment) and `**` (cross-separator) wildcards.
-   *
-   * @remarks
-   * **Use `https://` patterns.** An `http://` pattern means the merchant's page
-   * loads without TLS — browsers flag it as "Not Secure" and the buyer's session
-   * is visible in plaintext. The Ledewire payment API itself always uses HTTPS,
-   * but the merchant page context matters for user trust.
-   *
-   * @example 'https://example.com/articles/*'
-   */
-  url_pattern: string
-  /**
-   * Price in cents charged for access to matching URLs.
-   *
-   * @remarks
-   * Setting `price_cents` to `0` makes all matching URLs freely accessible —
-   * the x402 server short-circuits directly to `200` without a payment round-trip.
-   * Verify the intended price before creating a rule.
-   *
-   * @minimum 0
-   */
-  price_cents: number
-}
+import type { MerchantPricingRule, MerchantPricingRuleCreateRequest } from '@ledewire/core'
 
 /**
  * Merchant pricing rules namespace — create and manage x402 URL-based pricing rules.
@@ -80,9 +52,13 @@ export class MerchantPricingRulesNamespace {
    * The domain in `url_pattern` must have a verified domain record for this store
    * before a rule can be created (see `client.merchant.domains.add`).
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key is refused.
+   *
    * @param storeId - The merchant store ID.
    * @param body - The pricing rule to create.
    * @returns The created pricing rule.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    *
    * @example
    * ```ts
@@ -109,9 +85,13 @@ export class MerchantPricingRulesNamespace {
    * that reference the rule ID in metadata are not affected — they retain their
    * price at time of creation.
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key is refused.
+   *
    * @param storeId - The merchant store ID.
    * @param id - UUID of the pricing rule to deactivate.
    * @returns The updated rule with `active: false`.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    */
   async deactivate(storeId: string, id: string): Promise<MerchantPricingRule> {
     return this.http.delete<MerchantPricingRule>(

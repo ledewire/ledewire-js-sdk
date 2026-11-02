@@ -1,4 +1,4 @@
-import type { StoredTokens, TokenStorage } from './types.js'
+import type { AuthTokenRefreshResponse, StoredTokens, TokenStorage } from './types.js'
 import { AuthError } from './errors.js'
 
 /** How many milliseconds before expiry to proactively refresh the token. */
@@ -42,6 +42,19 @@ export interface TokenManagerOptions {
    * ```
    */
   onAuthExpired?: () => void | Promise<void>
+  /**
+   * Logs in with credentials the client already holds (e.g. a store API key),
+   * persists the session, and resolves with the new access token. Rejects
+   * with the login's own error when the credentials are refused.
+   *
+   * When set, the manager calls it instead of returning no token when nothing
+   * is stored, and instead of giving up when a refresh fails. Concurrent
+   * callers share one in-flight login, and a failed login fires
+   * `onAuthExpired` once for all of them. It must not authenticate through this
+   * manager (use a credential-exchange request, `{ auth: false }`), or it
+   * would wait on itself.
+   */
+  login?: () => Promise<string>
 }
 
 /**
@@ -51,6 +64,9 @@ export interface TokenManagerOptions {
  * - Handles reactive refresh on 401 responses from the HTTP client
  * - Deduplicates concurrent refresh calls (only one in-flight refresh at a time)
  * - Fires `onAuthExpired` when refresh fails so the UI can prompt re-login
+ * - With a `login` configured: logs in when nothing is stored and when a refresh
+ *   fails, sharing one in-flight login; `onAuthExpired` then fires only when that
+ *   login fails, once per failed attempt however many callers shared it
  *
  * This is an internal class - use the package-level client factories instead.
  */
@@ -59,25 +75,31 @@ export class TokenManager {
   private readonly refreshFn: TokenManagerOptions['refreshFn']
   private readonly onTokenRefreshed: TokenManagerOptions['onTokenRefreshed']
   private readonly onAuthExpired: TokenManagerOptions['onAuthExpired']
+  private readonly login: TokenManagerOptions['login']
   private refreshPromise: Promise<StoredTokens | null> | null = null
+  private loginPromise: Promise<string> | null = null
 
   constructor(options: TokenManagerOptions) {
     this.storage = options.storage
     this.refreshFn = options.refreshFn
     this.onTokenRefreshed = options.onTokenRefreshed
     this.onAuthExpired = options.onAuthExpired
+    this.login = options.login
   }
 
   /**
    * Returns a valid access token, refreshing proactively if needed.
-   * Returns `null` if no tokens are stored (user not authenticated).
+   * Returns `null` if no tokens are stored (user not authenticated), unless a
+   * `login` is configured, in which case it logs in first.
    */
   async getAccessToken(): Promise<string | null> {
+    const login = this.login
     const stored = await this.storage.getTokens()
-    if (!stored) return null
+    if (!stored) return login ? this.performLogin(login) : null
 
     const expiresInMs = stored.expiresAt - Date.now()
     if (expiresInMs < REFRESH_THRESHOLD_MS) {
+      if (login) return this.refreshOrLogIn(stored.refreshToken, login)
       const refreshed = await this.performRefresh(stored.refreshToken)
       return refreshed?.accessToken ?? null
     }
@@ -87,10 +109,13 @@ export class TokenManager {
 
   /**
    * Called by `HttpClient` when a 401 is received.
-   * Attempts one refresh; returns the new access token or null.
+   * Attempts one refresh (then, with a `login` configured, one login);
+   * returns the new access token or null.
    */
   async handleUnauthorized(): Promise<string | null> {
+    const login = this.login
     const stored = await this.storage.getTokens()
+    if (login) return this.refreshOrLogIn(stored?.refreshToken, login)
     if (!stored) {
       await this.onAuthExpired?.()
       return null
@@ -113,6 +138,40 @@ export class TokenManager {
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
+
+  /**
+   * Recovers a lost session for a client that can log itself in: refreshes
+   * when there is a refresh token, and logs in again when that fails or there
+   * is none. Rejects with the login's error when the login fails too.
+   */
+  private async refreshOrLogIn(
+    refreshToken: string | undefined,
+    login: () => Promise<string>,
+  ): Promise<string> {
+    if (refreshToken !== undefined) {
+      const refreshed = await this.performRefresh(refreshToken).catch(() => null)
+      if (refreshed) return refreshed.accessToken
+    }
+    return this.performLogin(login)
+  }
+
+  /**
+   * Runs `login`, sharing one in-flight attempt between concurrent callers.
+   * A failed attempt fires `onAuthExpired` once, for every caller that shared
+   * it, then rejects them all with the login's error.
+   */
+  private performLogin(login: () => Promise<string>): Promise<string> {
+    if (this.loginPromise) return this.loginPromise
+    this.loginPromise = login()
+      .catch(async (err: unknown) => {
+        await this.onAuthExpired?.()
+        throw err
+      })
+      .finally(() => {
+        this.loginPromise = null
+      })
+    return this.loginPromise
+  }
 
   private performRefresh(refreshToken: string): Promise<StoredTokens | null> {
     if (this.refreshPromise) return this.refreshPromise
@@ -193,15 +252,13 @@ export function createRefreshFn(baseUrl: string): TokenManagerOptions['refreshFn
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!res.ok) throw new Error('Token refresh failed')
-    const data = (await res.json()) as {
-      access_token: string
-      refresh_token: string
-      expires_at: string
-    }
+    const data = (await res.json()) as AuthTokenRefreshResponse
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresAt: parseExpiresAt(data.expires_at),
+      // A store API-key refresh carries its store; the token is never decoded for it.
+      ...('store_id' in data && { storeId: data.store_id }),
     }
   }
 }

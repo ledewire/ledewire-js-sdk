@@ -1,7 +1,7 @@
 /**
  * Merchant content management namespace.
  *
- * CRUD operations for store content using merchant JWT authentication.
+ * CRUD operations for store content using a merchant JWT or a store API-key token.
  * Requires `owner` role or `is_author` permissions.
  *
  * @module
@@ -36,7 +36,8 @@ export interface MerchantContentSearchRequest {
 }
 
 /**
- * Manage content for a merchant store using merchant JWT authentication.
+ * Manage content for a merchant store using a merchant JWT or a store API-key
+ * token (`client.auth.loginWithApiKey`).
  *
  * Obtain via `client.merchant.content` — do not construct directly.
  */
@@ -72,9 +73,16 @@ export class MerchantContentNamespace {
    * Authorship is resolved server-side:
    * - Created by an `is_author` user → attributed to that user.
    * - Created by an owner → attributed to the owner.
+   * - Created via a store API key → attributed to the store's owner.
+   *
+   * **Requires a full key:** an `owner`, an `is_author` member, or a store API
+   * key with `full` permission (logged in with key and secret). A `view` key
+   * (key only) is refused.
    *
    * @param storeId - The store in which to create the content.
    * @param body - Content creation parameters.
+   * @throws {ForbiddenError} For a `view` API key, or a member who is neither
+   *   owner nor author (403).
    *
    * @example
    * ```ts
@@ -154,9 +162,16 @@ export class MerchantContentNamespace {
   /**
    * Update an existing content item.
    *
+   * **Requires a full key:** an `owner` or a store API key with `full`
+   * permission can update any item (and reassign its author via
+   * `store_user_id`); an `is_author` member only their own, with
+   * `store_user_id` ignored. A `view` key is refused.
+   *
    * @param storeId - The store the content belongs to.
    * @param id - The content ID to update.
    * @param body - Partial update fields (all fields optional).
+   * @throws {ForbiddenError} For a `view` API key, or an author updating
+   *   someone else's item (403).
    *
    * @example
    * ```ts
@@ -178,8 +193,14 @@ export class MerchantContentNamespace {
   /**
    * Delete a content item permanently.
    *
+   * **Requires a full key:** an `owner` or a store API key with `full`
+   * permission can delete any item; an `is_author` member only their own. A
+   * `view` key is refused.
+   *
    * @param storeId - The store the content belongs to.
    * @param id - The content ID to delete.
+   * @throws {ForbiddenError} For a `view` API key, or an author deleting
+   *   someone else's item (403).
    *
    * @example
    * ```ts

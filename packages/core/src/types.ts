@@ -7,7 +7,7 @@
  *
  * @module
  */
-import type { components } from './api.gen.js'
+import type { components, paths } from './api.gen.js'
 
 // ---------------------------------------------------------------------------
 // Generated API schema type aliases
@@ -25,13 +25,53 @@ export type InvitationOutcome = components['schemas']['InvitationOutcome']
 
 /**
  * Why a store or Company invitation was not accepted. Carried by an
- * {@link InvitationOutcome}, and by a refused signup or Google sign-in as
- * `LedewireError.details.reason` (with `type === 'invitation_not_accepted'`).
+ * {@link InvitationOutcome}, and by a refused signup, Google sign-in or
+ * invitation accept (`company.invitations.accept`,
+ * `merchant.auth.acceptInvitation`) as `LedewireError.details.reason` (with
+ * `type === 'invitation_not_accepted'`).
  */
 export type InvitationRefusalReason = components['schemas']['InvitationRefusalReason']
 
+/**
+ * A pending store invitation, as `GET /v1/auth/invite-info/{token}` describes it
+ * so a signup page can show it before the invitee has an account.
+ * `invited_email` is `null` when the invitation names no address; `role` is
+ * `'owner'` for an owner invitation and `null` otherwise.
+ */
+export type InviteInfoResponse = components['schemas']['InviteInfoResponse']
+
+/** Request body for accepting a store invitation as a signed-in merchant. */
+export type MerchantAcceptInvitationRequest = NonNullable<
+  paths['/v1/auth/merchant/accept-invitation']['post']['requestBody']
+>['content']['application/json']
+
+/**
+ * The store membership an accepted store invitation created. `role` is
+ * `'owner'` (owners are authors too), `'author'`, or `null` for a membership
+ * that is neither.
+ */
+export type MerchantInvitationAcceptedResponse =
+  components['schemas']['MerchantInvitationAcceptedResponse']
+
 /** Token response for merchant (store owner) authentication. */
 export type MerchantAuthenticationResponse = components['schemas']['MerchantAuthenticationResponse']
+
+/**
+ * Token response for a store API key, from `client.auth.loginWithApiKey()` and
+ * from refreshing that login's token. `store_id` is the store the key belongs
+ * to: pass it to `client.merchant.*(storeId)`.
+ */
+export type StoreAuthenticationResponse = components['schemas']['StoreAuthenticationResponse']
+
+/**
+ * Response from `POST /v1/auth/token/refresh`: a buyer refresh token answers with
+ * an {@link AuthenticationResponse}, a merchant one with a
+ * {@link MerchantAuthenticationResponse}, and a store API-key one with a
+ * {@link StoreAuthenticationResponse}. The SDK refreshes tokens itself, so
+ * application code rarely needs this.
+ */
+export type AuthTokenRefreshResponse =
+  paths['/v1/auth/token/refresh']['post']['responses'][200]['content']['application/json']
 
 /** Request body for buyer email/password signup. */
 export type AuthSignupRequest = components['schemas']['AuthSignupRequest']
@@ -42,7 +82,7 @@ export type AuthLoginEmailRequest = components['schemas']['AuthLoginEmailRequest
 /** Request body for buyer Google OAuth login. */
 export type AuthLoginOAuthRequest = components['schemas']['AuthLoginOAuthRequest']
 
-/** Request body for API key authentication (seller). */
+/** Request body for store API-key authentication. */
 export type AuthLoginApiKeyRequest = components['schemas']['AuthLoginApiKeyRequest']
 
 /** Request body for merchant email/password login. */
@@ -79,7 +119,12 @@ export type ContentAccessInfo = components['schemas']['ContentAccessInfo']
 /** The next action a buyer must take in the checkout flow. */
 export type NextRequiredAction = ContentAccessInfo['next_required_action']
 
-/** A piece of content with buyer access information. */
+/**
+ * A piece of content with buyer access information: the work's public
+ * description (`id`, `content_type`, `title`, `teaser`, `price_cents`,
+ * `visibility`, `resource_url`) plus `access_info`. It never carries the
+ * deliverable; that comes back only from `purchases.create()`.
+ */
 export type ContentWithAccessResponse = components['schemas']['ContentWithAccessResponse']
 
 /** A content item in a list response. */
@@ -100,145 +145,73 @@ export type ContentListItem = components['schemas']['ContentListItem']
  *   accepts `content_body` for these types).
  *
  * @remarks
- * This type is intentionally hand-written rather than aliased from
+ * The union is assembled here rather than aliased from
  * `components['schemas']['Content']`. The OpenAPI spec defines `Content` as a
  * flat object (no `oneOf`/`discriminator`), so `openapi-typescript` cannot
  * generate the discriminated union that callers need for type-narrowing.
  *
- * A compile-time assignability guard below (`_ContentDriftGuard`) will produce
- * a TypeScript error if this type drifts from the generated schema.
+ * Every field except `content_body` and `teaser` is picked from the generated
+ * schema, so it cannot drift. Those two stay hand-typed because the generated
+ * ones document a base64 string the caller encodes, and the SDK takes plain text
+ * and encodes it itself. A compile-time assignability guard below
+ * (`_ContentDriftGuard`) errors if the union stops fitting the generated schema.
  *
  * TODO: remove the hand-written union and alias the generated type once
  * `ledewire.yml` uses `oneOf` + `discriminator` for the `Content` schema.
  */
 export type Content =
-  | {
+  | (Pick<components['schemas']['Content'], 'title' | 'price_cents' | 'visibility' | 'metadata'> & {
       /** @discriminator */
       content_type: 'markdown'
-      /** Content title. */
-      title: string
       /** Full article body in plain text markdown. The SDK base64-encodes this before sending. */
       content_body: string
       /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
       teaser?: string
-      /** Price for the content in cents. */
-      price_cents: number
-      /** @default public */
-      visibility: 'public' | 'unlisted'
-      /** Flexible metadata for additional context. */
-      metadata?: {
-        author?: string
-        /** @format date-time */
-        publication_date?: string
-        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
-        reading_time?: string
-        [key: string]: unknown
-      }
-    }
-  | {
-      /** @discriminator */
-      content_type: 'external_ref'
-      /** Content title. */
-      title: string
-      /** URI of the external resource (Vimeo, YouTube, PDF, etc.). */
-      content_uri: string
-      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
-      external_identifier?: string
-      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
-      teaser?: string
-      /** Price for the content in cents. */
-      price_cents: number
-      /** @default public */
-      visibility: 'public' | 'unlisted'
-      /** Flexible metadata for additional context. */
-      metadata?: {
-        author?: string
-        /** @format date-time */
-        publication_date?: string
-        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
-        reading_time?: string
-        [key: string]: unknown
-      }
-    }
-  | {
+    })
+  | (Pick<
+      components['schemas']['Content'],
+      'title' | 'price_cents' | 'visibility' | 'metadata' | 'external_identifier'
+    > &
+      Required<Pick<components['schemas']['Content'], 'content_uri'>> & {
+        /** @discriminator */
+        content_type: 'external_ref'
+        /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+        teaser?: string
+      })
+  | (Pick<components['schemas']['Content'], 'title' | 'price_cents' | 'visibility' | 'metadata'> & {
       /** @discriminator */
       content_type: 'html'
-      /** Content title. */
-      title: string
       /** Full HTML body. The SDK base64-encodes this before sending. Mutually exclusive with `content_uri`. */
       content_body: string
       /** Not accepted alongside inline `content_body` — submitting both is rejected with `400`. */
       content_uri?: never
       /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
       teaser?: string
-      /** Price for the content in cents. */
-      price_cents: number
-      /** @default public */
-      visibility: 'public' | 'unlisted'
-      /** Flexible metadata for additional context. */
-      metadata?: {
-        author?: string
-        /** @format date-time */
-        publication_date?: string
-        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
-        reading_time?: string
-        [key: string]: unknown
-      }
-    }
-  | {
-      /** @discriminator */
-      content_type: 'html'
-      /** Content title. */
-      title: string
-      /** URI of the remote HTML resource. Mutually exclusive with `content_body`. */
-      content_uri: string
-      /** Not accepted alongside remote `content_uri` — submitting both is rejected with `400`. */
-      content_body?: never
-      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
-      external_identifier?: string
-      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
-      teaser?: string
-      /** Price for the content in cents. */
-      price_cents: number
-      /** @default public */
-      visibility: 'public' | 'unlisted'
-      /** Flexible metadata for additional context. */
-      metadata?: {
-        author?: string
-        /** @format date-time */
-        publication_date?: string
-        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
-        reading_time?: string
-        [key: string]: unknown
-      }
-    }
-  | {
-      /** @discriminator */
-      content_type: 'pdf' | 'image' | 'video'
-      /** Content title. */
-      title: string
-      /** URI of the remote resource. Required — these types are always remote. */
-      content_uri: string
-      /** Not accepted for `pdf`/`image`/`video` content. */
-      content_body?: never
-      /** Optional namespaced platform ID, e.g. `vimeo:123456789`. */
-      external_identifier?: string
-      /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
-      teaser?: string
-      /** Price for the content in cents. */
-      price_cents: number
-      /** @default public */
-      visibility: 'public' | 'unlisted'
-      /** Flexible metadata for additional context. */
-      metadata?: {
-        author?: string
-        /** @format date-time */
-        publication_date?: string
-        /** Estimated read time, e.g. `'5 min'`. Note: the correct key is `reading_time`, not `read_time`. */
-        reading_time?: string
-        [key: string]: unknown
-      }
-    }
+    })
+  | (Pick<
+      components['schemas']['Content'],
+      'title' | 'price_cents' | 'visibility' | 'metadata' | 'external_identifier'
+    > &
+      Required<Pick<components['schemas']['Content'], 'content_uri'>> & {
+        /** @discriminator */
+        content_type: 'html'
+        /** Not accepted alongside remote `content_uri` — submitting both is rejected with `400`. */
+        content_body?: never
+        /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+        teaser?: string
+      })
+  | (Pick<
+      components['schemas']['Content'],
+      'title' | 'price_cents' | 'visibility' | 'metadata' | 'external_identifier'
+    > &
+      Required<Pick<components['schemas']['Content'], 'content_uri'>> & {
+        /** @discriminator */
+        content_type: 'pdf' | 'image' | 'video'
+        /** Not accepted for `pdf`/`image`/`video` content. */
+        content_body?: never
+        /** Optional article teaser in plain text markdown. The SDK base64-encodes this before sending. */
+        teaser?: string
+      })
 
 /**
  * Compile-time drift guard for the hand-written `Content` type.
@@ -256,7 +229,7 @@ type _ContentDriftGuard<_T extends U, U> = never
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _ContentSchemaCheck = _ContentDriftGuard<Content, components['schemas']['Content']>
 
-/** Full content item returned by all seller content endpoints. */
+/** Full content item returned by the store content endpoints. */
 export type ContentResponse = components['schemas']['ContentResponse']
 
 /** Request body for updating content. */
@@ -279,7 +252,11 @@ export type WalletPaymentSessionResponse = components['schemas']['WalletPaymentS
 /** Current wallet balance for the authenticated buyer. */
 export type WalletBalanceResponse = components['schemas']['WalletBalanceResponse']
 
-/** Status of a wallet payment session. */
+/**
+ * Status of a wallet payment session. `status` is one of `pending`,
+ * `awaiting_verification`, `processing`, `completed`, `cancelled`, `failed`
+ * or `reverted`. `balance_cents` is `null` for a Company member.
+ */
 export type WalletPaymentStatusResponse = components['schemas']['WalletPaymentStatusResponse']
 
 /** A single wallet transaction entry. */
@@ -288,10 +265,65 @@ export type WalletTransactionItem = components['schemas']['WalletTransactionItem
 /** Request body for creating a purchase. */
 export type PurchaseCreateRequest = components['schemas']['PurchaseCreateRequest']
 
-/** A purchase record. */
+/**
+ * A purchase record.
+ *
+ * - `license` is the {@link PurchaseLicense} the purchase was delivered under, or `null`
+ *   when none was recorded (every Store work, and brokered purchases made before licences
+ *   were recorded). `null` means "not recorded", never "no rights granted".
+ * - `content.publication` is the {@link PurchasePublication} a brokered work was published
+ *   under; `null` for a Store's work.
+ * - `content.filing` is the {@link ContentSearchFiling} for an SEC filing; `null` for every
+ *   other work, and for a filing bought before its filer was recorded.
+ */
 export type PurchaseResponse = components['schemas']['PurchaseResponse']
 
-/** Full checkout state for a buyer/content pair, including auth and fund status. */
+/**
+ * The licence one purchase was delivered under, exactly as the work's source granted it.
+ *
+ * `type` is the source's own licence type: `ON_DEMAND_LICENSE` (partial use),
+ * `ON_DEMAND_FULL_USE_LICENSE` (full use) or `public-domain` (an SEC filing), and a source
+ * may add others. `permissions` lists what was granted (e.g. `PARTIAL_USE`), empty for
+ * `public-domain`. `document_url` points at `/v1/purchases/{id}/license_document`, which
+ * `purchases.licenseDocument(id)` downloads; it is `null` until the document is captured.
+ */
+export type PurchaseLicense = components['schemas']['PurchaseLicense']
+
+/** The Publication a purchased work was published under (`content.publication` on a purchase). */
+export type PurchasePublication = components['schemas']['PurchasePublication']
+
+/**
+ * An SEC filing's primary document: filer name, ticker, CIK, form type, filing date,
+ * period of report and accession number. `filing` on a search result or a purchase's
+ * `content`; `null` for any work that is not an SEC filing.
+ */
+export type ContentSearchFiling = components['schemas']['ContentSearchFiling']
+
+/**
+ * A purchase's licence document, as `purchases.licenseDocument(id)` returns it.
+ *
+ * The body is raw bytes rather than decoded JSON, because the document is whatever the
+ * work's source served: usually a PDF, Markdown for an SEC filing, or anything else.
+ * `ArrayBuffer` is used because it works the same in Node, browsers and edge runtimes:
+ * wrap it with `Buffer.from(body)` in Node, `new Blob([body], { type: contentType })` in a
+ * browser, or `new TextDecoder().decode(body)` for a `text/*` type.
+ */
+export interface LicenseDocument {
+  /** The document's bytes. */
+  body: ArrayBuffer
+  /**
+   * The `Content-Type` the server sent, verbatim (e.g. `application/pdf`,
+   * `text/markdown; charset=utf-8`). `application/octet-stream` when none was sent. The
+   * type is the source's choice, so never render the document inline on your own origin
+   * on the strength of it.
+   */
+  contentType: string
+}
+
+/**
+ * Full checkout state for a buyer/content pair, including auth and fund status.
+ * `content_title` is `null` only when nothing names the work.
+ */
 export type CheckoutStateResponse = components['schemas']['CheckoutStateResponse']
 
 /** Purchase verification result. */
@@ -419,17 +451,9 @@ export type PublicationWorkListResponse = components['schemas']['PublicationWork
  * `next_cursor`, sent back with the same `from`/`to`; `limit` defaults to the maximum
  * (1000).
  */
-export interface PublicationWorksParams {
-  /** Earliest modification date, inclusive, as `YYYY-MM-DD`. */
-  from?: string
-  /** Latest modification date, inclusive, as `YYYY-MM-DD`. */
-  to?: string
-  /** The previous page's `next_cursor`, sent with the same `from`/`to`. */
-  cursor?: string
-  /** Works per page. Maximum 1000. Defaults to the maximum. */
-  limit?: number
-  [key: string]: string | number | undefined
-}
+export type PublicationWorksParams = NonNullable<
+  paths['/v1/publications/{id}/works']['get']['parameters']['query']
+>
 
 /**
  * A Topic: a subject from the IAB Content Taxonomy that a {@link Publication} covers.
@@ -451,23 +475,25 @@ export type TopicDirectoryResponse = components['schemas']['TopicDirectoryRespon
  * Query parameters accepted by `GET /v1/publications`. The filters combine with AND,
  * and `pagination` counts the filtered set.
  */
-export interface PublicationListParams {
-  /** Page number (1-based). Defaults to 1. */
-  page?: number
-  /** Items per page. Maximum 100. Defaults to 25. */
-  per_page?: number
-  /** Case-insensitive substring of a Publication's name or listed domains. Blank is no filter. */
-  q?: string
-  /** `true` returns only bulk-licensable Publications; `false` only those that cannot be. */
-  bulk_licensable?: boolean
+// The spec names the Topic filter `topics[]`, its wire form; the SDK takes `topics` and
+// writes the brackets itself. `limit` is the spec's alias for `per_page`, left out so
+// there is one name for the page size.
+export type PublicationListParams = Omit<
+  NonNullable<paths['/v1/publications']['get']['parameters']['query']>,
+  'topics[]' | 'limit'
+> & {
   /** Only Publications carrying any of these Topics. An unknown Topic is a 400. */
-  topics?: TopicSlug[]
+  topics?: NonNullable<paths['/v1/publications']['get']['parameters']['query']>['topics[]']
 }
 
 /** The Publication a search result belongs to, as `POST /v1/content/search` names it. */
 export type ContentSearchPublication = components['schemas']['ContentSearchPublication']
 
-/** One work in a buyer's LedeWire search, from a Store or a brokered Publication. */
+/**
+ * One work in a buyer's LedeWire search, from a Store or a brokered Publication.
+ * `filing` is a {@link ContentSearchFiling} for an SEC EDGAR filing (priced at 0, with
+ * access through the Company's Subscription), and `null` for every other work.
+ */
 export type ContentSearchResult = components['schemas']['ContentSearchResult']
 
 /** A {@link ContentSearchResult} that also names the Publication it was published by. */
@@ -477,8 +503,24 @@ export type ContentSearchResultWithPublication =
 /**
  * Body for `POST /v1/content/search`. Every field is optional. `limit` defaults to 20 on
  * the server, though the generated schema marks it required, so it is made optional here.
+ *
+ * `publication` keeps only works from one Publication (its `id`, or its exact `name` in any
+ * case). `form_type`, `ticker` and `cik` keep only SEC EDGAR filings, and let `query` be
+ * omitted to list the filings they name, newest first. `form_type` includes amendments
+ * (`10-K` also returns `10-K/A`).
+ *
+ * This is the buyer's search, the request `content.search()` takes. A Store's search of its
+ * own content is `MerchantContentSearchRequest`.
  */
-export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+export type ContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+
+/**
+ * The buyer search request under its 0.14.0 name; the same type as {@link ContentSearchRequest}.
+ *
+ * @deprecated Use {@link ContentSearchRequest}. Kept so 0.14.0 code compiles; removed in a
+ *   later breaking release.
+ */
+export type BuyerContentSearchRequest = ContentSearchRequest
 
 /**
  * One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null.
@@ -513,19 +555,11 @@ export type PaginatedAcquisitionWorkList = components['schemas']['PaginatedAcqui
  * pagination plus optional filters. Filters combine with AND, and
  * `pagination.total` counts only the matching works.
  */
-export interface AcquisitionWorksParams {
-  /** Page number (1-based). Defaults to 1. */
-  page?: number
-  /** Items per page. Maximum 100. Defaults to 25. */
-  per_page?: number
-  /** Only works in this delivery state, e.g. `'undelivered'` to list what failed. */
-  delivery_state?: AcquisitionWork['delivery_state']
-  /** Only lines in this pricing state, e.g. `'excluded'`. */
-  line_state?: AcquisitionWork['line_state']
-  /** Only excluded lines refused for this reason. */
-  exclusion_reason?: NonNullable<AcquisitionWork['exclusion_reason']>
-  [key: string]: string | number | undefined
-}
+// `limit` is the spec's alias for `per_page`, left out so there is one name for the page size.
+export type AcquisitionWorksParams = Omit<
+  NonNullable<paths['/v1/acquisitions/{acquisition_id}/works']['get']['parameters']['query']>,
+  'limit'
+>
 
 /**
  * Where a Bulk acquisition's Corpus is — a state, never an error. A corpus is a
@@ -547,7 +581,10 @@ export type CorpusManifestResponse = components['schemas']['CorpusManifestRespon
  */
 export type SigningKeyHistoryResponse = components['schemas']['SigningKeyHistoryResponse']
 
-/** A single x402 v2 resource entry returned by the Bazaar discovery endpoint. */
+/**
+ * A single x402 v2 resource entry returned by the Bazaar discovery endpoint.
+ * `metadata.title` is `null` for a work stored untitled.
+ */
 export type X402BazaarResource = components['schemas']['X402BazaarResource']
 
 /** Response from the public x402 Bazaar discovery endpoint (`GET /v1/x402/discovery/resources`). */
@@ -556,13 +593,49 @@ export type X402BazaarDiscoveryResponse = components['schemas']['X402BazaarDisco
 /**
  * Query parameters accepted by `GET /v1/x402/discovery/resources`.
  */
-export interface X402DiscoveryParams {
-  /** Number of resources to return (max 100). */
-  limit?: number
-  /** Zero-based offset for pagination. */
-  offset?: number
-  [key: string]: number | undefined
+export type X402DiscoveryParams = NonNullable<
+  paths['/v1/x402/discovery/resources']['get']['parameters']['query']
+>
+
+/**
+ * Query parameters accepted by `GET /v1/x402/verify-origin`.
+ */
+export interface X402VerifyOriginParams {
+  /**
+   * Absolute URL of the page to verify (e.g. `https://theirsite.com/articles/slug`).
+   * A missing or invalid URL is not an error: the API answers `verified: false`.
+   */
+  url: string
+  /**
+   * The store whose pricing rules may cover the URL. When the URL is not yet
+   * registered, the store has verified its domain, and one of its pricing rules
+   * matches, the API registers the URL on this request and answers
+   * `verified: true`.
+   */
+  store_id?: string
+  [key: string]: string | undefined
 }
+
+/**
+ * Response from `GET /v1/x402/verify-origin`: either `{ verified: true, content_id,
+ * store_id, amount, title }` for a registered URL, or `{ verified: false }`.
+ * Branch on `verified`.
+ */
+export type X402VerifyOriginResponse =
+  components['schemas']['VerifyOriginVerified'] | components['schemas']['VerifyOriginUnverified']
+
+/**
+ * JSON Web Key Set (RFC 7517) served from `GET /.well-known/x402-jwks.json`: the
+ * RS256 public key that signs the `accessToken` in an x402 `PAYMENT-RESPONSE`.
+ */
+export type X402JwksResponse = components['schemas']['JwksResponse']
+
+/**
+ * The x402 v2 settlement result, carried base64-encoded in the `PAYMENT-RESPONSE`
+ * header of a successful paid `200`. `accessToken` is omitted (never `null`) when
+ * the server has no signing key configured.
+ */
+export type X402SettlementResponse = components['schemas']['SettlementResponse']
 
 /**
  * The REST and x402 web-gate form of a daily-spend-cap refusal, returned with HTTP
@@ -615,12 +688,20 @@ export type CompanyMember = components['schemas']['CompanyMember']
 /** The Company's open memberships. */
 export type CompanyMemberList = components['schemas']['CompanyMemberList']
 
+// The spec says "at least one" as `anyOf: [{required: [role]}, {required:
+// [daily_spend_limit_cents]}]`. openapi-typescript renders each branch as
+// `unknown`, collapsing the generated `CompanyMemberRoleRequest` to `unknown`,
+// so the two branches are spelled out here, with each field's type taken from
+// the generated `CompanyMember`. Alias the generated type once the spec's
+// branches carry their `properties` (a type test fails when they do).
 /**
  * Request body for changing a member's role or daily Spend cap — at least one
  * of the two. `daily_spend_limit_cents` cannot be `null`: a Company member is
  * never uncapped.
  */
-export type CompanyMemberUpdateRequest = components['schemas']['CompanyMemberRoleRequest']
+export type CompanyMemberUpdateRequest =
+  | (Pick<CompanyMember, 'role'> & Partial<Pick<CompanyMember, 'daily_spend_limit_cents'>>)
+  | (Partial<Pick<CompanyMember, 'role'>> & Pick<CompanyMember, 'daily_spend_limit_cents'>)
 
 /**
  * A Machine user: a Buyer with a name and no email, password or login, owned by
@@ -641,11 +722,15 @@ export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMach
  * at least one of the two. A `null` or blank `description` clears it; `name`
  * cannot be `null`, and is at most 100 characters.
  *
- * Hand-written: the spec expresses "at least one" as an `anyOf`, which the
- * generator widens to `unknown`.
+ * Assembled here: the spec expresses "at least one" as an `anyOf`, which the
+ * generator widens to `unknown`. Each field's type comes from the generated
+ * create request instead.
  */
 export type CompanyMachineUserUpdateRequest =
-  { name: string; description?: string | null } | { name?: string; description: string | null }
+  | (Pick<CompanyMachineUserCreateRequest, 'name'> &
+      Pick<Partial<CompanyMachineUserCreateRequest>, 'description'>)
+  | (Partial<Pick<CompanyMachineUserCreateRequest, 'name'>> &
+      Required<Pick<CompanyMachineUserCreateRequest, 'description'>>)
 
 /**
  * A Machine user's Buyer key (secret never included after creation). It logs in
@@ -723,25 +808,19 @@ export type CompanySpendList = components['schemas']['CompanySpendList']
  * Filters shared by the Company purchase and spend reports. `from`/`to` are
  * inclusive `YYYY-MM-DD` days read in the Company's timezone.
  */
-export interface CompanyReportFilters {
-  /** A membership id (`member.id`), open or closed. */
-  member?: string
-  /** The first day to include, `YYYY-MM-DD`, in the Company's timezone. */
-  from?: string
-  /** The last day to include, `YYYY-MM-DD`, in the Company's timezone. */
-  to?: string
-  [key: string]: string | number | undefined
-}
+export type CompanyReportFilters = NonNullable<
+  paths['/v1/company/spend']['get']['parameters']['query']
+>
 
-/** Query parameters accepted by `GET /v1/company/purchases`. */
-export interface CompanyPurchasesParams extends CompanyReportFilters {
-  /** Only purchases, or only Bulk acquisitions. Both by default. */
-  kind?: CompanyPurchase['kind']
-  /** Page number (1-based). Defaults to 1. */
-  page?: number
-  /** Items per page. Maximum 100. Defaults to 25. */
-  per_page?: number
-}
+/**
+ * Query parameters accepted by `GET /v1/company/purchases`: the
+ * {@link CompanyReportFilters} plus `kind` and pagination.
+ */
+// `limit` is the spec's alias for `per_page`, left out so there is one name for the page size.
+export type CompanyPurchasesParams = Omit<
+  NonNullable<paths['/v1/company/purchases']['get']['parameters']['query']>,
+  'limit'
+>
 
 /**
  * Query parameters accepted by `GET /v1/company/spend`. Lifetime spend when
@@ -793,43 +872,109 @@ export type PublicConfigResponse = components['schemas']['PublicConfigResponse']
 /**
  * Store public configuration returned by `GET /v1/merchant/{store_id}/config`.
  * The `google_client_id` is used to initialise the Google OAuth button on the
- * buyer-facing storefront.
+ * buyer-facing storefront; it is `null` when the server has no Google client ID
+ * configured.
  */
-export interface StoreConfig {
-  google_client_id?: string
-}
+export type StoreConfig =
+  paths['/v1/merchant/{store_id}/config']['get']['responses'][200]['content']['application/json']
 
 /**
  * Request body for initiating a buyer password reset.
  * Sent to `POST /v1/auth/password/reset-request`.
  */
-export interface AuthPasswordResetRequestBody {
-  /** The buyer's registered email address. */
-  email: string
-}
+export type AuthPasswordResetRequestBody =
+  paths['/v1/auth/password/reset-request']['post']['requestBody']['content']['application/json']
 
 /**
- * Request body for completing a buyer password reset.
+ * Request body for completing a buyer password reset: the email, the 6-digit
+ * `reset_code` delivered to it, and the new `password` (minimum 6 characters).
  * Sent to `POST /v1/auth/password/reset`.
  */
-export interface AuthPasswordResetBody {
-  /** The buyer's registered email address. */
-  email: string
-  /** 6-digit numeric code delivered to the buyer's email. */
-  reset_code: string
-  /** New password (minimum 6 characters). */
-  password: string
-}
+export type AuthPasswordResetBody =
+  paths['/v1/auth/password/reset']['post']['requestBody']['content']['application/json']
 
 /**
  * Response returned by both password reset endpoints.
  * Contains a human-readable confirmation message.
  */
-export interface AuthPasswordResetResponse {
-  data?: {
-    message?: string
-  }
-}
+export type AuthPasswordResetResponse = components['schemas']['MessageResponse']
+
+/**
+ * Request body for initiating a merchant password reset.
+ * Sent to `POST /v1/auth/merchant/password/reset-request`.
+ */
+export type MerchantPasswordResetRequestBody =
+  paths['/v1/auth/merchant/password/reset-request']['post']['requestBody']['content']['application/json']
+
+/**
+ * Request body for completing a merchant password reset: the email, the 6-digit
+ * `reset_code` delivered to it, and the new `password` (minimum 6 characters).
+ * Sent to `POST /v1/auth/merchant/password/reset`.
+ */
+export type MerchantPasswordResetBody =
+  paths['/v1/auth/merchant/password/reset']['post']['requestBody']['content']['application/json']
+
+/**
+ * Response returned by both merchant password reset endpoints.
+ * Contains a human-readable confirmation message.
+ */
+export type MerchantPasswordResetResponse = components['schemas']['MessageResponse']
+
+/**
+ * Request body for adding a domain for verification. The `www.` prefix is
+ * stripped automatically by the server.
+ */
+export type MerchantDomainAddRequest =
+  paths['/v1/merchant/{store_id}/domains']['post']['requestBody']['content']['application/json']
+
+/**
+ * Request body for triggering a DNS verification check. The `www.` prefix is
+ * stripped automatically by the server.
+ */
+export type MerchantDomainVerifyRequest =
+  paths['/v1/merchant/{store_id}/domains/verify']['post']['requestBody']['content']['application/json']
+
+/**
+ * Response from triggering domain verification: whether the job was `queued`,
+ * the `domain`, and its `status` at the time of enqueueing (not the final result).
+ */
+export type MerchantDomainVerifyResponse =
+  paths['/v1/merchant/{store_id}/domains/verify']['post']['responses'][202]['content']['application/json']
+
+/**
+ * Request body for creating a pricing rule: a glob `url_pattern` and the
+ * `price_cents` charged for access to matching URLs.
+ *
+ * @remarks
+ * **Use `https://` patterns.** An `http://` pattern means the merchant's page
+ * loads without TLS — browsers flag it as "Not Secure" and the buyer's session
+ * is visible in plaintext. The Ledewire payment API itself always uses HTTPS,
+ * but the merchant page context matters for user trust.
+ *
+ * Setting `price_cents` to `0` makes all matching URLs freely accessible —
+ * the x402 server short-circuits directly to `200` without a payment round-trip.
+ * Verify the intended price before creating a rule.
+ */
+export type MerchantPricingRuleCreateRequest =
+  paths['/v1/merchant/{store_id}/pricing_rules']['post']['requestBody']['content']['application/json']
+
+/**
+ * Request body for updating a store member's permissions: `is_author`, and
+ * `author_fee_bps` (0–10000, or `null` to revert to the store default).
+ */
+export type MerchantUserUpdateRequest =
+  paths['/v1/merchant/{store_id}/users/{id}']['patch']['requestBody']['content']['application/json']
+
+/**
+ * Request body for `client.acquisitions.create()`: the works to license, in the
+ * order they should be recorded (a Selection), one URL per element. Every row gets
+ * a disposition, refused ones included — a row that vanished silently between
+ * upload and quote is exactly the failure the
+ * `client.acquisitions.acknowledgeExclusions()` step exists to prevent. Typically
+ * the `url`s from one or more pages of `client.publications.listWorks()`.
+ */
+export type AcquisitionCreateRequest =
+  paths['/v1/acquisitions']['post']['requestBody']['content']['application/json']
 
 // ---------------------------------------------------------------------------
 // SDK-internal types (not in the OpenAPI spec)
@@ -868,6 +1013,12 @@ export interface StoredTokens {
   refreshToken: string
   /** Unix timestamp (ms) when the access token expires. */
   expiresAt: number
+  /**
+   * The store a store API-key session belongs to, from the `store_id` of the
+   * login or refresh response (never decoded from the token). Absent for every
+   * other kind of session.
+   */
+  storeId?: string
 }
 
 // ---------------------------------------------------------------------------

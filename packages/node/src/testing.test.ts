@@ -57,7 +57,7 @@ describe('createMockClient', () => {
 
     expect(client).toHaveProperty('auth')
     expect(client).toHaveProperty('merchant')
-    expect(client).toHaveProperty('seller')
+    expect(client).not.toHaveProperty('seller')
     expect(client).toHaveProperty('wallet')
     expect(client).toHaveProperty('purchases')
     expect(client).toHaveProperty('content')
@@ -103,17 +103,6 @@ describe('createMockClient', () => {
     expect(typeof client.content.search).toBe('function')
   })
 
-  it('stubs all seller content methods', () => {
-    const client = createMockClient(vi.fn)
-
-    expect(typeof client.seller.content.list).toBe('function')
-    expect(typeof client.seller.content.create).toBe('function')
-    expect(typeof client.seller.content.search).toBe('function')
-    expect(typeof client.seller.content.get).toBe('function')
-    expect(typeof client.seller.content.update).toBe('function')
-    expect(typeof client.seller.content.delete).toBe('function')
-  })
-
   it('stubs all merchant sales methods', () => {
     const client = createMockClient(vi.fn)
 
@@ -157,25 +146,6 @@ describe('createMockClient', () => {
     expect(typeof client.merchant.content.get).toBe('function')
     expect(typeof client.merchant.content.update).toBe('function')
     expect(typeof client.merchant.content.delete).toBe('function')
-  })
-
-  it('stubs all seller sales methods', () => {
-    const client = createMockClient(vi.fn)
-
-    expect(typeof client.seller.sales.summary).toBe('function')
-    expect(typeof client.seller.sales.list).toBe('function')
-  })
-
-  it('stubs all seller buyers methods', () => {
-    const client = createMockClient(vi.fn)
-
-    expect(typeof client.seller.buyers.list).toBe('function')
-  })
-
-  it('stubs all seller config methods', () => {
-    const client = createMockClient(vi.fn)
-
-    expect(typeof client.seller.config.get).toBe('function')
   })
 
   it('stubs all auth password reset methods', () => {
@@ -254,14 +224,14 @@ describe('createMockClient', () => {
     const client = createMockClient(vi.fn)
 
     expect(vi.isMockFunction(client.merchant.sales.list)).toBe(true)
-    expect(vi.isMockFunction(client.seller.content.create)).toBe(true)
+    expect(vi.isMockFunction(client.merchant.content.create)).toBe(true)
     expect(vi.isMockFunction(client.auth.loginWithEmail)).toBe(true)
   })
 
   it('each namespace gets independent spy instances', () => {
     const client = createMockClient(vi.fn)
 
-    expect(client.merchant.sales.list).not.toBe(client.seller.content.list)
+    expect(client.merchant.sales.list).not.toBe(client.merchant.content.list)
   })
 
   it('spies track calls correctly', async () => {

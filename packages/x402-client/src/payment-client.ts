@@ -1,9 +1,16 @@
-import { AuthError, ForbiddenError, LedewireError, spendCapErrorFromBody } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  RateLimitError,
+  spendCapErrorFromBody,
+} from '@ledewire/core'
 import { LedewireAuthManager } from './auth.js'
 import {
   InsufficientFundsError,
   NonceExpiredError,
   PaymentOriginNotAllowedError,
+  extractApiErrorMessage,
 } from './errors.js'
 import { parsePaymentRequired } from './parse.js'
 import type {
@@ -24,36 +31,20 @@ import type {
  *
  * @param status - HTTP status of the failed retry response.
  * @param message - Error message extracted from the response body.
+ * @param retryAfter - Seconds from the response's `Retry-After` header, if any
+ *   (see `parseRetryAfter`); carried onto a {@link RateLimitError}.
  * @throws {InsufficientFundsError} On `422`.
  * @throws {AuthError} On `401`.
  * @throws {ForbiddenError} On `403`.
+ * @throws {RateLimitError} On `429`, with `retryAfter` when given.
  * @throws {LedewireError} For all other statuses.
  */
-export function throwPaymentError(status: number, message: string): never {
+export function throwPaymentError(status: number, message: string, retryAfter?: number): never {
   if (status === 422) throw new InsufficientFundsError(message)
   if (status === 401) throw new AuthError(message)
   if (status === 403) throw new ForbiddenError(message)
+  if (status === 429) throw new RateLimitError(message, undefined, undefined, undefined, retryAfter)
   throw new LedewireError(message, status)
-}
-
-/**
- * Extracts a human-readable message from a parsed API error body, tolerating
- * both shapes seen in the wild: `{ error: "string" }` (some legacy Ledewire
- * responses) and `{ error: { code, message, type } }` (the documented
- * `ErrorResponse` envelope). Falls back to `fallback` — never throws.
- *
- * @param body - Parsed JSON body of an error response, or `undefined`/`null`.
- * @param fallback - Message to use when the body carries no usable string.
- */
-export function extractPaymentErrorMessage(body: unknown, fallback: string): string {
-  if (!body || typeof body !== 'object') return fallback
-  const raw = (body as Record<string, unknown>)['error']
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object') {
-    const message = (raw as Record<string, unknown>)['message']
-    if (typeof message === 'string') return message
-  }
-  return fallback
 }
 
 /**
@@ -65,19 +56,21 @@ export function extractPaymentErrorMessage(body: unknown, fallback: string): str
  *
  * @param status - HTTP status of the failed retry response.
  * @param body - Parsed JSON body of the failed retry response.
+ * @param retryAfter - Seconds from the response's `Retry-After` header, if any.
  * @throws {SpendCapReachedError} When the body is a well-formed
  *   `daily_spend_cap_reached` refusal (see {@link spendCapErrorFromBody}).
  * @throws {InsufficientFundsError} On `422`.
  * @throws {AuthError} On `401`.
  * @throws {ForbiddenError} On `403`.
+ * @throws {RateLimitError} On `429`.
  * @throws {LedewireError} For all other statuses.
  */
-export function throwLegacyPaymentError(status: number, body: unknown): never {
+export function throwLegacyPaymentError(status: number, body: unknown, retryAfter?: number): never {
   const spendCapError = spendCapErrorFromBody(body)
   if (spendCapError) throw spendCapError
 
-  const message = extractPaymentErrorMessage(body, `Payment failed (${String(status)})`)
-  throwPaymentError(status, message)
+  const message = extractApiErrorMessage(body, `Payment failed (${String(status)})`)
+  throwPaymentError(status, message, retryAfter)
 }
 
 /**
@@ -100,7 +93,7 @@ export function throwLegacyPaymentError(status: number, body: unknown): never {
  */
 export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unknown): never {
   const { errorReason } = refusal
-  const message = extractPaymentErrorMessage(body, `Payment failed: ${errorReason}`)
+  const message = extractApiErrorMessage(body, `Payment failed: ${errorReason}`)
 
   switch (errorReason) {
     case 'insufficient_funds':

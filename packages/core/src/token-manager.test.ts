@@ -105,6 +105,118 @@ describe('TokenManager.handleUnauthorized', () => {
   })
 })
 
+describe('TokenManager with a login', () => {
+  function makeLoginManager(options: {
+    login: () => Promise<string>
+    initialTokens?: StoredTokens
+    refreshFn?: RefreshFn
+    onAuthExpired?: () => void
+  }) {
+    const storage = new MemoryTokenStorage()
+    if (options.initialTokens) storage.setTokens(options.initialTokens)
+    const manager = new TokenManager({
+      storage,
+      refreshFn: options.refreshFn ?? vi.fn<RefreshFn>().mockResolvedValue(makeTokens()),
+      login: options.login,
+      ...(options.onAuthExpired !== undefined && { onAuthExpired: options.onAuthExpired }),
+    })
+    return manager
+  }
+
+  it('logs in when no tokens are stored, sharing one login between concurrent callers', async () => {
+    let finish: (token: string) => void = () => undefined
+    const login = vi.fn(() => new Promise<string>((resolve) => (finish = resolve)))
+    const manager = makeLoginManager({ login })
+
+    const both = Promise.all([manager.getAccessToken(), manager.getAccessToken()])
+    await vi.waitFor(() => {
+      expect(login).toHaveBeenCalled()
+    })
+    finish('logged-in')
+
+    expect(await both).toEqual(['logged-in', 'logged-in'])
+    expect(login).toHaveBeenCalledOnce()
+  })
+
+  it('clears the shared login once it settles, so a later call can log in again', async () => {
+    const login = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new AuthError('Invalid API key'))
+      .mockResolvedValueOnce('second')
+    const manager = makeLoginManager({ login })
+
+    await expect(manager.getAccessToken()).rejects.toThrow('Invalid API key')
+    expect(await manager.getAccessToken()).toBe('second')
+  })
+
+  it('does not log in when a token is stored', async () => {
+    const login = vi.fn<() => Promise<string>>()
+    const manager = makeLoginManager({ login, initialTokens: makeTokens() })
+
+    expect(await manager.getAccessToken()).toBe('access-token')
+    expect(login).not.toHaveBeenCalled()
+  })
+
+  it('logs in when a proactive refresh fails', async () => {
+    const login = vi.fn<() => Promise<string>>().mockResolvedValue('relogged')
+    const refreshFn = vi.fn<RefreshFn>().mockRejectedValue(new Error('refresh refused'))
+    const manager = makeLoginManager({
+      login,
+      refreshFn,
+      initialTokens: makeTokens({ expiresAt: 0 }),
+    })
+
+    expect(await manager.getAccessToken()).toBe('relogged')
+  })
+
+  it('keeps a successful refresh instead of logging in', async () => {
+    const login = vi.fn<() => Promise<string>>()
+    const refreshFn = vi.fn<RefreshFn>().mockResolvedValue(makeTokens({ accessToken: 'fresh' }))
+    const manager = makeLoginManager({ login, refreshFn, initialTokens: makeTokens() })
+
+    expect(await manager.handleUnauthorized()).toBe('fresh')
+    expect(login).not.toHaveBeenCalled()
+  })
+
+  it('logs in on a 401 after a failed refresh, without onAuthExpired', async () => {
+    const onAuthExpired = vi.fn()
+    const login = vi.fn<() => Promise<string>>().mockResolvedValue('relogged')
+    const refreshFn = vi.fn<RefreshFn>().mockRejectedValue(new Error('refresh refused'))
+    const manager = makeLoginManager({
+      login,
+      refreshFn,
+      onAuthExpired,
+      initialTokens: makeTokens(),
+    })
+
+    expect(await manager.handleUnauthorized()).toBe('relogged')
+    expect(onAuthExpired).not.toHaveBeenCalled()
+  })
+
+  it('logs in on a 401 with nothing stored', async () => {
+    const login = vi.fn<() => Promise<string>>().mockResolvedValue('relogged')
+    const manager = makeLoginManager({ login })
+
+    expect(await manager.handleUnauthorized()).toBe('relogged')
+  })
+
+  it("rejects with the login's error and calls onAuthExpired once when the re-login fails", async () => {
+    const onAuthExpired = vi.fn()
+    const loginError = new AuthError('API key revoked')
+    const login = vi.fn<() => Promise<string>>().mockRejectedValue(loginError)
+    const refreshFn = vi.fn<RefreshFn>().mockRejectedValue(new Error('refresh refused'))
+    const manager = makeLoginManager({
+      login,
+      refreshFn,
+      onAuthExpired,
+      initialTokens: makeTokens(),
+    })
+
+    await expect(manager.handleUnauthorized()).rejects.toBe(loginError)
+    expect(onAuthExpired).toHaveBeenCalledOnce()
+  })
+})
+
 describe('TokenManager.setTokens / clearTokens', () => {
   it('stores tokens', async () => {
     const { manager, storage } = makeManager()
@@ -196,6 +308,42 @@ describe('createRefreshFn', () => {
     expect(result.accessToken).toBe('new-access')
     expect(result.refreshToken).toBe('new-refresh')
     expect(result.expiresAt).toBe(new Date('2099-01-01T00:00:00Z').getTime())
+  })
+
+  it('carries store_id from a store API-key refresh as storeId', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({
+          token_type: 'Bearer',
+          // Not a decodable JWT: storeId must come from the body, never the token.
+          access_token: 'opaque-store-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+          store_id: 'store-from-body',
+        }),
+      ),
+    )
+
+    const result = await createRefreshFn(BASE)('old-refresh')
+
+    expect(result.storeId).toBe('store-from-body')
+  })
+
+  it('leaves storeId unset when the refresh answers without store_id', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/token/refresh`, () =>
+        HttpResponse.json({
+          token_type: 'Bearer',
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+        }),
+      ),
+    )
+
+    const result = await createRefreshFn(BASE)('old-refresh')
+
+    expect(result).not.toHaveProperty('storeId')
   })
 
   it('throws when the refresh endpoint returns a non-2xx status', async () => {

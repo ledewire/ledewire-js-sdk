@@ -16,7 +16,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">NodeClientConfig</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#apikey">apiKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#apisecret">apiSecret</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#baseurl">baseUrl</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#onauthexpired">onAuthExpired</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#ontokenrefreshed">onTokenRefreshed</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">tokens</span><span class="tsd-signature-symbol">:</span> <a href="browser_src.StoredTokens.html" class="tsd-signature-type tsd-kind-interface">StoredTokens</a><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#storage">storage</a><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:27</li></ul></aside>
+<li>Defined in node/src/client.ts:26</li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -37,21 +37,37 @@
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="apikey"><code class="tsd-tag">Optional</code><span>api<wbr/>Key</span><a href="#apikey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">apiKey</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
-<div class="tsd-comment tsd-typography"><p>LedeWire API key.
-Required for all seller and buyer operations.
-Omit when using merchant email/password auth exclusively.</p>
+<div class="tsd-comment tsd-typography"><p>Store API key. When set, the client logs in with it automatically
+(<code>POST /v1/auth/login/api-key</code>), the same login as
+<code>client.auth.loginWithApiKey()</code>:</p>
+<ul>
+<li>before its first authenticated request, when no token is stored
+(construction itself sends nothing; concurrent first requests share one login)</li>
+<li>again when a token refresh fails, retrying the request once</li>
+</ul>
+<p>A client that already holds a token (from <code>storage</code>, or an explicit login)
+does not log in. A refused key rejects the request with an <code>AuthError</code>
+carrying the API's message, and <code>onAuthExpired</code> fires once per failed login.</p>
+<p>On a client created with <code>apiKey</code>, clearing the stored tokens doesn't drop
+the credentials: the next request logs in again. To stop for good, create a
+client without <code>apiKey</code>. Don't mix another login (email, Google, merchant)
+on an <code>apiKey</code> client: if that session's refresh fails, the client falls
+back to the store key.</p>
+<p>To read the key's <code>store_id</code>, call <code>client.auth.loginWithApiKey()</code> once
+yourself; the client then holds a token and doesn't log in again.</p>
+<p>Omit when using merchant email/password or buyer auth.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:33</li></ul></aside></section>
+<li>Defined in node/src/client.ts:51</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="apisecret"><code class="tsd-tag">Optional</code><span>api<wbr/>Secret</span><a href="#apisecret" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">apiSecret</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
-<div class="tsd-comment tsd-typography"><p>LedeWire API secret.
-When combined with <code>apiKey</code>, grants <code>full</code> (read/write) seller permission.
-When omitted, <code>apiKey</code> alone grants <code>view</code> (read-only) seller permission.</p>
+<div class="tsd-comment tsd-typography"><p>Secret paired with <code>apiKey</code>, sent with the automatic login.
+When combined with <code>apiKey</code>, grants <code>full</code> (read/write) store permission.
+When omitted, <code>apiKey</code> alone grants <code>view</code> (read-only) store permission.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:39</li></ul></aside></section>
+<li>Defined in node/src/client.ts:57</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="baseurl"><code class="tsd-tag">Optional</code><span>base<wbr/>Url</span><a href="#baseurl" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">baseUrl</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -60,20 +76,22 @@ Defaults to <code>https://api.ledewire.com</code>.</p>
 </div>
 <div class="tsd-comment tsd-typography">
 <div class="tsd-tag-example">
-<h4 class="tsd-anchor-link" id="example-set-to-staging-for-development">Example: Set to staging for development:<a href="#example-set-to-staging-for-development" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-14">baseUrl</span><span class="hl-7">: </span><span class="hl-10">&#39;https://api-staging.ledewire.com&#39;</span>
+<h4 class="tsd-anchor-link" id="example-set-to-staging-for-development">Example: Set to staging for development:<a href="#example-set-to-staging-for-development" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-15">baseUrl</span><span class="hl-7">: </span><span class="hl-10">&#39;https://api-staging.ledewire.com&#39;</span>
 </code><button type="button">Copy</button></pre>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:49</li></ul></aside></section>
+<li>Defined in node/src/client.ts:67</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onauthexpired"><code class="tsd-tag">Optional</code><span>on<wbr/>Auth<wbr/>Expired</span><a href="#onauthexpired" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onAuthExpired</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">()</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
 <div class="tsd-comment tsd-typography"><p>Called when the session fully expires and cannot be refreshed.
-Handle this by prompting the user to re-authenticate.</p>
+Handle this by prompting the user to re-authenticate.
+With <code>apiKey</code> set, the client logs in again with the key instead, and this
+fires only when an automatic login fails (once per failed attempt).</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:96</li></ul></aside></section>
+<li>Defined in node/src/client.ts:116</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="ontokenrefreshed"><code class="tsd-tag">Optional</code><span>on<wbr/>Token<wbr/>Refreshed</span><a href="#ontokenrefreshed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">onTokenRefreshed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">tokens</span><span class="tsd-signature-symbol">:</span> <a href="browser_src.StoredTokens.html" class="tsd-signature-type tsd-kind-interface">StoredTokens</a><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></div>
@@ -89,12 +107,12 @@ will result in double-writes on every refresh.</p>
 </div>
 <div class="tsd-comment tsd-typography">
 <div class="tsd-tag-example">
-<h4 class="tsd-anchor-link" id="example-audit-log-only-storage-handles-persistence-separately">Example: Audit log only (storage handles persistence separately):<a href="#example-audit-log-only-storage-handles-persistence-separately" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-14">onTokenRefreshed</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> (</span><span class="hl-8">tokens</span><span class="hl-7">) </span><span class="hl-5">=&gt;</span><span class="hl-7"> {</span><br/><span class="hl-7">  </span><span class="hl-11">await</span><span class="hl-7"> </span><span class="hl-8">auditLog</span><span class="hl-7">.</span><span class="hl-9">record</span><span class="hl-7">(</span><span class="hl-10">&#39;token_refreshed&#39;</span><span class="hl-7">, { </span><span class="hl-8">expires_at:</span><span class="hl-7"> </span><span class="hl-8">tokens</span><span class="hl-7">.</span><span class="hl-8">expiresAt</span><span class="hl-7"> })</span><br/><span class="hl-7">}</span>
+<h4 class="tsd-anchor-link" id="example-audit-log-only-storage-handles-persistence-separately">Example: Audit log only (storage handles persistence separately):<a href="#example-audit-log-only-storage-handles-persistence-separately" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-15">onTokenRefreshed</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> (</span><span class="hl-8">tokens</span><span class="hl-7">) </span><span class="hl-5">=&gt;</span><span class="hl-7"> {</span><br/><span class="hl-7">  </span><span class="hl-11">await</span><span class="hl-7"> </span><span class="hl-8">auditLog</span><span class="hl-7">.</span><span class="hl-9">record</span><span class="hl-7">(</span><span class="hl-10">&#39;token_refreshed&#39;</span><span class="hl-7">, { </span><span class="hl-8">expires_at:</span><span class="hl-7"> </span><span class="hl-8">tokens</span><span class="hl-7">.</span><span class="hl-8">expiresAt</span><span class="hl-7"> })</span><br/><span class="hl-7">}</span>
 </code><button type="button">Copy</button></pre>
 
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:91</li></ul></aside></section>
+<li>Defined in node/src/client.ts:109</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="storage"><code class="tsd-tag">Optional</code><span>storage</span><a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">storage</span><span class="tsd-signature-symbol">?:</span> <a href="browser_src.TokenStorage.html" class="tsd-signature-type tsd-kind-interface">TokenStorage</a></div>
@@ -106,12 +124,12 @@ provide a persistent adapter (Redis, database, encrypted httpOnly cookie) when
 deploying to serverless or edge runtimes.</p>
 <p><code>setTokens</code> is called both on initial login and after every background token
 refresh — it is the canonical hook for persisting updated credentials.</p>
-<pre><code class="ts"><span class="hl-14">storage</span><span class="hl-7">: {</span><br/><span class="hl-7">  </span><span class="hl-14">getTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-6">JSON</span><span class="hl-7">.</span><span class="hl-9">parse</span><span class="hl-7">(</span><span class="hl-11">await</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">get</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">)),</span><br/><span class="hl-7">  </span><span class="hl-14">setTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> (</span><span class="hl-8">t</span><span class="hl-7">) </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">set</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">, </span><span class="hl-6">JSON</span><span class="hl-7">.</span><span class="hl-9">stringify</span><span class="hl-7">(</span><span class="hl-8">t</span><span class="hl-7">)),</span><br/><span class="hl-7">  </span><span class="hl-14">clearTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">del</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">),</span><br/><span class="hl-7">}</span>
+<pre><code class="ts"><span class="hl-15">storage</span><span class="hl-7">: {</span><br/><span class="hl-7">  </span><span class="hl-15">getTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-6">JSON</span><span class="hl-7">.</span><span class="hl-9">parse</span><span class="hl-7">(</span><span class="hl-11">await</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">get</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">)),</span><br/><span class="hl-7">  </span><span class="hl-15">setTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> (</span><span class="hl-8">t</span><span class="hl-7">) </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">set</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">, </span><span class="hl-6">JSON</span><span class="hl-7">.</span><span class="hl-9">stringify</span><span class="hl-7">(</span><span class="hl-8">t</span><span class="hl-7">)),</span><br/><span class="hl-7">  </span><span class="hl-15">clearTokens</span><span class="hl-7">: </span><span class="hl-5">async</span><span class="hl-7"> () </span><span class="hl-5">=&gt;</span><span class="hl-7"> </span><span class="hl-8">redis</span><span class="hl-7">.</span><span class="hl-9">del</span><span class="hl-7">(</span><span class="hl-10">&#39;tokens&#39;</span><span class="hl-7">),</span><br/><span class="hl-7">}</span>
 </code><button type="button">Copy</button></pre>
 
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in node/src/client.ts:70</li></ul></aside></section></section></details></div>
+<li>Defined in node/src/client.ts:88</li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

@@ -21,7 +21,7 @@
  *   data: [],
  *   pagination: { total: 0, per_page: 25, current_page: 1, total_pages: 0 },
  * })
- * vi.mocked(client.seller.content.create).mockResolvedValue(contentItem)
+ * vi.mocked(client.merchant.content.create).mockResolvedValue(contentItem)
  *
  * const result = await myRouteHandler(client)
  * expect(vi.mocked(client.merchant.sales.list).mock.calls).toHaveLength(1)
@@ -42,7 +42,7 @@
  * const client = vi.mocked(createMockClient(vi.fn), true)
  *
  * client.merchant.sales.list.mockResolvedValue({ data: [], pagination: { ... } })
- * client.seller.content.create.mockResolvedValue(contentItem)
+ * client.merchant.content.create.mockResolvedValue(contentItem)
  * ```
  *
  * Without `vi.mocked(client, true)`, TypeScript sees methods as plain function
@@ -137,6 +137,7 @@ export function createMockClient(
       loginWithApiKey: stub(),
       requestPasswordReset: stub(),
       resetPassword: stub(),
+      getInviteInfo: stub(),
     },
     merchant: {
       auth: {
@@ -147,6 +148,7 @@ export function createMockClient(
         loginWithGoogleAndListStores: stub(),
         requestPasswordReset: stub(),
         resetPassword: stub(),
+        acceptInvitation: stub(),
       },
       users: {
         list: stub(),
@@ -185,26 +187,6 @@ export function createMockClient(
         verify: stub(),
       },
     },
-    seller: {
-      content: {
-        list: stub(),
-        create: stub(),
-        search: stub(),
-        get: stub(),
-        update: stub(),
-        delete: stub(),
-      },
-      sales: {
-        summary: stub(),
-        list: stub(),
-      },
-      buyers: {
-        list: stub(),
-      },
-      config: {
-        get: stub(),
-      },
-    },
     wallet: {
       balance: stub(),
       transactions: stub(),
@@ -216,6 +198,7 @@ export function createMockClient(
       list: stub(),
       get: stub(),
       verify: stub(),
+      licenseDocument: stub(),
     },
     content: {
       getWithAccess: stub(),
@@ -308,6 +291,8 @@ export function createMockClient(
     },
     x402: {
       discoverResources: stub(),
+      verifyOrigin: stub(),
+      getJwks: stub(),
     },
     config: {
       getPublic: stub(),

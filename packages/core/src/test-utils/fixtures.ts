@@ -44,6 +44,7 @@ type CorpusManifestResponseSchema = components['schemas']['CorpusManifestRespons
 type SigningKeyHistoryResponseSchema = components['schemas']['SigningKeyHistoryResponse']
 type X402BazaarDiscoveryResponseSchema = components['schemas']['X402BazaarDiscoveryResponse']
 type DailySpendCapReachedErrorSchema = components['schemas']['DailySpendCapReachedError']
+type InvalidCursorErrorSchema = components['schemas']['InvalidCursorError']
 type CompanyMembershipSchema = components['schemas']['CompanyMembership']
 type CompanyInvitationSchema = components['schemas']['CompanyInvitation']
 type CompanyMemberSchema = components['schemas']['CompanyMember']
@@ -57,7 +58,10 @@ type CompanyMachineUserMcpKeyCreateResponseSchema =
 type CompanyPendingTopUpSchema = components['schemas']['CompanyPendingTopUp']
 type CompanyWalletSchema = components['schemas']['CompanyWallet']
 type CompanyPurchaseSchema = components['schemas']['CompanyPurchase']
+type InviteInfoSchema = components['schemas']['InviteInfoResponse']
+type MerchantInvitationAcceptedSchema = components['schemas']['MerchantInvitationAcceptedResponse']
 type CompanyPurchaseMemberSchema = components['schemas']['CompanyPurchaseMember']
+type StoreAuthenticationResponseSchema = components['schemas']['StoreAuthenticationResponse']
 
 /**
  * Returns a valid authentication response fixture.
@@ -69,6 +73,24 @@ export function authTokenFixture(overrides?: Partial<AuthResponse>): AuthRespons
     access_token: 'test-access-token',
     refresh_token: 'test-refresh-token',
     expires_at: '2099-01-01T00:30:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a store API-key token response fixture: the buyer token shape plus
+ * the authenticated store's `store_id`, as `POST /v1/auth/login/api-key` and
+ * a refresh of that login's token answer.
+ */
+export function storeAuthTokenFixture(
+  overrides?: Partial<StoreAuthenticationResponseSchema>,
+): StoreAuthenticationResponseSchema {
+  return {
+    token_type: 'Bearer',
+    access_token: 'test-store-access-token',
+    refresh_token: 'test-store-refresh-token',
+    expires_at: '2099-01-01T00:30:00Z',
+    store_id: '87654321-dcba-4fed-ba98-76543210fedc',
     ...overrides,
   }
 }
@@ -271,8 +293,15 @@ export function contentAccessInfoFixture(
 export function contentWithAccessFixture(
   overrides?: Partial<ContentWithAccessSchema>,
 ): ContentWithAccessSchema {
+  const { id, content_type, title, teaser, price_cents } = contentResponseFixture()
   return {
-    ...contentResponseFixture(),
+    id,
+    content_type,
+    title,
+    teaser,
+    price_cents,
+    visibility: 'public',
+    resource_url: null,
     access_info: contentAccessInfoFixture(),
     ...overrides,
   }
@@ -358,12 +387,14 @@ export function purchaseResponseFixture(
       title: 'Test Article',
       resource_url: null,
       publication: null,
+      filing: null,
     },
     buyer_id: 'user-id-1',
     buyer: { id: 'user-id-1', name: 'Test Buyer' },
     seller_id: 'seller-id-1',
     seller: { id: 'seller-id-1', name: 'Test Seller' },
     amount_cents: 500,
+    license: null,
     timestamp: '2099-01-01T00:00:00Z',
     status: 'completed',
     ...overrides,
@@ -425,8 +456,7 @@ export function merchantSaleFixture(overrides?: Partial<MerchantSaleSchema>): Me
     id: 'sale-id-1',
     content_id: 'content-id-1',
     content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
-    buyer_id: 'user-id-1',
-    buyer: { id: 'user-id-1', name: 'Test Buyer' },
+    buyer_ref: 'bref_v1_3f9a2c1d8e7b6a5f4e3d2c',
     seller_id: 'seller-id-1',
     seller: { id: 'seller-id-1', name: 'Test Seller' },
     amount_cents: 500,
@@ -599,6 +629,7 @@ export function publicationFixture(overrides?: Partial<PublicationSchema>): Publ
     bulk_licensable: true,
     topics: [],
     coverage_horizon: null,
+    homepage: null,
     ...overrides,
   }
 }
@@ -626,6 +657,7 @@ export function contentSearchResultFixture(
     last_modified_date: null,
     citation_count: 0,
     publication: null,
+    filing: null,
     ...overrides,
   }
 }
@@ -831,6 +863,17 @@ export function spendCapReachedErrorFixture(
 }
 
 /**
+ * Returns a refused-search-cursor error body fixture, as returned with HTTP `422`
+ * by `POST /v1/content/search` for a cursor that is invalid, expired, in an older
+ * format, or issued for a different search.
+ */
+export function invalidCursorErrorFixture(
+  message = 'The cursor has expired. Start again without one.',
+): InvalidCursorErrorSchema {
+  return { error: { code: 422, message, type: 'invalid_cursor' }, message }
+}
+
+/**
  * Returns the authenticated buyer's own Company membership fixture.
  */
 export function companyMembershipFixture(
@@ -1026,6 +1069,36 @@ export function companyPurchaseFixture(
     status: 'completed',
     amount_cents: 150,
     occurred_at: '2099-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a pending store invitation fixture (`GET /v1/auth/invite-info/{token}`).
+ */
+export function inviteInfoFixture(overrides?: Partial<InviteInfoSchema>): InviteInfoSchema {
+  return {
+    invited_email: 'author@example.com',
+    store_name: 'Test Store',
+    role: null,
+    expires_at: '2099-01-08T00:00:00Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns the store membership an accepted invitation created
+ * (`POST /v1/auth/merchant/accept-invitation`).
+ */
+export function merchantInvitationAcceptedFixture(
+  overrides?: Partial<MerchantInvitationAcceptedSchema>,
+): MerchantInvitationAcceptedSchema {
+  return {
+    id: '7f3c1a2e-0000-4000-8000-000000000001',
+    store_id: '7f3c1a2e-0000-4000-8000-000000000002',
+    store_name: 'Test Store',
+    role: 'author',
+    accepted_at: '2099-01-02T00:00:00Z',
     ...overrides,
   }
 }

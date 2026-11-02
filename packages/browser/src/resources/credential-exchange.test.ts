@@ -37,10 +37,6 @@ const calls: { path: string; call: (client: BrowserClient) => Promise<unknown> }
     call: (c) => c.auth.loginWithBuyerApiKey({ key: 'k', secret: 'wrong' }),
   },
   {
-    path: '/v1/auth/login/api-key',
-    call: (c) => c.seller.loginWithApiKey({ key: 'k', secret: 'wrong' }),
-  },
-  {
     path: '/v1/auth/signup',
     call: (c) => c.auth.signup({ email: 'x@example.com', password: 'pw', name: 'X' }),
   },

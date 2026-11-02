@@ -13,7 +13,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 | ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `packages/core`        | (private — not published) | HTTP client, token manager, error classes, shared types                                                            |
 | `packages/browser`     | `@ledewire/browser`       | Buyer-facing SDK for browsers. CDN `<script>` tag + npm                                                            |
-| `packages/node`        | `@ledewire/node`          | Full API surface for Node.js. Merchant + seller + buyer                                                            |
+| `packages/node`        | `@ledewire/node`          | Full API surface for Node.js. Merchant + buyer                                                                     |
 | `packages/x402-client` | `@ledewire/x402-client`   | Runtime-agnostic x402 fetch wrapper — pays `402` content challenges automatically via the `ledewire-wallet` scheme |
 
 ## Key Files
@@ -41,7 +41,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 
 ```
 client.config.*                 platform public config (no auth required)
-client.auth.*                   buyer auth (email, google, api-key, password reset)
+client.auth.*                   buyer auth (email, google, api-key, password reset) + public store-invitation lookup
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
 client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
 client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
@@ -52,18 +52,14 @@ client.company.machineUsers.*   Machine users (list, create, deactivate) + .buye
 client.company.wallet.*         Company top-up payment session, pending top-ups (admin)
 client.company.purchases.*      everything the Company paid for, per member (admin, paginated)
 client.company.spend.*          spend per membership over a date range (admin)
-client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
+client.merchant.auth.*          merchant auth (email, google) + store listing + password reset + accept store invitation
 client.merchant.users.*         team management (invite, list, remove, update)
-client.merchant.content.*       content CRUD + search (merchant JWT auth)
+client.merchant.content.*       content CRUD + search (merchant JWT or store API key)
 client.merchant.sales.*         sales list, summary, sale detail
 client.merchant.buyers.*        anonymized buyer statistics
 client.merchant.config.*        store configuration
 client.merchant.pricingRules.*  x402 URL-based pricing rules (list, create, deactivate)
 client.merchant.domains.*       x402 domain verification (list, add, verify, remove)
-client.seller.content.*         seller content CRUD + search (API key auth)
-client.seller.sales.*           seller sales summary + per-content statistics
-client.seller.buyers.*          anonymized buyer statistics (API key auth)
-client.seller.config.*          store configuration (API key auth)
 client.wallet.*                 balance (incl. held_cents/holds; null for a Company member), payment sessions, transactions
 client.purchases.*              create (single-use delivery), list, get, verify purchases
 client.content.*                public content with buyer access info
@@ -102,7 +98,6 @@ lw.user.apiKeys.*    buyer API key management (list, create, revoke)
 lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
 lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
 lw.company.*         Company wallets — same surface as client.company.*
-lw.seller.*          loginWithApiKey (view or full), content list/search/get
 ```
 
 ## Critical Patterns
@@ -116,7 +111,7 @@ The `onUnauthorized` callback is wired from `TokenManager.handleUnauthorized()`.
 
 All SDK errors are `instanceof LedewireError`. Branch on `err.statusCode` or use
 the named subclasses (`AuthError`, `ForbiddenError`, `NotFoundError`, `PurchaseError`,
-`SpendCapReachedError`). `LedewireError` also carries an optional `type` (the API
+`SpendCapReachedError`, `RateLimitError`, `InvalidCursorError`). `LedewireError` also carries an optional `type` (the API
 error body's machine-readable `error.type`, e.g. `'daily_spend_cap_reached'`) and
 `details` (extra top-level error-body fields). `instanceof` works even across the
 separately bundled copies of `@ledewire/core` in `@ledewire/node`, `@ledewire/browser`,
@@ -128,6 +123,13 @@ and `@ledewire/x402-client` (see the brand-list fallback in
 Funding the wallet does **not** clear it — it resets at `err.resetsAt`, or the
 cap can be raised/removed via `user.spendCap.update()` (for a Company member,
 only by an admin via `company.members.update()`).
+
+`RateLimitError` (429) is thrown by `HttpClient` for a 429 from any endpoint, with
+`retryAfter` read from `Retry-After` (`undefined` when the header is absent).
+
+`InvalidCursorError` (422) is thrown when the API answers with `error.type: 'invalid_cursor'`:
+a `content.search` cursor that is invalid, expired, in an older format, or sent with changed
+filters. Drop the cursor and start the search again. It is matched on the type, never the status.
 
 #### Company members never see the Company balance
 
@@ -172,13 +174,13 @@ All list endpoints return a `{ data, pagination }` envelope — never a plain ar
 
 ```ts
 const { data, pagination } = await client.merchant.sales.list(storeId)
-const { data, pagination } = await client.seller.content.list(storeId, { page: 2, per_page: 10 })
+const { data, pagination } = await client.merchant.content.list(storeId, { page: 2, per_page: 10 })
 ```
 
 The shared parameter type is `PaginationParams { page?: number; per_page?: number }`,
 exported from `@ledewire/node`. Affected methods: `merchant.users.list`,
-`merchant.sales.list`, `merchant.buyers.list`, `seller.content.list`,
-`seller.content.search`.
+`merchant.sales.list`, `merchant.buyers.list`, `merchant.content.list`,
+`merchant.content.search`.
 
 ### `MerchantLoginStore` vs `ManageableStore` — do not confuse these
 
@@ -203,7 +205,8 @@ Call `listStores()` only when you need the full `ManageableStore` detail
 2. Run `pnpm generate:types` — regenerates `packages/core/src/api.gen.ts` (never edit that file manually)
 3. Add/update types as needed:
    - **Shared** (used by both `browser` and `node`): add to `packages/core/src/types.ts`
-   - **Node-only** (e.g. merchant-specific request/response shapes): define in the relevant resource file (`packages/node/src/resources/…`) and re-export from `packages/node/src/index.ts` — TypeDoc cannot resolve `@ledewire/core` re-exports in the node entry point so node-only types must live in source files TypeDoc can reach directly
+   - **An alias of a spec schema** (`components['schemas'][…]` or a `paths` operation type), shared or node-only: add to `packages/core/src/types.ts` and re-export from the package index. Core does not export `paths`/`components`, so a resource file outside core can't alias them; TypeDoc renders these re-exports (e.g. `docs/api/types/node_src.MerchantDomainAddRequest.html`).
+   - **Node-only and not a spec schema** (an SDK-specific shape): define in the relevant resource file (`packages/node/src/resources/…`) and re-export from `packages/node/src/index.ts`
 4. Add the method to the correct namespace in `packages/node/src/resources/` or
    `packages/browser/src/resources/`
 5. Write a Vitest test using MSW — see existing tests for patterns

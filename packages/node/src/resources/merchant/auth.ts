@@ -14,38 +14,12 @@ import type {
   MerchantAuthenticationResponse,
   MerchantLoginStore,
   ManageableStore,
+  MerchantAcceptInvitationRequest,
+  MerchantInvitationAcceptedResponse,
+  MerchantPasswordResetRequestBody,
+  MerchantPasswordResetBody,
+  MerchantPasswordResetResponse,
 } from '@ledewire/core'
-
-/**
- * Request body for initiating a merchant password reset.
- * Sent to `POST /v1/auth/merchant/password/reset-request`.
- */
-export interface MerchantPasswordResetRequestBody {
-  /** The merchant's registered email address. */
-  email: string
-}
-
-/**
- * Request body for completing a merchant password reset.
- * Sent to `POST /v1/auth/merchant/password/reset`.
- */
-export interface MerchantPasswordResetBody {
-  /** The merchant's registered email address. */
-  email: string
-  /** 6-digit numeric code delivered to the merchant's email. */
-  reset_code: string
-  /** New password (minimum 6 characters). */
-  password: string
-}
-
-/**
- * Response returned by both merchant password reset endpoints.
- * Contains a human-readable confirmation message.
- */
-export interface MerchantPasswordResetResponse {
-  /** Human-readable result message from the API. */
-  message: string
-}
 
 /**
  * Result returned by the one-step login-and-discover helpers.
@@ -275,6 +249,57 @@ export class MerchantAuthNamespace {
       body,
       undefined,
       { auth: false },
+    )
+  }
+
+  /**
+   * Accept a store invitation as the signed-in merchant, joining the store it
+   * names. Requires a merchant session (call `loginWithEmail` or
+   * `loginWithGoogle` first). The invitation must be addressed to one of the
+   * account's addresses (its email or its Google email) and be less than 7
+   * days old. Someone without an account yet joins through `auth.signup()` or
+   * `auth.loginWithGoogle()` with `invitation_token` instead; use
+   * `auth.getInviteInfo()` to show the invitation first.
+   *
+   * Every refusal of the invitation itself carries
+   * `type === 'invitation_not_accepted'` and the reason as `details.reason`
+   * (an `InvitationRefusalReason`), as `company.invitations.accept()` does.
+   *
+   * @param body - The `invitation_token` from the store invitation email.
+   * @returns The store membership the invitation created.
+   * @throws {NotFoundError} When no invitation has this token
+   *   (`details.reason === 'not_found'`).
+   * @throws {ForbiddenError} When the invitation was sent to another address
+   *   (`details.reason === 'wrong_email'`), or, with no `type`, when the
+   *   session is not a merchant one.
+   * @throws {LedewireError} With `statusCode === 409` when already accepted
+   *   (`'already_accepted'`) or the account already belongs to the store
+   *   (`'already_member'`); `410` when it has expired (`'expired'`); `422`
+   *   when the membership could not be saved (`'invalid'`).
+   * @throws {AuthError} When there is no valid merchant session (401).
+   *
+   * @example
+   * ```ts
+   * import { LedewireError } from '@ledewire/node'
+   *
+   * try {
+   *   const membership = await client.merchant.auth.acceptInvitation({
+   *     invitation_token: token,
+   *   })
+   *   console.log(`Joined ${membership.store_name} as ${membership.role}`)
+   * } catch (err) {
+   *   if (err instanceof LedewireError && err.type === 'invitation_not_accepted') {
+   *     console.warn(err.details?.reason, err.message)
+   *   }
+   * }
+   * ```
+   */
+  async acceptInvitation(
+    body: MerchantAcceptInvitationRequest,
+  ): Promise<MerchantInvitationAcceptedResponse> {
+    return this.http.post<MerchantInvitationAcceptedResponse>(
+      '/v1/auth/merchant/accept-invitation',
+      body,
     )
   }
 

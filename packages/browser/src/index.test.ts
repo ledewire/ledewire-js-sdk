@@ -14,4 +14,20 @@ describe('@ledewire/browser public exports', () => {
     expect(err).toBeInstanceOf(sdk.LedewireError)
     expect(err.statusCode).toBe(402)
   })
+
+  it('exports RateLimitError as a LedewireError subclass', () => {
+    const err = new sdk.RateLimitError('Too many searches', undefined, undefined, undefined, 60)
+
+    expect(err).toBeInstanceOf(sdk.LedewireError)
+    expect(err.statusCode).toBe(429)
+    expect(err.retryAfter).toBe(60)
+  })
+
+  it('exports InvalidCursorError as a LedewireError subclass', () => {
+    const err = new sdk.InvalidCursorError('The cursor has expired.', 422)
+
+    expect(err).toBeInstanceOf(sdk.LedewireError)
+    expect(err.statusCode).toBe(422)
+    expect(err.type).toBe('invalid_cursor')
+  })
 })

@@ -1,5 +1,5 @@
 import type { HttpClient } from '@ledewire/core'
-import type { PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
+import type { LicenseDocument, PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
 
 /**
  * Buyer purchases namespace — create and retrieve content purchases.
@@ -13,7 +13,8 @@ import type { PurchaseCreateRequest, PurchaseResponse } from '@ledewire/core'
  *
  * @example
  * ```ts
- * await lw.purchases.create({ content_id: 'content-id' })
+ * const content = await lw.content.getWithAccess('content-id')
+ * await lw.purchases.create({ content_id: content.id, price_cents: content.price_cents })
  * const all = await lw.purchases.list()
  * ```
  */
@@ -35,7 +36,9 @@ export class BrowserPurchasesNamespace {
    * A past purchase does not grant re-access: buying the same content again
    * is a new charge that delivers it again.
    *
-   * @param body - The content ID and expected price in cents.
+   * @param body - `content_id`, and `price_cents`: the price the buyer was
+   *   quoted (e.g. `price_cents` from `content.getWithAccess()` or a search
+   *   result). The API charges only when it equals the work's current price.
    * @returns The completed purchase record, including the delivered content.
    * @throws {SpendCapReachedError} `402` — the buyer's daily spend cap has
    *   been reached. There is no funding URL for this refusal: adding money
@@ -46,10 +49,21 @@ export class BrowserPurchasesNamespace {
    *   visibility is `unlisted` (non-public) and this buyer has no standing
    *   grant to see it. Non-public content is not purchasable through this
    *   endpoint.
+   * @throws {LedewireError} `422` — `price_cents` no longer matches the
+   *   work's current price (`Content (<id>) price appears to have changed`).
+   *   Nothing is charged: re-read the price, show it to the buyer, and buy
+   *   again at the new price. A `422` also covers `insufficient_funds`, `not_subscribed` and
+   *   the brokered-delivery refusals, which carry an `error.type`.
+   * @throws {LedewireError} `400` — `content_id` or `price_cents` missing or
+   *   of the wrong type. Nothing is charged.
    *
    * @example
    * ```ts
-   * const purchase = await lw.purchases.create({ content_id: 'content-id' })
+   * const content = await lw.content.getWithAccess('content-id')
+   * const purchase = await lw.purchases.create({
+   *   content_id: content.id,
+   *   price_cents: content.price_cents, // the price the buyer was shown
+   * })
    * await saveDeliveredContent(purchase) // persist now — one-time delivery
    *
    * if (purchase.content_body && purchase.content.content_type === 'markdown') {
@@ -87,5 +101,59 @@ export class BrowserPurchasesNamespace {
    */
   async get(id: string): Promise<PurchaseResponse> {
     return this.http.get<PurchaseResponse>(`/v1/purchases/${encodeURIComponent(id)}`)
+  }
+
+  /**
+   * Downloads the licence document one of the buyer's own purchases was delivered
+   * under — the URL a purchase's `license.document_url` points at.
+   *
+   * For a brokered work, this is the licence document the work's source granted, as
+   * LedeWire captured it at purchase time (usually `application/pdf`). For an SEC
+   * filing (`license.type === 'public-domain'`), it is LedeWire's terms for SEC filings
+   * as `text/markdown`, in the version the filing was delivered under.
+   *
+   * The response is not JSON, so the bytes come back as an `ArrayBuffer` with the
+   * server's `Content-Type` — see {@link LicenseDocument}. The type is chosen by the
+   * work's source, so treat the document as an attachment: never render it inline on
+   * your own origin.
+   *
+   * @param id - The purchase ID.
+   * @returns The document's bytes and content type.
+   * @throws {AuthError} `401` — missing or invalid credentials.
+   * @throws {ForbiddenError} `403` — the credential is not a buyer token (or an MCP key
+   *   without the `mcp:search` scope).
+   * @throws {NotFoundError} `404` — no such purchase for this buyer, the purchase is not
+   *   completed, or its document has not been captured yet. All look the same.
+   *
+   * @example
+   * ```ts
+   * const purchase = await lw.purchases.get('purchase-id')
+   * if (purchase.license?.document_url) {
+   *   const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+   *   // Offer it as a download; never render it inline.
+   *   // Pass the type through only for the two expected ones, so a server-sent
+   *   // text/html can never run in this origin.
+   *   const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+   *     ? contentType
+   *     : 'application/octet-stream'
+   *   const url = URL.createObjectURL(new Blob([body], { type }))
+   *   const a = document.createElement('a')
+   *   a.href = url
+   *   a.download = 'licence'
+   *   a.click()
+   *   URL.revokeObjectURL(url)
+   * }
+   * ```
+   */
+  async licenseDocument(id: string): Promise<LicenseDocument> {
+    // The document's type is the source's choice, so accept anything.
+    const response = await this.http.getRaw(
+      `/v1/purchases/${encodeURIComponent(id)}/license_document`,
+      '*/*',
+    )
+    return {
+      body: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+    }
   }
 }

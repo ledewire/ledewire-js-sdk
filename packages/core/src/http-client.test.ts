@@ -3,12 +3,18 @@ import { HttpClient } from './http-client.js'
 import {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   NotFoundError,
+  RateLimitError,
   SpendCapReachedError,
 } from './errors.js'
 import { createTestServer, http, HttpResponse } from './test-utils/server.js'
-import { errorResponseFixture, spendCapReachedErrorFixture } from './test-utils/fixtures.js'
+import {
+  errorResponseFixture,
+  invalidCursorErrorFixture,
+  spendCapReachedErrorFixture,
+} from './test-utils/fixtures.js'
 
 const BASE = 'https://api.ledewire.com'
 
@@ -473,6 +479,18 @@ describe('HttpClient.getRaw', () => {
     expect(receivedAccept).toBe('application/gzip, application/json')
   })
 
+  it('sends the Accept header the caller passes', async () => {
+    let receivedAccept = ''
+    server.use(
+      http.get(`${BASE}/v1/test`, ({ request }) => {
+        receivedAccept = request.headers.get('Accept') ?? ''
+        return new HttpResponse(null)
+      }),
+    )
+    await makeClient().getRaw('/v1/test', '*/*')
+    expect(receivedAccept).toBe('*/*')
+  })
+
   it('injects the Bearer token like get()', async () => {
     let receivedAuth = ''
     server.use(
@@ -632,6 +650,47 @@ describe('HttpClient spend-cap body validation', () => {
   })
 })
 
+describe('refused search cursor (invalid_cursor)', () => {
+  function refuse(body: Parameters<typeof HttpResponse.json>[0], status = 422) {
+    return http.post(`${BASE}/v1/test`, () => HttpResponse.json(body, { status }))
+  }
+
+  it('throws a 422 with error.type invalid_cursor as InvalidCursorError', async () => {
+    server.use(refuse(invalidCursorErrorFixture('The cursor has expired.')))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InvalidCursorError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toMatchObject({
+      name: 'InvalidCursorError',
+      statusCode: 422,
+      code: 422,
+      type: 'invalid_cursor',
+      message: 'The cursor has expired.',
+    })
+  })
+
+  it('keeps any other 422 a plain LedewireError', async () => {
+    server.use(refuse(errorResponseFixture(422, 'The cursor has expired.', 'client_error')))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).not.toBeInstanceOf(InvalidCursorError)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect(err).toMatchObject({ statusCode: 422, type: 'client_error' })
+  })
+
+  it('keeps a 422 with no error.type a plain LedewireError', async () => {
+    server.use(refuse({ error: { code: 422, message: 'Invalid cursor' } }))
+    const err = await makeClient()
+      .post('/v1/test', {})
+      .catch((e: unknown) => e)
+    expect(err).not.toBeInstanceOf(InvalidCursorError)
+    expect(err).toMatchObject({ name: 'LedewireError', statusCode: 422 })
+  })
+})
+
 describe('Retry-After on error responses', () => {
   function refuse(status: number, retryAfter?: string) {
     return http.get(`${BASE}/v1/test`, () =>
@@ -686,6 +745,60 @@ describe('Retry-After on error responses', () => {
       .get('/v1/test')
       .catch((err: unknown) => err)
     expect(error).toMatchObject({ retryAfter: undefined })
+  })
+
+  it('throws a 429 as RateLimitError carrying Retry-After', async () => {
+    server.use(refuse(429, '60'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({
+      name: 'RateLimitError',
+      statusCode: 429,
+      retryAfter: 60,
+      message: 'refused',
+    })
+  })
+
+  it('throws a 429 without Retry-After as RateLimitError with retryAfter undefined', async () => {
+    server.use(refuse(429))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: undefined })
+  })
+
+  it('keeps the error body type, code and details on a RateLimitError', async () => {
+    server.use(
+      http.get(`${BASE}/v1/test`, () =>
+        HttpResponse.json(
+          { error: { code: 429, message: 'slow down', type: 'rate_limited' }, limit: 15 },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        ),
+      ),
+    )
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({
+      code: 429,
+      type: 'rate_limited',
+      details: { limit: 15 },
+      retryAfter: 30,
+    })
+  })
+
+  it('does not throw RateLimitError for a 503 that carries Retry-After', async () => {
+    server.use(refuse(503, '10'))
+    const error = await makeClient()
+      .get('/v1/test')
+      .catch((err: unknown) => err)
+    expect(error).not.toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 503, retryAfter: 10 })
   })
 
   it('carries retryAfter through the typed subclasses too', async () => {

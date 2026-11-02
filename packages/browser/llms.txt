@@ -165,34 +165,76 @@ lw.wallet.balance()                                    → Promise<WalletBalance
 // spend today. content.getWithAccess().access_info.wallet_balance_cents is null
 // for them too. Handle null before rendering or doing arithmetic.
 
-lw.wallet.transactions(params?: PaginationParams)      → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+lw.wallet.transactions()                               → Promise<WalletTransactionItem[]>
 
 lw.wallet.createPaymentSession({ amount_cents: number }) → Promise<WalletPaymentSessionResponse>
 // { payment_url: string, session_id: string, ... } — redirect user to payment_url
 
 lw.wallet.getPaymentStatus(sessionId: string)          → Promise<WalletPaymentStatusResponse>
 // Poll after return from payment redirect to confirm funding.
-// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
-// completed/failed/cancelled are terminal; ACH can sit in awaiting_verification
-// (microdeposits) then processing for days. Personal top-ups only.
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'cancelled' | 'failed' | 'reverted'
+// completed means the funds are in the wallet. ACH can sit in awaiting_verification
+// (microdeposits) then processing for days. cancelled is usually a superseded
+// session and can still return to pending, then completed. Personal top-ups only.
+// balance_cents: number | null (null for a Company member)
 ```
 
 ### lw.purchases
 
 ```ts
-lw.purchases.create({ content_id: string })           → Promise<PurchaseResponse>
-lw.purchases.list(params?: PaginationParams)          → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
+lw.purchases.create({ content_id: string, price_cents: number }) → Promise<PurchaseResponse>
+// price_cents: the price the buyer was quoted (checkout.state() or
+// content.getWithAccess()). Must equal the work's current price, or
+// LedewireError 422 and nothing is charged.
+lw.purchases.list()                                   → Promise<PurchaseResponse[]>
 lw.purchases.get(purchaseId: string)                  → Promise<PurchaseResponse>
+lw.purchases.licenseDocument(purchaseId: string)      → Promise<LicenseDocument>
+// LicenseDocument: { body: ArrayBuffer, contentType: string } — not JSON. Usually
+// application/pdf; text/markdown for an SEC filing. contentType is the server's header
+// verbatim ('application/octet-stream' if absent). Throws AuthError 401, ForbiddenError
+// 403 (not a buyer credential), NotFoundError 404 (unknown, not completed, or not captured).
+// The type is chosen by the work's source: offer it as a download, never render it inline.
+```
+
+Licence and source fields on every `PurchaseResponse`:
+
+- `license: PurchaseLicense | null` — `{ type, permissions: string[], document_url: string | null }`,
+  exactly as the work's source granted it (`ON_DEMAND_LICENSE`, `ON_DEMAND_FULL_USE_LICENSE`,
+  `public-domain` for an SEC filing, or another the source adds). `null` means "not recorded"
+  (every Store work, older brokered purchases), never "no rights granted".
+- `content.publication: PurchasePublication | null` — `{ id, name }` of a brokered work's Publication.
+- `content.filing: ContentSearchFiling | null` — an SEC filing's `{ filer_name, ticker, cik,
+  form_type, filing_date, period_of_report, accession_number }`; `null` otherwise.
+
+```ts
+const purchase = await lw.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+  // Pass the type through only for the two expected ones, so a server-sent
+  // text/html can never run in this origin.
+  const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+    ? contentType
+    : 'application/octet-stream'
+  const url = URL.createObjectURL(new Blob([body], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'licence'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 ```
 
 ### lw.content
 
 ```ts
 lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessResponse>
-// Returns content payload + access info. Requires a valid buyer session.
+// Sends the buyer token (or none, for generic access info); access_info is the
+// caller's own. A store credential gets 403 (ForbiddenError).
+// Returns the work's public description + access info; never the deliverable
+// (that comes only from lw.purchases.create()).
+// { id, content_type, title: string | null, teaser (plain text, SDK decodes base64),
+//   price_cents, visibility: 'public', resource_url: string | null, access_info }
 // content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-// content_body: plain text (SDK decodes base64 automatically) — markdown, brokered, or inline html
-// content_uri: URL — external_ref, pdf, image, video, or remote html
 ```
 
 ### lw.user
@@ -288,30 +330,11 @@ lw.company.spend.list({ member?, from?, to? })
 is not found by `lw.wallet.getPaymentStatus()` — track it with
 `listPendingTopUps()`, where it drops off once settled.
 
-### lw.seller
+### No seller namespace
 
-Operations scoped to the authenticated seller's store.
-Store identity is derived server-side from the token — no `store_id` needed.
-
-```ts
-// Authenticate first (key-only → view; key + secret → full)
-lw.seller.loginWithApiKey({ key, secret? })           → Promise<AuthenticationResponse>
-// key-only → view permission (read-only, sufficient for lw.seller.content.*)
-// key + secret → full permission (read/write)
-
-// 1. Obtain a view token (key-only is sufficient)
-await lw.seller.loginWithApiKey({ key: 'your_api_key' })
-
-// 2. List all store content
-lw.seller.content.list()                              → Promise<ContentResponse[]>
-
-// 3. Search by title, URI, or metadata (AND logic — at least one field required)
-lw.seller.content.search({ title?: string, uri?: string, metadata?: Record<string, unknown> })
-                                                      → Promise<ContentResponse[]>
-
-// 4. Fetch a single item
-lw.seller.content.get(contentId: string)              → Promise<ContentResponse>
-```
+The browser SDK is buyer-only: there is no `lw.seller` and no store API-key
+login (a store API key must stay server-side). Manage store content from a
+server with `client.merchant.content.*(storeId, …)` in `@ledewire/node`.
 
 ## Full checkout flow example
 
@@ -325,7 +348,7 @@ serves the same content a second time.
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
-const { checkout_state } = await lw.checkout.state('article-123')
+const { price_cents, checkout_state } = await lw.checkout.state('article-123')
 
 switch (checkout_state.next_required_action) {
   case 'authenticate':
@@ -338,7 +361,8 @@ switch (checkout_state.next_required_action) {
     break
 
   case 'purchase': {
-    const purchase = await lw.purchases.create({ content_id: 'article-123' })
+    // price_cents is the price the buyer was shown; a stale one is refused (422).
+    const purchase = await lw.purchases.create({ content_id: 'article-123', price_cents })
     await saveDeliveredContent(purchase) // persist now — one-time delivery
 
     // content_body is always plain UTF-8 on the wire, never base64-encoded.
@@ -379,7 +403,7 @@ google.accounts.id.renderButton(document.getElementById('signin-btn'), { theme: 
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean
@@ -413,6 +437,8 @@ import {
   ForbiddenError,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
+  InvalidCursorError,
   SpendCapReachedError,
 } from '@ledewire/browser'
 
@@ -422,12 +448,20 @@ class LedewireError extends Error {
   message: string           // human-readable description from API body
   type: ErrorTypeValue | undefined  // machine-readable error.type, e.g. 'daily_spend_cap_reached'
   details: Readonly<Record<string, unknown>> | undefined  // extra top-level error-body fields
+  retryAfter: number | undefined  // seconds from Retry-After (429/503), undefined when absent
 }
 
 class AuthError extends LedewireError {}       // 401 — bad credentials / session expired
 class ForbiddenError extends LedewireError {}  // 403 — authenticated but access denied
 class NotFoundError extends LedewireError {}   // 404 — resource not found
 class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+// 429 from any endpoint — e.g. content search allows 15 searches/min per buyer.
+// retryAfter: seconds from the Retry-After header, undefined when absent.
+class RateLimitError extends LedewireError {}
+// 422 with error.type 'invalid_cursor' — a content search refused its cursor
+// (expired, invalid, or issued for different filters). Any other 422 is a plain
+// LedewireError. Drop the cursor and restart the search from the first page.
+class InvalidCursorError extends LedewireError {}
 
 // 402 — daily_spend_cap_reached, thrown by lw.purchases.create(). Funding the
 // wallet does NOT clear this — it resets at `resetsAt`, or via
@@ -447,7 +481,7 @@ class SpendCapReachedError extends LedewireError {
 
 ```ts
 try {
-  await lw.purchases.create({ content_id: 'article-123' })
+  await lw.purchases.create({ content_id: 'article-123', price_cents })
 } catch (err) {
   if (err instanceof SpendCapReachedError) {
     // A daily policy limit — do NOT prompt the buyer to fund their wallet.

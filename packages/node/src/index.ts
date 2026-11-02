@@ -9,11 +9,18 @@
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
- * // Full access with API key + secret (write operations)
+ * // Full access with API key + secret (write operations). The client logs in
+ * // with the key before its first authenticated request; no login call needed.
  * const client = createClient({
  *   apiKey: process.env.LEDEWIRE_API_KEY,
  *   apiSecret: process.env.LEDEWIRE_API_SECRET,
  * })
+ * // To read the key's store_id, log in explicitly once (it is not repeated)
+ * const { store_id } = await client.auth.loginWithApiKey({
+ *   key: process.env.LEDEWIRE_API_KEY,
+ *   secret: process.env.LEDEWIRE_API_SECRET,
+ * })
+ * const summary = await client.merchant.sales.summary(store_id)
  *
  * // View-only with API key only (read operations)
  * const viewClient = createClient({ apiKey: process.env.LEDEWIRE_API_KEY })
@@ -31,7 +38,11 @@
 // Re-export core types and errors for consumers who only install @ledewire/node
 export type {
   AuthenticationResponse,
+  AuthTokenRefreshResponse,
+  StoreAuthenticationResponse,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- still exported for 0.14.0 callers until a later breaking release
   BuyerContentSearchRequest,
+  ContentSearchRequest,
   ContentSearchPublication,
   ContentSearchResponse,
   ContentSearchResult,
@@ -42,6 +53,9 @@ export type {
   TopicSlug,
   InvitationOutcome,
   InvitationRefusalReason,
+  InviteInfoResponse,
+  MerchantAcceptInvitationRequest,
+  MerchantInvitationAcceptedResponse,
   PublicConfigResponse,
   BuyerStatisticsItem,
   CheckoutNextAction,
@@ -66,6 +80,10 @@ export type {
   PaginationParams,
   PurchaseCreateRequest,
   PurchaseResponse,
+  PurchaseLicense,
+  PurchasePublication,
+  ContentSearchFiling,
+  LicenseDocument,
   SalesSummaryResponse,
   SalesStatisticsItem,
   StoreConfig,
@@ -103,6 +121,9 @@ export type {
   X402BazaarDiscoveryResponse,
   X402BazaarResource,
   X402DiscoveryParams,
+  X402VerifyOriginParams,
+  X402VerifyOriginResponse,
+  X402JwksResponse,
   CompanyRole,
   CompanyMembership,
   CompanyInvitation,
@@ -138,31 +159,32 @@ export type {
 export {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   MemoryTokenStorage,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
   SpendCapReachedError,
   parseExpiresAt,
 } from '@ledewire/core'
 
 // Namespace-specific request/response types
-export type { MerchantUserUpdateRequest } from './resources/merchant/users.js'
 export type {
+  AcquisitionCreateRequest,
   MerchantDomainAddRequest,
   MerchantDomainVerifyRequest,
   MerchantDomainVerifyResponse,
-} from './resources/merchant/domains.js'
+  MerchantPasswordResetRequestBody,
+  MerchantPasswordResetBody,
+  MerchantPasswordResetResponse,
+  MerchantPricingRuleCreateRequest,
+  MerchantUserUpdateRequest,
+} from '@ledewire/core'
 export type { MerchantContentSearchRequest } from './resources/merchant/content.js'
-export type { ContentSearchRequest } from './resources/seller/content.js'
-export type { AcquisitionCreateRequest, CorpusDownloadResult } from './resources/acquisitions.js'
+export type { CorpusDownloadResult } from './resources/acquisitions.js'
 
 // Package exports (implementations added in build step 4)
 export { createClient, createAgentClient } from './client.js'
 export type { NodeClientConfig, AgentClientConfig, AgentClient } from './client.js'
 export type { MerchantLoginResult } from './resources/merchant/auth.js'
-export type {
-  MerchantPasswordResetRequestBody,
-  MerchantPasswordResetBody,
-  MerchantPasswordResetResponse,
-} from './resources/merchant/auth.js'

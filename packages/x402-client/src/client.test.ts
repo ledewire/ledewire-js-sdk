@@ -9,7 +9,7 @@ import {
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
 } from './errors.js'
-import { LedewireError } from '@ledewire/core'
+import { AuthError, LedewireError } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
@@ -82,6 +82,36 @@ describe('createLedewireFetch', () => {
     const res = await fetchFn(ORIGIN_URL)
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects with the API message when the buyer-key login fails', async () => {
+    server.use(
+      http.get(
+        ORIGIN_URL,
+        () =>
+          new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': btoa(JSON.stringify(PAYMENT_REQUIRED_PAYLOAD)) },
+          }),
+      ),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
+        HttpResponse.json(
+          { error: { code: 401, message: 'Invalid API key or secret' } },
+          { status: 401 },
+        ),
+      ),
+    )
+    const fetchFn = createLedewireFetch({
+      key: 'bk_key',
+      secret: 'wrong',
+      apiBase: API_BASE,
+      fetch: globalThis.fetch,
+    })
+
+    const error = await fetchFn(ORIGIN_URL).catch((err: unknown) => err)
+
+    expect(error).toBeInstanceOf(AuthError)
+    expect(error).toMatchObject({ statusCode: 401, message: 'Invalid API key or secret' })
   })
 
   it('handles x402 challenge end-to-end and returns 200', async () => {

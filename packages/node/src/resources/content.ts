@@ -1,6 +1,7 @@
+import { decodeContentFields } from '@ledewire/core'
 import type { HttpClient } from '@ledewire/core'
 import type {
-  BuyerContentSearchRequest,
+  ContentSearchRequest,
   ContentSearchResponse,
   ContentWithAccessResponse,
 } from '@ledewire/core'
@@ -10,47 +11,44 @@ import type {
  *
  * @example
  * ```ts
- * const { content, access } = await client.content.getWithAccess('content-id')
- * if (access.has_access) console.log(content.title)
+ * const result = await client.content.getWithAccess('content-id')
+ * console.log(result.title, result.access_info.next_required_action)
  * ```
  */
 export class ContentNamespace {
   constructor(protected readonly http: HttpClient) {}
 
   /**
-   * Returns a content item together with access information for a given user.
-   * Authenticated buyer calls omit `userId` — the token determines the user.
-   * Server-side merchant calls can pass `userId` to proxy-check a specific
-   * buyer's access state without impersonating them (e.g. to resolve a support
-   * ticket or verify entitlement before issuing a refund).
+   * Returns a content preview together with access information for the caller.
    *
-   * @param id - The content ID.
-   * @param userId - Optional buyer ID to check access for a specific user.
-   *   When omitted, access is evaluated for the token's authenticated user
-   *   (or returns generic/unauthenticated access info if no token is present).
-   * @returns The content item with access information.
+   * Buyer-only: call it with a buyer token (`auth.loginWithEmail`,
+   * `auth.loginWithGoogle`, `auth.loginWithBuyerApiKey`, or a
+   * `createAgentClient()`), or with no token for generic access info
+   * (`next_required_action: 'authenticate'`). A store credential (a merchant
+   * login, `auth.loginWithApiKey`, or `createClient({ apiKey, apiSecret })`) is
+   * refused with `403`, thrown as `ForbiddenError`. Access is always the
+   * caller's own; there is no way to look up another buyer.
+   *
+   * @param id - The content ID. URL-encoded by the SDK.
+   * @returns The content preview with the caller's `access_info`. `teaser` is
+   * returned as plain UTF-8 text (the SDK decodes the base64 wire format). The
+   * response never carries the deliverable: buy with `purchases.create()`.
+   * @throws {ForbiddenError} When the client holds a store credential.
    *
    * @example
    * ```ts
-   * // Buyer-facing: access evaluated from the bearer token
    * const result = await client.content.getWithAccess('article-123')
-   *
-   * // Merchant server-side: check a specific buyer's access
-   * const result = await client.content.getWithAccess('article-123', 'user-id-456')
-   * if (result.access_info.has_purchased) {
-   *   // buyer has already purchased — proceed with refund
+   * if (result.access_info.next_required_action === 'purchase') {
+   *   // Buy (or re-buy) via client.purchases.create(): has_purchased means
+   *   // only "has ever bought" and does not by itself grant access.
    * }
    * ```
    */
-  async getWithAccess(id: string, userId?: string): Promise<ContentWithAccessResponse> {
-    const params: Record<string, string> = {}
-    if (userId !== undefined) {
-      params['user_id'] = userId
-    }
-    return this.http.get<ContentWithAccessResponse>(
-      `/v1/content/${id}/with-access`,
-      Object.keys(params).length > 0 ? params : undefined,
+  async getWithAccess(id: string): Promise<ContentWithAccessResponse> {
+    const res = await this.http.get<ContentWithAccessResponse>(
+      `/v1/content/${encodeURIComponent(id)}/with-access`,
     )
+    return decodeContentFields(res)
   }
 
   /**
@@ -60,9 +58,14 @@ export class ContentNamespace {
    * archived works never appear.
    *
    * The search is paged by one opaque cursor. Send each page's `next_cursor` back as
-   * `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`,
-   * until it comes back `null`. A cursor lasts 24 hours. Without a `query`, only Store
-   * works are searched, filtered by the other fields.
+   * `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata`,
+   * `publication`, `form_type`, `ticker`, `cik` and `limit`, until it comes back `null`.
+   * A cursor lasts 24 hours. Without a `query`, only Store works are searched, filtered
+   * by the other fields — unless `form_type`, `ticker` or `cik` is given, which lists
+   * the SEC EDGAR filings they name. Only Buyers whose Company subscribes to SEC filings are shown filings;
+   * for any other Buyer these filters return no results. Each result's `filing`
+   * describes an SEC filing (filer, ticker, CIK, form, dates, accession number) and is
+   * `null` for every other work; `publication` names a brokered work's Publication.
    *
    * A page can be shorter than `limit`, or empty, while `next_cursor` is not `null`.
    * Keep paging. When `partial_results` is `true`, part of the search could not run and
@@ -74,6 +77,12 @@ export class ContentNamespace {
    *
    * @param body - The search criteria, and the `cursor` from the previous page if any.
    * @returns One page of results.
+   * @throws {RateLimitError} `429` — the buyer's search rate limit is exhausted. The SDK
+   *   does not retry automatically; wait `err.retryAfter` seconds, when it is set.
+   * @throws {InvalidCursorError} `422` with `error.type` `'invalid_cursor'` — the `cursor`
+   *   is invalid, expired, in an older format, or was issued for different filters. Nothing
+   *   was searched. Drop the cursor and restart the search from the first page; the same
+   *   cursor never succeeds on retry.
    * @example
    * ```ts
    * let cursor: string | null | undefined
@@ -82,9 +91,20 @@ export class ContentNamespace {
    *   for (const result of page.data) console.log(result.title, result.publication?.name)
    *   cursor = page.next_cursor
    * } while (cursor)
+   *
+   * // SEC EDGAR filings: `form_type`, `ticker` and `cik` return only filings, and
+   * // `query` may be left out to list them newest first. `10-K` includes `10-K/A`.
+   * // Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results.
+   * const filings = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+   * for (const result of filings.data) {
+   *   console.log(result.filing?.form_type, result.filing?.filing_date, result.filing?.cik)
+   * }
+   *
+   * // Only works from one Publication, by id or exact name.
+   * const atlantic = await client.content.search({ query: 'housing', publication: 'The Atlantic' })
    * ```
    */
-  async search(body: BuyerContentSearchRequest): Promise<ContentSearchResponse> {
+  async search(body: ContentSearchRequest): Promise<ContentSearchResponse> {
     return this.http.post<ContentSearchResponse>('/v1/content/search', body)
   }
 }

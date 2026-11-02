@@ -1,14 +1,23 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, LedewireError, MemoryTokenStorage, NotFoundError } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  MemoryTokenStorage,
+  NotFoundError,
+  decodeContentFields,
+} from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   authTokenFixture,
   errorResponseFixture,
+  invalidCursorErrorFixture,
   contentWithAccessFixture,
   contentSearchResultFixture,
   brokeredContentSearchResultFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
+import { InvalidCursorError } from '../index.js'
 
 const BASE = 'https://api.ledewire.com'
 
@@ -40,7 +49,33 @@ describe('content.getWithAccess', () => {
 
     const result = await makeClient().content.getWithAccess('content-id-1')
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(decodeContentFields(fixture))
+  })
+
+  it('returns the teaser as plain UTF-8 text, decoded from base64', async () => {
+    const fixture = contentWithAccessFixture({ teaser: btoa('A short teaser') })
+    server.use(
+      http.get(`${BASE}/v1/content/content-id-1/with-access`, () => HttpResponse.json(fixture)),
+    )
+
+    const result = await makeClient().content.getWithAccess('content-id-1')
+
+    expect(result.teaser).toBe('A short teaser')
+  })
+
+  it('URL-encodes the content id, so an id containing / stays one path segment', async () => {
+    const fixture = contentWithAccessFixture()
+    let capturedPath = ''
+    server.use(
+      http.get(`${BASE}/v1/content/:id/with-access`, ({ request }) => {
+        capturedPath = new URL(request.url).pathname
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    await makeClient().content.getWithAccess('pub/article-1')
+
+    expect(capturedPath).toBe('/v1/content/pub%2Farticle-1/with-access')
   })
 
   it('includes access_info in the response', async () => {
@@ -51,12 +86,14 @@ describe('content.getWithAccess', () => {
 
     const result = await makeClient().content.getWithAccess('content-id-1')
 
+    expect(result).not.toHaveProperty('content_body')
+    expect(result).not.toHaveProperty('content_uri')
     expect(result.access_info).toBeDefined()
     expect(result.access_info.has_purchased).toBe(false)
     expect(result.access_info.next_required_action).toBe('purchase')
   })
 
-  it('forwards optional user_id query param', async () => {
+  it('takes no userId and sends no query string', async () => {
     const fixture = contentWithAccessFixture()
     let capturedUrl = ''
     server.use(
@@ -66,24 +103,30 @@ describe('content.getWithAccess', () => {
       }),
     )
 
+    // @ts-expect-error -- getWithAccess no longer accepts a userId
     await makeClient().content.getWithAccess('content-id-1', 'user-id-99')
 
-    expect(capturedUrl).toContain('user_id=user-id-99')
+    expect(new URL(capturedUrl).search).toBe('')
   })
 
-  it('does not add user_id param when omitted', async () => {
-    const fixture = contentWithAccessFixture()
-    let capturedUrl = ''
+  it('throws ForbiddenError when a store credential calls it (403)', async () => {
+    let capturedAuth: string | null = null
     server.use(
       http.get(`${BASE}/v1/content/content-id-1/with-access`, ({ request }) => {
-        capturedUrl = request.url
-        return HttpResponse.json(fixture)
+        capturedAuth = request.headers.get('authorization')
+        return HttpResponse.json(errorResponseFixture(1002, 'Invalid Role'), { status: 403 })
       }),
     )
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'store-access-token',
+      refreshToken: 'store-refresh-token',
+      expiresAt: Date.now() + 3_600_000,
+    })
+    const storeClient = createClient({ storage })
 
-    await makeClient().content.getWithAccess('content-id-1')
-
-    expect(capturedUrl).not.toContain('user_id')
+    await expect(storeClient.content.getWithAccess('content-id-1')).rejects.toThrow(ForbiddenError)
+    expect(capturedAuth).toBe('Bearer store-access-token')
   })
 
   it('throws NotFoundError on 404', async () => {
@@ -157,21 +200,45 @@ describe('content.search', () => {
     expect(receivedBody).toEqual({ query: 'quantum', cursor: 'cursor-2' })
   })
 
-  it('throws LedewireError with code 422 on a stale cursor', async () => {
+  it.each([
+    ['an expired cursor', 'The cursor has expired. Start again without one.'],
+    [
+      'a cursor issued for different filters',
+      'The cursor was issued for a different search. Start again without one.',
+    ],
+  ])('throws InvalidCursorError for %s', async (_case, message) => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json(invalidCursorErrorFixture(message), { status: 422 }),
+      ),
+    )
+
+    const error = await makeClient()
+      .content.search({ query: 'quantum', cursor: 'refused' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(InvalidCursorError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 422, type: 'invalid_cursor', message })
+  })
+
+  it('throws a 422 with another error.type as a plain LedewireError', async () => {
     server.use(
       http.post(`${BASE}/v1/content/search`, () =>
         HttpResponse.json(
-          { error: { code: 422, message: 'Cursor expired', type: 'client_error' } },
-          { status: 422 },
+          errorResponseFixture(422, 'max_price_cents must be positive', 'client_error'),
+          {
+            status: 422,
+          },
         ),
       ),
     )
 
     const error = await makeClient()
-      .content.search({ cursor: 'stale' })
+      .content.search({ max_price_cents: -1 })
       .catch((err: unknown) => err)
+    expect(error).not.toBeInstanceOf(InvalidCursorError)
     expect(error).toBeInstanceOf(LedewireError)
-    expect(error).toMatchObject({ code: 422, statusCode: 422 })
+    expect(error).toMatchObject({ name: 'LedewireError', statusCode: 422, type: 'client_error' })
   })
 
   it('refreshes a stored session once on 401 and retries with the new token', async () => {

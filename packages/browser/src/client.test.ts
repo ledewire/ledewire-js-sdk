@@ -31,8 +31,7 @@ describe('init', () => {
     expect(client.wallet).toBeDefined()
     expect(client.purchases).toBeDefined()
     expect(client.content).toBeDefined()
-    expect(client.seller).toBeDefined()
-    expect(client.seller.content).toBeDefined()
+    expect(client).not.toHaveProperty('seller')
   })
 
   it('uses the default production base URL', async () => {

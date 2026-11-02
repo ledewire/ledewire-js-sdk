@@ -31,7 +31,9 @@ import type { LedewireFetchConfig } from './types.js'
  * @throws {SpendCapReachedError} When a `402` carries no `PAYMENT-REQUIRED` header and
  *   its body is a daily-spend-cap-reached refusal — retrying or funding the wallet
  *   cannot clear this, so there is nothing to challenge.
- * @throws {LedewireError} For other API error responses (400, 401, 403, 404, 429).
+ * @throws {RateLimitError} When the paid request or the buyer-key login is refused with
+ *   `429`; `retryAfter` carries the `Retry-After` header in seconds, when sent.
+ * @throws {LedewireError} For other API error responses (400, 401, 403, 404).
  */
 export function createLedewireFetch(config: LedewireFetchConfig): typeof globalThis.fetch {
   const client = new LedewirePaymentClient(config)

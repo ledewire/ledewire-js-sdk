@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@ledewire/node)](https://www.npmjs.com/package/@ledewire/node)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-Node.js SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — full API surface for building merchant stores, managing sellers, and processing buyer flows on the server side.
+Node.js SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — full API surface for building merchant stores, managing store content, and processing buyer flows on the server side.
 
 ## Install
 
@@ -16,11 +16,23 @@ npm install @ledewire/node
 ```ts
 import { createClient } from '@ledewire/node'
 
-// Full access: API key + secret grants read/write seller permissions
-const client = createClient({
+// Store API key: key + secret grants read/write access to client.merchant.*
+const client = createClient()
+// loginWithApiKey resolves with the key's store_id: pass it to client.merchant.*
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+})
+const summary = await client.merchant.sales.summary(store_id)
+const items = await client.merchant.content.list(store_id)
+
+// Or pass the key to createClient: it logs in by itself before the first
+// authenticated request (and again if a refresh fails), so no login call is needed.
+const keyClient = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
   apiSecret: process.env.LEDEWIRE_API_SECRET,
 })
+const sales = await keyClient.merchant.sales.list(storeId)
 
 // Merchant email/password auth
 const client = createClient()
@@ -33,7 +45,7 @@ const stores = await client.merchant.auth.listStores()
 | Namespace                      | Description                                                                                   |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |
 | `client.config`                | Platform-level public config (no auth required)                                               |
-| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset                              |
+| `client.auth`                  | Buyer signup, email/password login, Google OAuth, password reset, store invitation lookup     |
 | `client.wallet`                | Buyer wallet balance (incl. `held_cents`/`holds` from bulk acquisitions) and payment sessions |
 | `client.purchases`             | Buyer purchase history, create purchases, verify ownership                                    |
 | `client.content`               | Fetch content with buyer access info; search every Store and Publication                      |
@@ -45,26 +57,22 @@ const stores = await client.merchant.auth.listStores()
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
 | `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
-| `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
-| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset                              |
+| `client.x402`                  | Public x402 Bazaar discovery, origin verification and the accessToken JWKS (no auth required) |
+| `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset, accept a store invitation   |
 | `client.merchant.users`        | Merchant user management (invite, list, update, remove)                                       |
-| `client.merchant.content`      | Merchant content CRUD + search (merchant JWT auth)                                            |
+| `client.merchant.content`      | Content CRUD + search (merchant JWT or store API key)                                         |
 | `client.merchant.buyers`       | Buyer statistics within a store                                                               |
 | `client.merchant.sales`        | Sales reporting and revenue statistics                                                        |
 | `client.merchant.config`       | Store configuration                                                                           |
 | `client.merchant.domains`      | x402 domain verification for URL-based content gating                                         |
 | `client.merchant.pricingRules` | x402 URL pattern-based pricing rules                                                          |
-| `client.seller.content`        | Seller content CRUD + search (API key auth)                                                   |
-| `client.seller.sales`          | Seller sales statistics and revenue reporting                                                 |
-| `client.seller.buyers`         | Anonymized buyer statistics (API key auth)                                                    |
-| `client.seller.config`         | Store configuration (API key auth)                                                            |
 
 ## Configuration
 
 ```ts
 const client = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
-  apiSecret: process.env.LEDEWIRE_API_SECRET, // omit for read-only seller access
+  apiSecret: process.env.LEDEWIRE_API_SECRET, // omit for read-only store API-key access
   baseUrl: 'https://api-staging.ledewire.com', // optional, defaults to production
 
   // Persist tokens across server restarts (optional)
@@ -87,6 +95,21 @@ const client = createClient({
 ```
 
 Token refresh is handled automatically — you never need to call a refresh method manually.
+
+`apiKey` / `apiSecret` log in automatically: construction sends nothing, and the client logs in
+with the key (`POST /v1/auth/login/api-key`) before its first authenticated request when no
+token is stored. Concurrent first requests share one login. If a refresh fails later, the
+client logs in with the key again and retries the request once. `onAuthExpired` fires only
+when an automatic login fails, once per failed attempt. A refused key rejects the request with
+an `AuthError` carrying the API's message. A client that already holds a token (from `storage`
+or an explicit login) doesn't log in.
+
+On a client created with `apiKey`, clearing the stored tokens doesn't drop the credentials: the next request logs in again. To stop for good, create a client without `apiKey`.
+
+Don't mix another login (email, Google, merchant) on an `apiKey` client: if that session's refresh fails, the client falls back to the store key.
+
+To get the key's `store_id`, call `client.auth.loginWithApiKey()` once yourself, as in the quick
+start: it resolves with `store_id`, and the client, now holding a token, doesn't log in again.
 
 > **Serverless / edge note:** The default `MemoryTokenStorage` resets on every cold start,
 > which means tokens are lost between function invocations. Always provide a custom `storage`
@@ -184,7 +207,7 @@ const stores = await client.merchant.auth.listStores()
 const storeId = stores[0].id
 
 // Create a markdown article
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'markdown',
   title: 'Hello World',
   content_body: btoa('# Hello World\nFull article body here.'),
@@ -193,7 +216,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Create an external reference (e.g. a Vimeo video)
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'external_ref',
   title: 'Intro to Machine Learning',
   content_uri: 'https://vimeo.com/987654321',
@@ -203,7 +226,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Inline HTML — content_body and content_uri are mutually exclusive for 'html'
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'html',
   title: 'Interactive Report',
   content_body: '<h1>Q3 Results</h1><p>...</p>',
@@ -212,7 +235,7 @@ await client.seller.content.create(storeId, {
 })
 
 // Remote HTML, PDF, image, and video all require content_uri (never content_body)
-await client.seller.content.create(storeId, {
+await client.merchant.content.create(storeId, {
   content_type: 'pdf',
   title: 'Annual Report (PDF)',
   content_uri: 'https://cdn.example.com/reports/annual-2026.pdf',
@@ -220,14 +243,14 @@ await client.seller.content.create(storeId, {
   visibility: 'public',
 })
 
-const items = await client.seller.content.list(storeId)
+const items = await client.merchant.content.list(storeId)
 // items.data — ContentListItem[]
 // items.pagination — PaginationMeta
 
 // Search by title (partial match), URI, and/or metadata
-const results = await client.seller.content.search(storeId, { title: 'intro' })
-const byUri = await client.seller.content.search(storeId, { uri: 'vimeo.com' })
-const combined = await client.seller.content.search(storeId, {
+const results = await client.merchant.content.search(storeId, { title: 'intro' })
+const byUri = await client.merchant.content.search(storeId, { uri: 'vimeo.com' })
+const combined = await client.merchant.content.search(storeId, {
   title: 'tutorial',
   metadata: { category: 'ml' },
 })
@@ -235,6 +258,53 @@ const combined = await client.seller.content.search(storeId, {
 // Fetch Google OAuth client ID before the user has signed in
 const { google_client_id } = await client.config.getPublic()
 // google.accounts.id.initialize({ client_id: google_client_id, callback })
+```
+
+### Full and view keys
+
+A store API key logged in with its secret (`client.auth.loginWithApiKey({ key, secret })`) has
+`full` permission; with the key alone it has `view`. Reads work with either. These need a **full**
+key or an owner's merchant login, and a `view` key gets a `403` `ForbiddenError`:
+
+- `merchant.content.create` / `update` / `delete` (an `is_author` member may write only their own items)
+- `merchant.users.list` / `invite` / `update` / `remove`
+- `merchant.pricingRules.create` / `deactivate`
+- `merchant.domains.add` / `verify` / `remove`
+
+### Sales rows and buyers
+
+`merchant.sales.get()` names the buyer only by `buyer_ref` (`bref_v1_…`), an opaque, store-scoped
+reference that matches `merchant.buyers.list()`. The buyer's user id and name are not disclosed.
+`fees.*_cents` are `null` until the sale completes.
+
+```ts
+const sale = await client.merchant.sales.get(storeId, saleId)
+const { data: buyers } = await client.merchant.buyers.list(storeId)
+const buyer = buyers.find((b) => b.buyer_ref === sale.buyer_ref)
+```
+
+### Store invitations
+
+`merchant.users.invite()` emails an `invitation_token` to someone without an account. Show the
+invitation with the public `auth.getInviteInfo()`, then let the invitee join through
+`auth.signup()` / `auth.loginWithGoogle()` with `invitation_token`, or, if they are already a
+merchant, through `merchant.auth.acceptInvitation()`:
+
+```ts
+import { LedewireError } from '@ledewire/node'
+
+const invite = await client.auth.getInviteInfo(token) // no auth; 404 / 409 / 410 when unusable
+console.log(`Join ${invite.store_name}`)
+
+try {
+  await client.merchant.auth.loginWithEmail({ email, password })
+  const membership = await client.merchant.auth.acceptInvitation({ invitation_token: token })
+  console.log(`Joined ${membership.store_name} as ${membership.role}`)
+} catch (err) {
+  if (err instanceof LedewireError && err.type === 'invitation_not_accepted') {
+    // err.details.reason: 'not_found' | 'wrong_email' | 'already_accepted' | 'already_member' | 'expired' | 'invalid'
+  }
+}
 ```
 
 ## Example: Buyer Spend Cap & MCP API Keys
@@ -404,12 +474,16 @@ const keyHistory = await client.acquisitions.signingKeyHistory()
 ## Example: Buyer Content Search
 
 Search every Store and every brokered Publication from a Buyer's server. Page with
-`next_cursor` until it is `null`:
+`next_cursor` until it is `null`. The request is a `ContentSearchRequest` (a Store's search
+of its own content, `client.merchant.content.search()`, takes a `MerchantContentSearchRequest`):
 
 ```ts
+import type { ContentSearchRequest } from '@ledewire/node'
+
 let cursor: string | null | undefined
 do {
-  const page = await client.content.search({ query: 'quantum computing', cursor, limit: 20 })
+  const request: ContentSearchRequest = { query: 'quantum computing', cursor, limit: 20 }
+  const page = await client.content.search(request)
   for (const result of page.data) {
     console.log(result.title, result.publication?.name ?? '(Store work)')
   }
@@ -420,7 +494,68 @@ do {
 ```
 
 Searches with a `query` are rate-limited to 15 a minute per Buyer. A 429 throws a
-`LedewireError` with `statusCode` 429.
+`RateLimitError` (a `LedewireError` with `statusCode` 429).
+
+A cursor lasts 24 hours and fits only the search it came from. One that is expired, invalid,
+or sent with different filters throws `InvalidCursorError` (`statusCode` 422,
+`type: 'invalid_cursor'`) and nothing is searched. Drop the cursor and restart from the first
+page; the same cursor never succeeds on retry:
+
+```ts
+import { InvalidCursorError } from '@ledewire/node'
+
+try {
+  page = await client.content.search({ query: 'quantum computing', cursor })
+} catch (err) {
+  if (!(err instanceof InvalidCursorError)) throw err
+  page = await client.content.search({ query: 'quantum computing' }) // restart
+}
+```
+
+Narrow to one Publication with `publication` (its id, or its exact name in any case).
+To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings come back,
+and `query` can be left out to list them newest first. Each result's `filing` describes
+the filing (`filer_name`, `ticker`, `cik`, `form_type`, `filing_date`,
+`period_of_report`, `accession_number`), and is `null` for every other work.
+Only Buyers whose Company subscribes to SEC filings are shown filings: for any other
+Buyer, these filters return no results.
+
+```ts
+// Apple's annual reports, amendments (10-K/A) included.
+const { data } = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+for (const result of data) {
+  console.log(result.filing?.form_type, result.filing?.filing_date, result.title)
+}
+```
+
+## Example: Purchase Licences
+
+Every purchase carries `license` (a `PurchaseLicense`, or `null` when none was recorded —
+every Store work, and older brokered purchases; `null` never means "no rights"), plus
+`content.publication` (the brokered work's Publication, or `null`) and `content.filing`
+(the SEC filing, or `null`). `license.type` is the source's own licence type, such as
+`ON_DEMAND_LICENSE`, `ON_DEMAND_FULL_USE_LICENSE` or `public-domain` for an SEC filing.
+
+When `license.document_url` is set, `purchases.licenseDocument()` downloads the document.
+It is not JSON: you get `{ body: ArrayBuffer, contentType }`, usually `application/pdf`,
+or `text/markdown` for an SEC filing's terms.
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+console.log(purchase.license?.type, purchase.content.publication?.name)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  const ext = contentType.startsWith('application/pdf')
+    ? 'pdf'
+    : contentType.startsWith('text/markdown')
+      ? 'md'
+      : 'bin'
+  const file = `licence.${ext}`
+  await writeFile(file, Buffer.from(body))
+}
+```
 
 ## Example: x402 Bazaar Discovery
 
@@ -430,13 +565,28 @@ Public, unauthenticated browsing of resources gated by the x402
 ```ts
 const { total, resources } = await client.x402.discoverResources({ limit: 20 })
 for (const resource of resources) {
-  console.log(resource.metadata.title, resource.metadata.teaser)
+  console.log(resource.metadata.title ?? '(untitled)', resource.metadata.teaser)
 }
 ```
 
 Pay for a discovered resource via the x402 flow itself — see
 [`@ledewire/x402-client`](../x402-client/) — not through this namespace, which
 never carries delivered content.
+
+Confirm a page URL is a registered Ledewire resource before showing payment UI,
+and fetch the JWKS that verifies a settlement `accessToken` offline:
+
+```ts
+const origin = await client.x402.verifyOrigin({ url: 'https://theirsite.com/articles/slug' })
+if (origin.verified) console.log(origin.title, origin.amount)
+
+const { keys } = await client.x402.getJwks() // cache for 24h; match the token's kid
+```
+
+`verifyOrigin` answers `{ verified: false }` for an unknown URL rather than throwing,
+and throws `RateLimitError` (with `retryAfter`) past 60 requests a minute per IP.
+`getJwks` throws a `LedewireError` with `statusCode` 503 and message
+`'JWKS unavailable'` when the server has no signing key configured.
 
 ## Error Handling
 
@@ -471,6 +621,8 @@ try {
 | `NotFoundError`        | 404     | Resource not found                                                                                            |
 | `PurchaseError`        | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)                                                 |
 | `SpendCapReachedError` | 402     | Buyer's daily spend cap reached — `purchases.create()`, the x402 content gate, and `acquisitions.authorize()` |
+| `RateLimitError`       | 429     | Too many requests, from any endpoint (`content.search`: 15/min per buyer); `retryAfter` is seconds to wait    |
+| `InvalidCursorError`   | 422     | `content.search` refused its `cursor` (`type: 'invalid_cursor'`): drop the cursor and restart the search      |
 | `LedewireError`        | any     | Catch-all base class for all other API errors                                                                 |
 
 Every `LedewireError` also carries `type` (the API error body's machine-readable
@@ -491,7 +643,7 @@ imported from `@ledewire/node`.
 import { SpendCapReachedError } from '@ledewire/node'
 
 try {
-  await client.purchases.create({ content_id })
+  await client.purchases.create({ content_id, price_cents })
 } catch (err) {
   if (err instanceof SpendCapReachedError) {
     // A daily policy limit, not a balance problem — do NOT prompt the buyer

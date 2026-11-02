@@ -72,12 +72,16 @@ import {
   ForbiddenError,     // errorReason: invalid_ledewire_wallet_payload_role (legacy: 403)
   LedewireError,      // any other errorReason, set on err.type (legacy: other statuses)
   SpendCapReachedError, // errorReason: daily_spend_cap_reached (legacy: 402 cap body)
+  RateLimitError,     // 429 on the paid retry or buyer-key login; .retryAfter = seconds from Retry-After
   PaymentOriginNotAllowedError, // 402 — buildPaymentSignature called for a URL off the configured API
 } from '@ledewire/x402-client'
 ```
 
-Import AuthError/ForbiddenError/LedewireError/SpendCapReachedError from @ledewire/x402-client
+Import AuthError/ForbiddenError/LedewireError/RateLimitError/SpendCapReachedError from @ledewire/x402-client
 (or @ledewire/node) — never from @ledewire/core, which is private and not published to npm.
+
+A failed buyer-key login (wrong key or secret) rejects with AuthError, and err.message is the
+API's own message; a 429 there is a RateLimitError. Neither reaches the content URL.
 
 All errors extend LedewireError. Check .statusCode, .type, and .message. For an errorReason
 this SDK version doesn't have its own class for, `.type` still carries the raw string.

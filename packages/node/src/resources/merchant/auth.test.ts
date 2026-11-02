@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, ForbiddenError, MemoryTokenStorage } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  MemoryTokenStorage,
+  NotFoundError,
+} from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
+  merchantInvitationAcceptedFixture,
   merchantTokenFixture,
   merchantLoginStoreFixture,
   manageableStoreFixture,
@@ -380,5 +387,122 @@ describe('merchant.auth.resetPassword', () => {
     )
 
     await expect(makeClient().merchant.auth.resetPassword(validBody)).rejects.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// merchant.auth.acceptInvitation
+// ---------------------------------------------------------------------------
+
+describe('merchant.auth.acceptInvitation', () => {
+  const ACCEPT_URL = `${BASE}/v1/auth/merchant/accept-invitation`
+
+  /** A merchant client with a live session stored. */
+  function signedInClient() {
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'merchant-access',
+      refreshToken: 'merchant-refresh',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    })
+    return createClient({ storage })
+  }
+
+  /** An `InvitationNotAcceptedError` body as the API sends it. */
+  function refusal(status: number, message: string, reason: string) {
+    return HttpResponse.json(
+      { ...errorResponseFixture(status, message, 'invitation_not_accepted'), reason },
+      { status },
+    )
+  }
+
+  it('sends the token with the merchant bearer and returns the membership', async () => {
+    let capturedBody: unknown
+    let authHeader: string | null = null
+    const fixture = merchantInvitationAcceptedFixture({ role: 'owner' })
+    server.use(
+      http.post(ACCEPT_URL, async ({ request }) => {
+        capturedBody = await request.json()
+        authHeader = request.headers.get('Authorization')
+        return HttpResponse.json(fixture)
+      }),
+    )
+
+    const result = await signedInClient().merchant.auth.acceptInvitation({
+      invitation_token: 'invite-token',
+    })
+
+    expect(capturedBody).toEqual({ invitation_token: 'invite-token' })
+    expect(authHeader).toBe('Bearer merchant-access')
+    expect(result).toEqual(fixture)
+  })
+
+  it('throws NotFoundError carrying the refusal reason on 404', async () => {
+    server.use(http.post(ACCEPT_URL, () => refusal(404, 'Invitation not found', 'not_found')))
+
+    const err = await signedInClient()
+      .merchant.auth.acceptInvitation({ invitation_token: 'nope' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(NotFoundError)
+    expect((err as LedewireError).type).toBe('invitation_not_accepted')
+    expect((err as LedewireError).details).toEqual({ reason: 'not_found' })
+  })
+
+  it('throws a 410 LedewireError with reason expired', async () => {
+    server.use(http.post(ACCEPT_URL, () => refusal(410, 'Invitation has expired', 'expired')))
+
+    const err = await signedInClient()
+      .merchant.auth.acceptInvitation({ invitation_token: 'old' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(LedewireError)
+    expect((err as LedewireError).statusCode).toBe(410)
+    expect((err as LedewireError).type).toBe('invitation_not_accepted')
+    expect((err as LedewireError).details).toEqual({ reason: 'expired' })
+  })
+
+  it('throws a 409 LedewireError when the account already belongs to the store', async () => {
+    server.use(
+      http.post(ACCEPT_URL, () =>
+        refusal(409, 'You already belong to this store', 'already_member'),
+      ),
+    )
+
+    const err = await signedInClient()
+      .merchant.auth.acceptInvitation({ invitation_token: 'dup' })
+      .catch((e: unknown) => e)
+    expect((err as LedewireError).statusCode).toBe(409)
+    expect((err as LedewireError).details).toEqual({ reason: 'already_member' })
+  })
+
+  it('throws ForbiddenError with reason wrong_email for an invitation sent elsewhere', async () => {
+    server.use(
+      http.post(ACCEPT_URL, () =>
+        refusal(403, 'This invitation was sent to a different email address', 'wrong_email'),
+      ),
+    )
+
+    const err = await signedInClient()
+      .merchant.auth.acceptInvitation({ invitation_token: 'theirs' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ForbiddenError)
+    expect((err as LedewireError).type).toBe('invitation_not_accepted')
+    expect((err as LedewireError).details).toEqual({ reason: 'wrong_email' })
+  })
+
+  it('throws a plain ForbiddenError (no reason) for a non-merchant token', async () => {
+    server.use(
+      http.post(ACCEPT_URL, () =>
+        HttpResponse.json(errorResponseFixture(403, 'This token does not have merchant access'), {
+          status: 403,
+        }),
+      ),
+    )
+
+    const err = await signedInClient()
+      .merchant.auth.acceptInvitation({ invitation_token: 'invite-token' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ForbiddenError)
+    expect((err as LedewireError).type).toBeUndefined()
+    expect((err as LedewireError).details).toBeUndefined()
   })
 })

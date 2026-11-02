@@ -1,6 +1,6 @@
 # @ledewire/node
 
-> LedeWire Node.js SDK — full API surface for merchant stores, seller content, and buyer flows.
+> LedeWire Node.js SDK — full API surface for merchant stores, store content, and buyer flows.
 > npm install @ledewire/node
 > Source: https://github.com/ledewire/ledewire-js-sdk
 > API docs: https://ledewire.github.io/ledewire-js-sdk/api/
@@ -16,8 +16,17 @@ npm install @ledewire/node
 ```ts
 import { createClient } from '@ledewire/node'
 
-// API key + secret — write access for seller/merchant operations
-const client = createClient({
+// Store API key + secret — write access to client.merchant.*; the login resolves with store_id
+const client = createClient()
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+})
+const summary = await client.merchant.sales.summary(store_id)
+
+// Or pass the key to createClient: it logs in by itself before the first
+// authenticated request (no login call needed) and again if a refresh fails
+const keyClient = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
   apiSecret: process.env.LEDEWIRE_API_SECRET,
 })
@@ -38,9 +47,11 @@ import { createClient } from '@ledewire/node'
 import type { NodeClientConfig } from '@ledewire/node'
 
 const client = createClient({
-  // Optional — omit for merchant JWT-only flows
+  // Optional — omit for merchant JWT-only flows. A store API key logs in
+  // automatically before the first authenticated request (not at construction)
+  // when no token is stored, and again when a refresh fails (retrying once).
   apiKey: string,
-  apiSecret: string,          // omit for read-only seller access
+  apiSecret: string,          // omit for read-only store API-key access
 
   baseUrl: string,            // defaults to 'https://api.ledewire.com'
 
@@ -57,10 +68,19 @@ const client = createClient({
   // Providing both storage and onTokenRefreshed will double-write on refresh.
   onTokenRefreshed: (tokens: StoredTokens) => Promise<void> | void,
   onAuthExpired: () => void,  // called when refresh fails — re-authenticate
+                              // (with apiKey: when an automatic login fails, once per attempt)
 })
 ```
 
 Token refresh is automatic — never call a refresh method manually.
+
+With `apiKey`, concurrent first requests share one login; a refused key rejects
+the request with `AuthError` (the API's message); a stored token means no login.
+To get the key's `store_id`, call `client.auth.loginWithApiKey()` once yourself
+(it resolves with `store_id`; the client then holds a token and won't log in again).
+
+On a client created with `apiKey`, clearing the stored tokens doesn't drop the credentials: the next request logs in again. To stop for good, create a client without `apiKey`.
+Don't mix another login (email, Google, merchant) on an `apiKey` client: if that session's refresh fails, the client falls back to the store key.
 
 > **Serverless / edge:** MemoryTokenStorage (default) resets on every cold start.
 > Always provide a custom `storage` adapter (Redis, database, encrypted cookie).
@@ -97,9 +117,12 @@ client.auth.signup(body)                                             → Promise
 client.auth.loginWithEmail({ email, password })                      → Promise<AuthenticationResponse>
 client.auth.loginWithGoogle({ id_token })                            → Promise<AuthenticationResponse>
 client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise<AuthenticationResponse>
-client.auth.loginWithApiKey({ key, secret? })                        → Promise<AuthenticationResponse>
-client.auth.requestPasswordReset({ email })                          → Promise<void>
-client.auth.resetPassword({ email, reset_code, password })           → Promise<void>
+client.auth.loginWithApiKey({ key, secret? })                        → Promise<StoreAuthenticationResponse>  // + store_id
+client.auth.requestPasswordReset({ email })                          → Promise<AuthPasswordResetResponse>  // { message }
+client.auth.resetPassword({ email, reset_code, password })           → Promise<AuthPasswordResetResponse>  // { message }
+client.auth.getInviteInfo(token)                                     → Promise<InviteInfoResponse>  // public, no auth
+// InviteInfoResponse = { invited_email: string | null, store_name: string, role: 'owner' | null, expires_at: string }
+// 404 NotFoundError (unknown token), 409 LedewireError (already accepted), 410 LedewireError (expired, 7 days)
 ```
 
 `loginWithBuyerApiKey` is intended for agents and buyer-facing dashboards that
@@ -126,7 +149,18 @@ client.merchant.auth.loginWithEmailAndListStores({ email, password }) → Promis
 client.merchant.auth.loginWithGoogleAndListStores({ id_token })       → Promise<MerchantLoginResult>
 client.merchant.auth.requestPasswordReset({ email })         → Promise<MerchantPasswordResetResponse>
 client.merchant.auth.resetPassword({ email, reset_code, password }) → Promise<MerchantPasswordResetResponse>
+client.merchant.auth.acceptInvitation({ invitation_token })  → Promise<MerchantInvitationAcceptedResponse>
+// MerchantInvitationAcceptedResponse = { id, store_id, store_name: string | null, role: 'owner' | 'author' | null, accepted_at }
 ```
+
+**Store invitations.** `merchant.users.invite()` emails an `invitation_token` to
+someone without an account. Show it with the public `client.auth.getInviteInfo(token)`,
+then join via `auth.signup` / `auth.loginWithGoogle` with `invitation_token`, or, for a
+signed-in merchant, `merchant.auth.acceptInvitation({ invitation_token })`. Every refusal
+from `acceptInvitation` has `err.type === 'invitation_not_accepted'` and
+`err.details.reason`: 404 `NotFoundError` (`not_found`), 403 `ForbiddenError`
+(`wrong_email`; a 403 with no `type` means the session is not a merchant one), 409
+(`already_accepted`, `already_member`), 410 (`expired`), 422 (`invalid`).
 
 `MerchantLoginResult = { tokens: StoredTokens, stores: MerchantLoginStore[] }`
 // StoredTokens = { accessToken: string, refreshToken: string, expiresAt: number (Unix ms) }
@@ -180,20 +214,34 @@ merchant auth methods: `loginWithEmail`, `loginWithGoogle`, `loginWithEmailAndLi
 ### client.merchant.users
 
 ```ts
-client.merchant.users.list(storeId, params?)   → Promise<PaginatedUsersList>
-client.merchant.users.invite(storeId, body)    → Promise<MerchantUser>
-client.merchant.users.remove(storeId, userId)  → Promise<void>
-client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) → Promise<MerchantUser>
-// MerchantUserUpdateRequest: { author_fee_bps?: number | null }
+client.merchant.users.list(storeId, params?)   → Promise<PaginatedUsersList>             // full key
+client.merchant.users.invite(storeId, body)    → Promise<MerchantUser | MerchantInviteResponse>  // full key
+client.merchant.users.remove(storeId, userId)  → Promise<void>                           // full key
+client.merchant.users.update(storeId, userId, body: MerchantUserUpdateRequest) → Promise<MerchantUser>  // full key
+// MerchantUserUpdateRequest: { is_author?: boolean, author_fee_bps?: number | null }
 // author_fee_bps in basis points (1800 = 18%). null reverts to store default.
 ```
+
+### Full-key methods
+
+A store API key logged in with its secret (`loginWithApiKey({ key, secret })`) has
+`full` permission; with the key alone it has `view`. A `view` key reads, but gets a
+403 `ForbiddenError` from every method marked "full key" here: `merchant.content`
+create / update / delete, `merchant.users` list / invite / update / remove,
+`merchant.pricingRules` create / deactivate, and `merchant.domains` add / verify /
+remove. An owner's merchant JWT can call all of them; an `is_author` member can
+write only their own content.
 
 ### client.merchant.sales
 
 ```ts
 client.merchant.sales.summary(storeId)              → Promise<SalesSummaryResponse>
-client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>
+client.merchant.sales.list(storeId, params?)         → Promise<PaginatedSalesList>   // rows: SalesStatisticsItem, one per title
 client.merchant.sales.get(storeId, saleId)           → Promise<MerchantSaleResponse>
+// MerchantSaleResponse: { id, content_id, content, buyer_ref, seller_id, seller, amount_cents, fees, status, timestamp }
+// buyer_ref ('bref_v1_…') is an opaque, store-scoped buyer reference — the same value
+// merchant.buyers.list() returns. There is no buyer_id or buyer { id, name }.
+// fees.{platform_fee_cents,store_net_cents,author_net_cents}: number | null (null until the sale completes)
 ```
 
 ### client.merchant.buyers
@@ -216,8 +264,8 @@ via `client.merchant.domains` before a rule can be created.
 
 ```ts
 client.merchant.pricingRules.list(storeId)              → Promise<MerchantPricingRule[]>
-client.merchant.pricingRules.create(storeId, body)      → Promise<MerchantPricingRule>
-client.merchant.pricingRules.deactivate(storeId, ruleId) → Promise<MerchantPricingRule>
+client.merchant.pricingRules.create(storeId, body)      → Promise<MerchantPricingRule>  // full key
+client.merchant.pricingRules.deactivate(storeId, ruleId) → Promise<MerchantPricingRule>  // full key
 ```
 
 ### client.merchant.domains
@@ -227,8 +275,9 @@ DNS TXT record instructions; the platform verifies asynchronously.
 
 ```ts
 client.merchant.domains.list(storeId)               → Promise<MerchantDomainVerification[]>
-client.merchant.domains.add(storeId, body)          → Promise<MerchantDomainVerification>
-client.merchant.domains.remove(storeId, domainId)   → Promise<void>
+client.merchant.domains.add(storeId, body)          → Promise<MerchantDomainVerification>  // full key
+client.merchant.domains.verify(storeId, { domain }) → Promise<MerchantDomainVerifyResponse>  // full key
+client.merchant.domains.remove(storeId, domainId)   → Promise<void>                        // full key
 ```
 
 ### client.merchant.content
@@ -236,33 +285,37 @@ client.merchant.domains.remove(storeId, domainId)   → Promise<void>
 ```ts
 client.merchant.content.list(storeId, params?)         → Promise<PaginatedContentList>
 client.merchant.content.get(storeId, contentId)        → Promise<ContentResponse>
-client.merchant.content.create(storeId, body)          → Promise<ContentResponse>
-client.merchant.content.update(storeId, contentId, body) → Promise<ContentResponse>
-client.merchant.content.delete(storeId, contentId)     → Promise<void>
+client.merchant.content.create(storeId, body)          → Promise<ContentResponse>  // full key
+client.merchant.content.update(storeId, contentId, body) → Promise<ContentResponse>  // full key
+client.merchant.content.delete(storeId, contentId)     → Promise<void>  // full key
 client.merchant.content.search(storeId, query, params?) → Promise<PaginatedContentList>
 ```
 
-### client.seller.content
+`client.merchant.*` accepts a merchant JWT or a store API-key token
+(`client.auth.loginWithApiKey`, which resolves with the `store_id` to pass:
+`const { store_id } = await client.auth.loginWithApiKey({ key, secret })`). There is no `client.seller` namespace: it was
+removed because `/v1/seller/*` is retired. Map old calls as follows:
 
 ```ts
-client.seller.content.list(storeId, params?)            → Promise<PaginatedContentList>
-client.seller.content.get(storeId, contentId)           → Promise<ContentResponse>
-client.seller.content.create(storeId, body)             → Promise<ContentResponse>
-client.seller.content.update(storeId, contentId, body)  → Promise<ContentResponse>
-client.seller.content.delete(storeId, contentId)        → Promise<void>
-client.seller.content.search(storeId, query, params?)   → Promise<PaginatedContentList>
+seller.sales.summary()        → merchant.sales.summary(storeId)
+seller.sales.list()           → merchant.sales.list(storeId)   // paginated, one row per content item
+seller.buyers.list()          → merchant.buyers.list(storeId)
+seller.config.get()           → merchant.config.get(storeId)
+seller.content.*(storeId, …)  → merchant.content.*(storeId, …)
 ```
 
 ### client.wallet
 
 ```ts
 client.wallet.balance()                            → Promise<WalletBalanceResponse>
-client.wallet.transactions(params?)                → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+client.wallet.transactions()                       → Promise<WalletTransactionItem[]>
 client.wallet.createPaymentSession(body)           → Promise<WalletPaymentSessionResponse>
 client.wallet.getPaymentStatus(sessionId)          → Promise<WalletPaymentStatusResponse>
-// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
-// completed/failed/cancelled are terminal; an ACH top-up can sit in
-// awaiting_verification/processing for days. Personal top-ups only.
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'cancelled' | 'failed' | 'reverted'
+// completed means the funds are in the wallet. ACH can sit in awaiting_verification
+// (microdeposits) then processing for days. cancelled is usually a superseded
+// session and can still return to pending, then completed. Personal top-ups only.
+// balance_cents: number | null (null for a Company member)
 ```
 
 **Company members see no balance.** For a buyer with an open Company
@@ -274,9 +327,41 @@ still spend today. Always handle `null` before doing arithmetic on a balance.
 ### client.purchases
 
 ```ts
-client.purchases.create({ content_id: string })   → Promise<PurchaseResponse>
-client.purchases.list(params?)                    → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
+client.purchases.create({ content_id: string, price_cents: number }) → Promise<PurchaseResponse>
+// price_cents: the price the buyer was quoted (content.getWithAccess(), checkout.state()
+// or a search result). Must equal the work's current price, or LedewireError 422
+// (`Content (<id>) price appears to have changed`) and nothing is charged.
+client.purchases.list()                           → Promise<PurchaseResponse[]>
 client.purchases.get(purchaseId)                  → Promise<PurchaseResponse>
+client.purchases.licenseDocument(purchaseId)      → Promise<LicenseDocument>
+// LicenseDocument: { body: ArrayBuffer, contentType: string } — not JSON. Usually
+// application/pdf; text/markdown for an SEC filing. contentType is the server's header
+// verbatim ('application/octet-stream' if absent). Throws AuthError 401, ForbiddenError
+// 403 (not a buyer credential), NotFoundError 404 (unknown, not completed, or not captured).
+```
+
+Licence and source fields on every `PurchaseResponse`:
+
+- `license: PurchaseLicense | null` — `{ type, permissions: string[], document_url: string | null }`,
+  exactly as the work's source granted it. `type` is e.g. `ON_DEMAND_LICENSE`,
+  `ON_DEMAND_FULL_USE_LICENSE` or `public-domain` (SEC filing; `permissions` empty).
+  `null` means "not recorded" (every Store work, older brokered purchases), never
+  "no rights granted". When `document_url` is set, `licenseDocument(purchase.id)` downloads it.
+- `content.publication: PurchasePublication | null` — `{ id, name }` of the Publication a
+  brokered work was published under; `null` for a Store's work.
+- `content.filing: ContentSearchFiling | null` — for an SEC filing: `{ filer_name, ticker,
+  cik, form_type, filing_date, period_of_report, accession_number }`; `null` otherwise.
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  const ext = contentType.startsWith('application/pdf') ? 'pdf'
+    : contentType.startsWith('text/markdown') ? 'md' : 'bin'
+  await writeFile(`licence.${ext}`, Buffer.from(body))
+}
 ```
 
 Single-use delivery: `purchases.create()`'s response is the only place
@@ -285,7 +370,8 @@ them, and there is no route that serves the same delivery again, so persist it
 immediately.
 
 ```ts
-const purchase = await client.purchases.create({ content_id: 'article-123' })
+const { price_cents } = await client.content.getWithAccess('article-123')
+const purchase = await client.purchases.create({ content_id: 'article-123', price_cents })
 await saveDeliveredContent(purchase) // your own persistence — one-time delivery
 
 // content_body is always plain UTF-8 on the wire — never base64-encoded, no
@@ -308,15 +394,33 @@ if (purchase.content_body && purchase.content.content_type === 'markdown') {
 ### client.content
 
 ```ts
-client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessResponse>
-// userId: optional buyer ID for merchant server-side proxy lookups
+client.content.getWithAccess(contentId) → Promise<ContentWithAccessResponse>
+// Buyer-only: needs a buyer token (or none, for generic access info). A store
+// credential (merchant login, loginWithApiKey, createClient({ apiKey, apiSecret }))
+// gets 403, thrown as ForbiddenError. access_info is always the caller's own.
+// contentId is URL-encoded; teaser comes back as plain text (SDK decodes base64).
+// Returns { id, content_type, title: string | null, teaser, price_cents,
+//   visibility: 'public', resource_url: string | null, access_info } — never the
+//   deliverable, which comes only from purchases.create().
 
-client.content.search(body)                                             → Promise<ContentSearchResponse>
+client.content.search(body: ContentSearchRequest)                       → Promise<ContentSearchResponse>
 // Buyer search across every Store and brokered Publication (Buyer or Machine user credentials).
-// body: { query?, tags?, max_price_cents?, metadata?, cursor?, limit? }  (limit defaults to 20)
+// body: { query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? }
+// (limit defaults to 20). publication: a Publication id or exact name (any case).
+// form_type ('10-K' | '10-Q' | '8-K' | '20-F' | 'S-1' | 'DEF 14A', amendments included), ticker
+// and cik return only SEC EDGAR filings, and query may then be omitted (newest first).
+// Each result's filing is a ContentSearchFiling for an SEC filing, null otherwise.
 // Page with next_cursor until it is null. partial_results: true means part of the search was missed.
 // unavailable_providers is deprecated and always empty.
-// Searches with a query are rate-limited to 15/minute per buyer: a 429 throws LedewireError with statusCode 429.
+// Searches with a query are rate-limited to 15/minute per buyer: a 429 throws RateLimitError (statusCode 429).
+// A cursor lasts 24h and fits only the search it came from. An expired, invalid or
+// mismatched-filters cursor throws InvalidCursorError (422, type 'invalid_cursor'),
+// nothing searched: drop the cursor and restart from page one. Never retry the same cursor.
+
+// SEC EDGAR: Apple's annual reports, newest first, no query needed.
+// Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results.
+const { data } = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+for (const r of data) console.log(r.filing?.form_type, r.filing?.filing_date, r.title)
 ```
 
 ### client.checkout
@@ -468,7 +572,7 @@ client.company.invitations.revoke(id)                   → Promise<void>       
 client.company.invitations.accept({ token })            → Promise<CompanyMembership>   // 409 already in a Company, 410 expired; details.reason says why
 
 client.company.members.list()                           → Promise<CompanyMemberList>
-client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>
+client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>  // at least one of the two
 client.company.members.remove(membershipId)             → Promise<void>                // 422 if it would leave no admin
 
 client.company.machineUsers.list()                      → Promise<CompanyMachineUserList>
@@ -534,7 +638,11 @@ client.topics.list()  → Promise<TopicDirectoryResponse>
 ### client.publications
 
 Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
-required, requests always sent without credentials.
+required, requests always sent without credentials. (The API also takes an
+optional Buyer token on list/get, and then shows a subscribed Company's Buyer the
+Publications its Subscription opens, such as SEC EDGAR. The SDK never sends one
+here, so these calls return the anonymous list; find SEC filings with
+`content.search({ form_type, ticker, cik })`.)
 
 ```ts
 client.publications.list(params?: PublicationListParams)                → Promise<PublicationListResponse>
@@ -673,8 +781,8 @@ const keyHistory = await client.acquisitions.signingKeyHistory()
 
 ### client.x402
 
-Public x402 Bazaar resource discovery — no authentication, no credentials
-sent. Never carries delivered content (`content_body`/`content_uri`), only the
+Public x402 endpoints — no authentication, no credentials sent. Bazaar resource
+discovery never carries delivered content (`content_body`/`content_uri`), only the
 `teaser` preview. Pay for a resource via the x402 flow itself
 (`@ledewire/x402-client`), not through this namespace.
 
@@ -684,8 +792,20 @@ client.x402.discoverResources(params?: { limit?: number, offset?: number }) → 
 
 const { total, resources } = await client.x402.discoverResources({ limit: 20 })
 for (const resource of resources) {
-  console.log(resource.metadata.title, resource.metadata.teaser)
+  console.log(resource.metadata.title ?? '(untitled)', resource.metadata.teaser)
 }
+
+client.x402.verifyOrigin({ url: string, store_id?: string }) → Promise<X402VerifyOriginResponse>
+// { verified: true, content_id, store_id, amount, title } | { verified: false }.
+// Unknown or invalid URLs answer verified: false, never an error. With store_id, a URL that
+// one of that store's pricing rules covers (on a verified domain) is registered on this call.
+// 429 (60/min per IP) → RateLimitError, err.retryAfter = Retry-After seconds.
+
+client.x402.getJwks() → Promise<X402JwksResponse>
+// { keys: [{ kty: 'RSA', use: 'sig', alg: 'RS256', kid, n, e }] } — verifies the RS256
+// accessToken in an x402 PAYMENT-RESPONSE offline (match its kid). Cache it for 24h.
+// 503 → LedewireError, statusCode 503, message 'JWKS unavailable' (no key configured;
+// the body is a bare string, so err.code/err.type are undefined).
 ```
 
 ## createAgentClient()
@@ -714,12 +834,20 @@ await agent.auth.loginWithBuyerApiKey({
 
 // Step 2: use wallet, purchases, content, checkout normally
 const balance = await agent.wallet.balance()
-const purchase = await agent.purchases.create({ content_id: 'abc123' })
-const article  = await agent.content.getWithAccess(purchase.content_id)
+// Check access before buying: getWithAccess is a preview, never the deliverable
+const preview = await agent.content.getWithAccess('abc123')
+if (preview.access_info.next_required_action === 'purchase') {
+  // The purchase response is the only (single-use) delivery: keep it now
+  const purchase = await agent.purchases.create({
+    content_id: preview.id,
+    price_cents: preview.price_cents,
+  })
+  const article = purchase.content_body ?? purchase.content_uri
+}
 ```
 
 `AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'company' | 'publications' | 'acquisitions' | 'x402'>`.
-The `merchant`, `seller`, and `config` namespaces are intentionally absent.
+The `merchant` and `config` namespaces are intentionally absent.
 
 **Serverless warning:** `MemoryTokenStorage` (default) resets on every cold start.
 In serverless or edge environments always provide a persistent `storage` adapter
@@ -732,15 +860,14 @@ All list methods return `{ data, pagination }` — never plain arrays:
 ```ts
 import type { PaginationParams, PaginationMeta } from '@ledewire/node'
 
-const { data, pagination } = await client.seller.content.list(storeId, {
+const { data, pagination } = await client.merchant.content.list(storeId, {
   page: 2,
   per_page: 20,
 })
 // pagination: { total, per_page, current_page, total_pages, next_page, prev_page }
 
 // Affected methods: merchant.users.list, merchant.sales.list, merchant.buyers.list,
-// seller.content.list, seller.content.search, merchant.content.list,
-// merchant.content.search, wallet.transactions, purchases.list,
+// merchant.content.list, merchant.content.search,
 // acquisitions.listWorks, company.purchases.list
 // (Other company.*.list methods return { data } with no pagination.)
 ```
@@ -751,9 +878,9 @@ const { data, pagination } = await client.seller.content.list(storeId, {
 interface ContentListItem {
   id: string
   content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-  // 'brokered' appears on responses only — never accepted by seller.content.create()/update().
+  // 'brokered' appears on responses only — never accepted by merchant.content.create()/update().
   // 'html' is inline (content_body) or remote (content_uri); pdf/image/video/external_ref
-  // always require content_uri. See client.seller.content.create() JSDoc for the full
+  // always require content_uri. See client.merchant.content.create() JSDoc for the full
   // discriminated union.
   title: string
   price_cents: number
@@ -769,7 +896,7 @@ interface ContentListItem {
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean
@@ -816,6 +943,8 @@ import {
   ForbiddenError,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
+  InvalidCursorError,
   SpendCapReachedError,
 } from '@ledewire/node'
 
@@ -825,12 +954,21 @@ class LedewireError extends Error {
   message: string           // human-readable description from API body
   type: ErrorTypeValue | undefined  // machine-readable error.type, e.g. 'daily_spend_cap_reached'
   details: Readonly<Record<string, unknown>> | undefined  // extra top-level error-body fields
+  retryAfter: number | undefined  // seconds from Retry-After (429/503), undefined when absent
 }
 
 class AuthError extends LedewireError {}       // 401 — bad credentials / expired token
 class ForbiddenError extends LedewireError {}  // 403 — authenticated but insufficient access
 class NotFoundError extends LedewireError {}   // 404 — resource not found
 class PurchaseError extends LedewireError {}   // 409/422 — purchase validation failure
+// 429 from any endpoint — e.g. content.search allows 15 searches/min per buyer.
+// retryAfter: seconds from the Retry-After header, undefined when absent.
+class RateLimitError extends LedewireError {}
+// 422 with error.type 'invalid_cursor' — content.search refused its cursor
+// (expired, invalid, older format, or issued for different filters). Matched on
+// error.type only; any other 422 is a plain LedewireError. Drop the cursor and
+// restart the search from the first page.
+class InvalidCursorError extends LedewireError {}
 
 // 402 — daily_spend_cap_reached. Thrown by purchases.create(), the x402
 // content gate, and acquisitions.authorize(). Funding the wallet does NOT
@@ -866,7 +1004,7 @@ const client = createMockClient(vi.fn)
 
 // Wrap individual methods with vi.mocked() to access MockInstance types:
 vi.mocked(client.merchant.auth.loginWithEmail).mockResolvedValue(tokenFixture)
-vi.mocked(client.seller.content.list).mockResolvedValue({ data: [], pagination: { ... } })
+vi.mocked(client.merchant.content.list).mockResolvedValue({ data: [], pagination: { ... } })
 expect(vi.mocked(client.merchant.sales.list).mock.calls).toHaveLength(1)
 ```
 
@@ -880,5 +1018,5 @@ per-call `vi.mocked()` wrappers):
 const client = vi.mocked(createMockClient(vi.fn), true)
 
 client.merchant.auth.loginWithEmail.mockResolvedValue(tokenFixture)
-client.seller.content.list.mockResolvedValue({ data: [], pagination: { ... } })
+client.merchant.content.list.mockResolvedValue({ data: [], pagination: { ... } })
 ```

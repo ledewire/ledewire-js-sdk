@@ -4,35 +4,12 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantDomainVerification } from '@ledewire/core'
-
-/** Request body for adding a domain for verification. */
-export interface MerchantDomainAddRequest {
-  /**
-   * Domain to verify. The `www.` prefix is stripped automatically by the server.
-   * @example 'example.com'
-   */
-  domain: string
-}
-
-/** Request body for triggering DNS verification check. */
-export interface MerchantDomainVerifyRequest {
-  /**
-   * Domain to verify. The `www.` prefix is stripped automatically by the server.
-   * @example 'example.com'
-   */
-  domain: string
-}
-
-/** Response from triggering domain verification. */
-export interface MerchantDomainVerifyResponse {
-  /** Whether the verification job was enqueued. */
-  queued: boolean
-  /** The domain being verified. */
-  domain: string
-  /** Current status at time of enqueueing (not the final result). */
-  status: 'pending' | 'verified' | 'failed'
-}
+import type {
+  MerchantDomainAddRequest,
+  MerchantDomainVerification,
+  MerchantDomainVerifyRequest,
+  MerchantDomainVerifyResponse,
+} from '@ledewire/core'
 
 /**
  * Merchant domains namespace — manage verified domains required by x402 pricing rules.
@@ -91,9 +68,13 @@ export class MerchantDomainsNamespace {
    * The `www.` prefix is stripped automatically — adding `www.example.com`
    * stores `example.com`.
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key is refused.
+   *
    * @param storeId - The merchant store ID.
    * @param body - The domain to add.
    * @returns The created domain verification record with DNS TXT record instructions.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    *
    * @example
    * ```ts
@@ -115,8 +96,12 @@ export class MerchantDomainsNamespace {
    * this domain will stop firing at match time (the platform re-checks domain
    * verification status on each request).
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key is refused.
+   *
    * @param storeId - The merchant store ID.
    * @param id - UUID of the domain verification record to remove.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    */
   async remove(storeId: string, id: string): Promise<void> {
     return this.http.delete(
@@ -134,9 +119,13 @@ export class MerchantDomainsNamespace {
    * This accepts the **domain string** rather than a record ID because the dashboard
    * UI is stateless and does not retain the UUID between "Add domain" and "Verify" steps.
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key is refused.
+   *
    * @param storeId - The merchant store ID.
    * @param body - The domain to verify.
    * @returns An object confirming the job was enqueued and the current status.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    *
    * @example
    * ```ts

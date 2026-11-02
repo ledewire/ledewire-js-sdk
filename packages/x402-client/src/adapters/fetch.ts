@@ -1,4 +1,5 @@
 import type { PaymentSigner } from '../types.js'
+import { parseRetryAfter } from '@ledewire/core'
 import { throwLegacyPaymentError, throwPaymentRefusal } from '../payment-client.js'
 import { parsePaymentRefusal } from '../parse.js'
 
@@ -103,6 +104,10 @@ export function wrapFetchWithPayment(
 
     // Legacy (pre-api#1066): no PAYMENT-RESPONSE header — the refusal lives
     // directly in the response status/body. Remove once api#1066 ships.
-    throwLegacyPaymentError(paidResponse.status, body)
+    throwLegacyPaymentError(
+      paidResponse.status,
+      body,
+      parseRetryAfter(paidResponse.headers.get('Retry-After')),
+    )
   }
 }

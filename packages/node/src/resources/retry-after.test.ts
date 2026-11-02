@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { HttpClient, LedewireError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
+import { RateLimitError } from '../index.js'
 import { PublicationsNamespace } from './publications.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -33,8 +34,23 @@ describe('Retry-After on rate-limited node calls', () => {
     const error = await createClient({ baseUrl: BASE })
       .content.search({ query: 'quantum' })
       .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
     expect(error).toBeInstanceOf(LedewireError)
     expect(error).toMatchObject({ statusCode: 429, retryAfter: 12 })
+  })
+
+  it('content.search throws RateLimitError from a 429 with no Retry-After', async () => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json({ error: { code: 429, message: 'Too many searches' } }, { status: 429 }),
+      ),
+    )
+
+    const error = await createClient({ baseUrl: BASE })
+      .content.search({ query: 'quantum' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: undefined })
   })
 
   it('publications.listWorks exposes retryAfter from a 429', async () => {

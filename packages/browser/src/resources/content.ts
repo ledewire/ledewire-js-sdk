@@ -23,11 +23,14 @@ export class BrowserContentNamespace {
   /**
    * Returns a content item together with access information for the
    * authenticated buyer (or a generic access response when unauthenticated).
+   * The route is buyer-only: `access_info` is always the caller's own, and a
+   * store credential (such as a `@ledewire/node` store API-key session) is refused
+   * with `403`, thrown as `ForbiddenError`.
    *
    * @param id - The content ID.
-   * @returns The content item with access information. `content_body` and
-   * `teaser` are returned as plain UTF-8 text — the SDK decodes base64
-   * transparently so you can render them directly.
+   * @returns The content item with access information. `teaser` is returned
+   * as plain UTF-8 text — the SDK decodes base64 transparently so you can
+   * render it directly. The response never carries the deliverable.
    *
    * @example
    * ```ts

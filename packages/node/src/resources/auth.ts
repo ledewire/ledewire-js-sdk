@@ -16,9 +16,11 @@ import type {
   AuthLoginApiKeyRequest,
   AuthLoginBuyerApiKeyRequest,
   AuthenticationResponse,
+  StoreAuthenticationResponse,
   AuthPasswordResetRequestBody,
   AuthPasswordResetBody,
   AuthPasswordResetResponse,
+  InviteInfoResponse,
 } from '@ledewire/core'
 
 /**
@@ -35,7 +37,7 @@ export class AuthNamespace {
 
   /**
    * Register a new buyer account with email and password.
-   * Tokens are stored automatically after successful signup.
+   * Tokens are stored automatically after successful signup (`201 Created`).
    *
    * Pass `company_invitation_token` (from a Company invitation email) to sign
    * up and join the Company in one step, or `invitation_token` (from a store
@@ -155,30 +157,35 @@ export class AuthNamespace {
   }
 
   /**
-   * Log in using an API key. Provide `secret` alongside `key` for full
+   * Log in using a store API key. Provide `secret` alongside `key` for full
    * (read/write) access; omit it for view (read-only) access.
    * Tokens are stored automatically after successful authentication.
    *
+   * Resolves with `store_id`, the store the key belongs to: pass it to
+   * `client.merchant.*(storeId)`. It comes from the response, and is kept as
+   * `StoredTokens.storeId` (refreshes of this session carry it too).
+   *
    * @example
    * ```ts
-   * // View access
-   * await client.auth.loginWithApiKey({ key: process.env.LEDEWIRE_API_KEY })
-   *
    * // Full access
-   * await client.auth.loginWithApiKey({
+   * const { store_id } = await client.auth.loginWithApiKey({
    *   key: process.env.LEDEWIRE_API_KEY,
    *   secret: process.env.LEDEWIRE_API_SECRET,
    * })
+   * const summary = await client.merchant.sales.summary(store_id)
+   *
+   * // View access
+   * await client.auth.loginWithApiKey({ key: process.env.LEDEWIRE_API_KEY })
    * ```
    */
-  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>(
+  async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<StoreAuthenticationResponse> {
+    const res = await this.http.post<StoreAuthenticationResponse>(
       '/v1/auth/login/api-key',
       body,
       undefined,
       { auth: false },
     )
-    await this.storeTokens(res)
+    await this.storeTokens(res, res.store_id)
     return res
   }
 
@@ -194,7 +201,7 @@ export class AuthNamespace {
    * @example
    * ```ts
    * await client.auth.requestPasswordReset({ email: 'buyer@example.com' })
-   * // → { data: { message: 'If an account with this email exists, a reset code has been sent.' } }
+   * // → { message: 'If an account with this email exists, a reset code has been sent.' }
    * ```
    */
   async requestPasswordReset(
@@ -231,11 +238,43 @@ export class AuthNamespace {
     })
   }
 
-  private async storeTokens(res: AuthenticationResponse): Promise<void> {
+  /**
+   * Look up the pending store invitation behind an emailed `invitation_token`,
+   * so a signup page can show which store it is for before the invitee has an
+   * account. A public call: it sends no `Authorization` header and needs no
+   * session, because the token is the credential. Invitations expire 7 days
+   * after they were sent.
+   *
+   * To act on the invitation, pass the same token as `invitation_token` to
+   * {@link signup} or {@link loginWithGoogle}, or, for an existing merchant,
+   * to `merchant.auth.acceptInvitation()`.
+   *
+   * @param token - The `invitation_token` from the store invitation email.
+   * @returns The invited address, store name, role and expiry.
+   * @throws {NotFoundError} When no invitation has this token (404).
+   * @throws {LedewireError} With `statusCode === 409` when the invitation was
+   *   already accepted, or `statusCode === 410` when it has expired.
+   *
+   * @example
+   * ```ts
+   * const invite = await client.auth.getInviteInfo(token)
+   * console.log(`Join ${invite.store_name} as ${invite.invited_email ?? 'you'}`)
+   * ```
+   */
+  async getInviteInfo(token: string): Promise<InviteInfoResponse> {
+    return this.http.get<InviteInfoResponse>(
+      `/v1/auth/invite-info/${encodeURIComponent(token)}`,
+      undefined,
+      { auth: false },
+    )
+  }
+
+  private async storeTokens(res: AuthenticationResponse, storeId?: string): Promise<void> {
     await this.tokenManager.setTokens({
       accessToken: res.access_token,
       refreshToken: res.refresh_token,
       expiresAt: parseExpiresAt(res.expires_at),
+      ...(storeId !== undefined && { storeId }),
     })
   }
 }

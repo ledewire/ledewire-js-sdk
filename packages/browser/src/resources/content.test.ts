@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { NotFoundError, decodeContentFields } from '@ledewire/core'
+import { ForbiddenError, NotFoundError, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
   contentWithAccessFixture,
-  externalRefContentResponseFixture,
   contentAccessInfoFixture,
 } from '@ledewire/core/test-utils'
 import { init } from '../client.js'
@@ -49,9 +48,34 @@ describe('content.getWithAccess', () => {
     await expect(makeClient().content.getWithAccess('missing')).rejects.toThrow(NotFoundError)
   })
 
-  it('returns external_ref content with content_uri when buyer has purchased', async () => {
+  it('throws ForbiddenError when a store credential calls it (403)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/content/content-id-1/with-access`, () =>
+        HttpResponse.json(errorResponseFixture(1002, 'Invalid Role'), { status: 403 }),
+      ),
+    )
+
+    await expect(makeClient().content.getWithAccess('content-id-1')).rejects.toThrow(ForbiddenError)
+  })
+
+  it('URL-encodes the content id, so an id containing / stays one path segment', async () => {
+    let capturedPath = ''
+    server.use(
+      http.get(`${BASE}/v1/content/:id/with-access`, ({ request }) => {
+        capturedPath = new URL(request.url).pathname
+        return HttpResponse.json(contentWithAccessFixture())
+      }),
+    )
+
+    await makeClient().content.getWithAccess('pub/article-1')
+
+    expect(capturedPath).toBe('/v1/content/pub%2Farticle-1/with-access')
+  })
+
+  it('returns an external_ref item with its resource_url and no deliverable', async () => {
     const fixture = contentWithAccessFixture({
-      ...externalRefContentResponseFixture(),
+      content_type: 'external_ref',
+      resource_url: 'https://vimeo.com/987654321',
       access_info: contentAccessInfoFixture({
         has_purchased: true,
         next_required_action: 'purchase',
@@ -64,26 +88,9 @@ describe('content.getWithAccess', () => {
     const result = await makeClient().content.getWithAccess('content-id-ext-1')
 
     expect(result.content_type).toBe('external_ref')
-    expect(result.content_uri).toBe('https://vimeo.com/987654321')
+    expect(result.resource_url).toBe('https://vimeo.com/987654321')
+    expect(result).not.toHaveProperty('content_uri')
+    expect(result).not.toHaveProperty('content_body')
     expect(result.access_info.has_purchased).toBe(true)
-  })
-
-  it('returns external_ref content without content_uri when buyer has not purchased', async () => {
-    const fixture = contentWithAccessFixture({
-      ...externalRefContentResponseFixture({ content_uri: null }),
-      access_info: contentAccessInfoFixture({
-        has_purchased: false,
-        next_required_action: 'purchase',
-      }),
-    })
-    server.use(
-      http.get(`${BASE}/v1/content/content-id-ext-1/with-access`, () => HttpResponse.json(fixture)),
-    )
-
-    const result = await makeClient().content.getWithAccess('content-id-ext-1')
-
-    expect(result.content_type).toBe('external_ref')
-    expect(result.content_uri).toBeNull()
-    expect(result.access_info.has_purchased).toBe(false)
   })
 })

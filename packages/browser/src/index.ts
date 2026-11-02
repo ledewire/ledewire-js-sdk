@@ -41,6 +41,10 @@ export type {
   NextRequiredAction,
   PurchaseCreateRequest,
   PurchaseResponse,
+  PurchaseLicense,
+  PurchasePublication,
+  ContentSearchFiling,
+  LicenseDocument,
   StoredTokens,
   TokenStorage,
   WalletBalanceResponse,
@@ -91,10 +95,12 @@ export type {
 export {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   MemoryTokenStorage,
   NotFoundError,
   PurchaseError,
+  RateLimitError,
   SpendCapReachedError,
   parseExpiresAt,
 } from '@ledewire/core'
@@ -104,7 +110,6 @@ export { init } from './client.js'
 export { localStorageAdapter } from './local-storage-adapter.js'
 export { sessionStorageAdapter } from './session-storage-adapter.js'
 export type { BrowserClientConfig } from './client.js'
-export type { SellerContentSearchRequest } from './resources/seller/content.js'
 export type {
   AuthPasswordResetBody,
   AuthPasswordResetRequestBody,

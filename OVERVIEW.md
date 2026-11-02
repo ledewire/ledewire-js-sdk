@@ -28,7 +28,7 @@ ledewire-js-sdk/
 ├── packages/
 │   ├── core/          # Shared: HTTP client, token manager, types, error classes
 │   ├── browser/       # CDN bundle — buyer-focused (auth, content, wallet, purchases)
-│   └── node/          # npm package — full API surface (merchant + seller + buyer)
+│   └── node/          # npm package — full API surface (merchant + buyer)
 ├── docs/              # Docusaurus documentation site
 ├── .github/
 │   └── workflows/     # CI/CD pipelines
@@ -129,9 +129,10 @@ const lw = createBrowserClient({ apiKey: 'your_api_key' })
 ```js
 import { createClient } from '@ledewire/node';
 
-// Seller / store operations (API key auth)
-const client = createClient({ apiKey: 'key', apiSecret: 'secret' });
-const content = await client.seller.content.create({ title: 'My Article', ... });
+// Store operations with a store API key (client.merchant.* takes the store id)
+const client = createClient();
+await client.auth.loginWithApiKey({ key: 'key', secret: 'secret' });
+const content = await client.merchant.content.create(storeId, { title: 'My Article', ... });
 
 // Merchant operations (email/password auth)
 const merchant = await createClient().merchant.loginWithEmail({ email, password });
@@ -177,10 +178,10 @@ Every API error throws a `LedewireError` with:
 
 ```js
 try {
-  await lw.purchases.create({ contentId: '...' })
+  await lw.purchases.create({ content_id: '...', price_cents: 250 })
 } catch (err) {
-  if (err instanceof LedewireError && err.statusCode === 400) {
-    // Handle insufficient funds, already purchased, etc.
+  if (err instanceof LedewireError && err.statusCode === 422) {
+    // Price changed, insufficient funds, etc. (see err.type)
   }
 }
 ```
@@ -191,7 +192,7 @@ try {
 import { AuthError, InsufficientFundsError, PriceMismatchError } from '@ledewire/node';
 
 try {
-  await client.purchases.create({ contentId: '...' });
+  await client.purchases.create({ content_id: '...', price_cents: 250 });
 } catch (err) {
   if (err instanceof InsufficientFundsError) { ... }
   if (err instanceof PriceMismatchError) { ... }

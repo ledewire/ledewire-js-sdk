@@ -166,9 +166,14 @@ pnpm add @ledewire/node</code></pre>
         </thead>
         <tbody>
           <tr>
-            <td><strong>API key + secret</strong></td>
-            <td>Seller operations: automated content publishing, sales dashboards</td>
-            <td><code>apiKey</code> + <code>apiSecret</code></td>
+            <td><strong>Store API key + secret</strong></td>
+            <td>
+              Automated content publishing, sales dashboards via <code>client.merchant.*</code>
+            </td>
+            <td>
+              Pass <code>apiKey</code> / <code>apiSecret</code> to <code>createClient()</code>, or
+              call <code>client.auth.loginWithApiKey()</code>
+            </td>
           </tr>
           <tr>
             <td><strong>Email / password</strong></td>
@@ -183,18 +188,137 @@ pnpm add @ledewire/node</code></pre>
         </tbody>
       </table>
 
-      <h3>Quick start — seller (API key)</h3>
+      <h3>Quick start — store API key</h3>
       <pre><code>import { createClient } from '@ledewire/node'
 
 const client = createClient({
-  apiKey: process.env.LEDEWIRE_API_KEY,
-  apiSecret: process.env.LEDEWIRE_API_SECRET,
   onAuthExpired: () => { throw new Error('Session expired') },
 })
+// The login resolves with the key's store_id: pass it to client.merchant.*
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+})
 
-// List your content
-const items = await client.seller.content.list()
-console.log(items)</code></pre>
+const summary = await client.merchant.sales.summary(store_id)
+const { data } = await client.merchant.content.list(store_id)
+console.log(summary, data)</code></pre>
+      <p>
+        Passing <code>apiKey</code> and <code>apiSecret</code> (omit the secret for a
+        <code>view</code> key) to <code>createClient()</code> logs in automatically. Construction
+        sends nothing; the client logs in with the key before its first authenticated request when
+        no token is stored, and concurrent first requests share one login. When a refresh fails
+        later, it logs in with the key again and retries the request once.
+        <code>onAuthExpired</code> fires only when an automatic login fails, once per failed
+        attempt. A refused key rejects the request with an <code>AuthError</code> carrying the
+        API's message.
+      </p>
+      <p>
+        On a client created with <code>apiKey</code>, clearing the stored tokens doesn't drop the
+        credentials: the next request logs in again. To stop for good, create a client without
+        <code>apiKey</code>. Don't mix another login (email, Google, merchant) on an
+        <code>apiKey</code> client: if that session's refresh fails, the client falls back to the
+        store key.
+      </p>
+      <p>
+        To get the key's <code>store_id</code>, call <code>loginWithApiKey()</code> once yourself,
+        as above. The client then holds a token, so it doesn't log in again.
+      </p>
+      <pre><code>const client = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+}) // the only login: the client already holds a token for its requests
+const summary = await client.merchant.sales.summary(store_id)</code></pre>
+
+      <h3 id="full-and-view-keys">Full and view keys</h3>
+      <p>
+        A store API key logged in with its secret has <code>full</code> permission; logged in with
+        the key alone it has <code>view</code> permission. Reads work with either. Content writes,
+        member admin and x402 setup need a <strong>full</strong> key (or an owner's merchant
+        login), and a <code>view</code> key gets a <code>403</code> <code>ForbiddenError</code>:
+      </p>
+      <ul>
+        <li>
+          <code>merchant.content.create</code>, <code>update</code>, <code>delete</code> (an
+          <code>is_author</code> member may also write, but only their own items)
+        </li>
+        <li>
+          <code>merchant.users.list</code>, <code>invite</code>, <code>update</code>,
+          <code>remove</code>
+        </li>
+        <li><code>merchant.pricingRules.create</code>, <code>deactivate</code></li>
+        <li>
+          <code>merchant.domains.add</code>, <code>verify</code>, <code>remove</code>
+        </li>
+      </ul>
+
+      <h3 id="store-invitations">Store invitations</h3>
+      <p>
+        <code>merchant.users.invite()</code> emails an <code>invitation_token</code> to someone
+        without an account. A signup page can show the invitation first with the public
+        <code>client.auth.getInviteInfo(token)</code>, which sends no credentials. The invitee
+        then joins through <code>client.auth.signup()</code> or
+        <code>client.auth.loginWithGoogle()</code> with <code>invitation_token</code>, or, already
+        a merchant, through <code>client.merchant.auth.acceptInvitation()</code>. A refused
+        invitation carries <code>err.type === 'invitation_not_accepted'</code> and the reason in
+        <code>err.details.reason</code>.
+      </p>
+      <pre><code>const invite = await client.auth.getInviteInfo(token) // 404 unknown, 409 used, 410 expired
+console.log(`Join ${invite.store_name}`)
+
+await client.merchant.auth.loginWithEmail({ email, password })
+const membership = await client.merchant.auth.acceptInvitation({ invitation_token: token })</code></pre>
+
+      <h3 id="migrating-from-client-seller">Migrating from <code>client.seller</code></h3>
+      <p>
+        <code>client.seller</code> has been removed: the API retired <code>/v1/seller/*</code>, and
+        <code>client.merchant.*</code> accepts store API-key tokens. Every replacement takes the
+        store's id as its first argument, and <code>loginWithApiKey</code> resolves with it:
+      </p>
+      <pre><code>const { store_id } = await client.auth.loginWithApiKey({ key, secret })
+const summary = await client.merchant.sales.summary(store_id)</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Before</th>
+            <th>After</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>seller.sales.summary()</code></td>
+            <td><code>merchant.sales.summary(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.sales.list()</code></td>
+            <td><code>merchant.sales.list(storeId)</code> (paginated, one row per content item)</td>
+          </tr>
+          <tr>
+            <td><code>seller.buyers.list()</code></td>
+            <td><code>merchant.buyers.list(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.config.get()</code></td>
+            <td><code>merchant.config.get(storeId)</code></td>
+          </tr>
+          <tr>
+            <td><code>seller.content.*(storeId, …)</code></td>
+            <td><code>merchant.content.*(storeId, …)</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The seller-shaped search request is now only <code>MerchantContentSearchRequest</code>;
+        <code>ContentSearchRequest</code> names the buyer search request that
+        <code>client.content.search()</code> takes. In <code>@ledewire/browser</code>,
+        <code>lw.seller</code> (including <code>lw.seller.loginWithApiKey</code> and
+        <code>lw.seller.content.*</code>) has been removed: the browser SDK is buyer-only, and a
+        store API key does not belong in a browser.
+      </p>
 
       <h3>Quick start — merchant (email login)</h3>
       <pre><code>import { createClient } from '@ledewire/node'
@@ -221,7 +345,7 @@ console.log(`Revenue: ${summary.total_revenue_cents / 100} USD`)</code></pre>
       <pre><code>import { createClient, LedewireError, NotFoundError, AuthError } from '@ledewire/node'
 
 try {
-  const content = await client.seller.content.get('some-id')
+  const content = await client.merchant.content.get(storeId, 'some-id')
 } catch (err) {
   if (err instanceof NotFoundError) {
     console.log('Content not found')
@@ -244,7 +368,7 @@ try {
       <pre><code>import { SpendCapReachedError } from '@ledewire/node'
 
 try {
-  await client.purchases.create({ content_id })
+  await client.purchases.create({ content_id, price_cents })
 } catch (err) {
   if (err instanceof SpendCapReachedError) {
     console.error(`Spend cap reached; resets at ${err.resetsAt}`)
@@ -263,14 +387,15 @@ try {
           <tr>
             <td><code>client.auth.*</code></td>
             <td>
-              signup, loginWithEmail, loginWithGoogle, logout, requestPasswordReset, resetPassword
+              signup, loginWithEmail, loginWithGoogle, loginWithBuyerApiKey, loginWithApiKey,
+              requestPasswordReset, resetPassword, getInviteInfo
             </td>
           </tr>
           <tr>
             <td><code>client.merchant.auth.*</code></td>
             <td>
               loginWithEmail, loginWithGoogle, listStores, loginWithEmailAndListStores,
-              loginWithGoogleAndListStores, requestPasswordReset, resetPassword
+              loginWithGoogleAndListStores, requestPasswordReset, resetPassword, acceptInvitation
             </td>
           </tr>
           <tr>
@@ -279,14 +404,14 @@ try {
           </tr>
           <tr>
             <td><code>client.merchant.sales.*</code></td>
-            <td>summary, list, get, statistics</td>
+            <td>summary, list, get</td>
           </tr>
           <tr>
             <td><code>client.merchant.config.*</code></td>
             <td>get</td>
           </tr>
           <tr>
-            <td><code>client.seller.content.*</code></td>
+            <td><code>client.merchant.content.*</code></td>
             <td>create, list, get, update, delete, search</td>
           </tr>
           <tr>
@@ -295,11 +420,11 @@ try {
           </tr>
           <tr>
             <td><code>client.purchases.*</code></td>
-            <td>create, list, get (single-use delivery — see below)</td>
+            <td>create, list, get (single-use delivery — see below), verify, licenseDocument</td>
           </tr>
           <tr>
             <td><code>client.content.*</code></td>
-            <td>getWithAccess</td>
+            <td>getWithAccess (buyer token only; a store credential gets 403), search</td>
           </tr>
           <tr>
             <td><code>client.checkout.*</code></td>
@@ -322,7 +447,7 @@ try {
           </tr>
           <tr>
             <td><code>client.publications.*</code></td>
-            <td>list, listWorks</td>
+            <td>list, get, listWorks</td>
           </tr>
           <tr>
             <td><code>client.acquisitions.*</code></td>
@@ -333,7 +458,7 @@ try {
           </tr>
           <tr>
             <td><code>client.x402.*</code></td>
-            <td>discoverResources</td>
+            <td>discoverResources, verifyOrigin, getJwks</td>
           </tr>
         </tbody>
       </table>
@@ -346,7 +471,9 @@ try {
         <code>get()</code> — persist the delivery immediately, there is no route that serves it a
         second time.
       </p>
-      <pre><code>const purchase = await client.purchases.create({ content_id: 'content-id' })
+      <pre><code>// price_cents is the price the buyer was shown; a stale one is refused (422)
+const { price_cents } = await client.content.getWithAccess('content-id')
+const purchase = await client.purchases.create({ content_id: 'content-id', price_cents })
 await saveDeliveredContent(purchase) // one-time delivery
 
 if (purchase.content_body) {
@@ -354,6 +481,82 @@ if (purchase.content_body) {
 } else if (purchase.content_uri) {
   // Check the scheme before following or linking to it.
 }</code></pre>
+
+      <h3>Purchase licences</h3>
+      <p>
+        Every purchase carries <code>license</code>: a
+        <code>PurchaseLicense</code> (<code>type</code>, <code>permissions</code>,
+        <code>document_url</code>) exactly as the work's source granted it, or
+        <code>null</code> when none was recorded (every Store work, and older brokered purchases).
+        <code>null</code> means “not recorded”, never “no rights granted”.
+        <code>license.type</code> is the source's own value, such as <code>ON_DEMAND_LICENSE</code>,
+        <code>ON_DEMAND_FULL_USE_LICENSE</code> or <code>public-domain</code> for an SEC filing.
+        <code>content.publication</code> names a brokered work's Publication, and
+        <code>content.filing</code> describes an SEC filing; both are <code>null</code> otherwise.
+      </p>
+      <p>
+        <code>client.purchases.licenseDocument(id)</code> downloads the document
+        <code>license.document_url</code> points at. It is not JSON: it resolves to
+        <code>{ body: ArrayBuffer, contentType }</code>, usually <code>application/pdf</code>, or
+        <code>text/markdown</code> for an SEC filing's terms. A missing, incomplete or uncaptured
+        purchase throws <code>NotFoundError</code>; a non-buyer credential throws
+        <code>ForbiddenError</code>.
+      </p>
+      <pre><code>import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  const ext = contentType.startsWith('application/pdf')
+    ? 'pdf'
+    : contentType.startsWith('text/markdown')
+      ? 'md'
+      : 'bin'
+  const file = `licence.${ext}`
+  await writeFile(file, Buffer.from(body))
+}</code></pre>
+
+      <h3>Buyer content search</h3>
+      <p>
+        <code>client.content.search()</code> takes a <code>ContentSearchRequest</code> and
+        searches every Store and brokered Publication. Page
+        with <code>next_cursor</code>, sending the same filters, until it is <code>null</code>.
+        <code>publication</code> keeps one Publication's works (its id, or its exact name).
+        <code>form_type</code>, <code>ticker</code> and <code>cik</code> return only SEC EDGAR
+        filings, and <code>query</code> may then be left out to list them newest first. Each
+        result's <code>filing</code> gives the filer, ticker, CIK, form, filing date, period of
+        report and accession number, and is <code>null</code> for every other work.
+        Only Buyers whose Company subscribes to SEC filings are shown filings: for any other Buyer these filters return no results.
+      </p>
+      <pre><code>// Apple's annual reports, amendments (10-K/A) included.
+let cursor
+do {
+  const page = await client.content.search({ ticker: 'AAPL', form_type: '10-K', cursor })
+  for (const result of page.data) {
+    console.log(result.filing?.form_type, result.filing?.filing_date, result.title)
+  }
+  cursor = page.next_cursor
+} while (cursor)</code></pre>
+      <p>
+        A cursor lasts 24 hours and fits only the search that issued it. One that is expired,
+        invalid, or sent with different filters throws <code>InvalidCursorError</code>
+        (<code>statusCode</code> 422, <code>type</code> <code>'invalid_cursor'</code>), and nothing
+        is searched. Drop the cursor and restart the search from the first page: the same cursor
+        never succeeds on retry.
+      </p>
+      <pre><code>import { InvalidCursorError } from '@ledewire/node'
+
+try {
+  page = await client.content.search({ ticker: 'AAPL', form_type: '10-K', cursor })
+} catch (err) {
+  if (!(err instanceof InvalidCursorError)) throw err
+  page = await client.content.search({ ticker: 'AAPL', form_type: '10-K' }) // restart
+}</code></pre>
+      <p>
+        <code>client.publications.list()</code> and <code>get()</code> are sent without credentials,
+        so they return the public catalog. The API shows SEC EDGAR there only to a Buyer whose
+        Company holds a Subscription; search filings with the filters above instead.
+      </p>
 
       <h3>Bulk licensing (agents)</h3>
       <p>

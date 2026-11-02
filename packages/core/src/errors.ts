@@ -37,7 +37,7 @@ const ERROR_BRAND = Symbol.for('@ledewire/error-brands')
  * @example
  * ```ts
  * try {
- *   await client.purchases.create({ contentId: '...' })
+ *   await client.purchases.create({ content_id: 'content-id', price_cents: 250 })
  * } catch (err) {
  *   if (err instanceof LedewireError) {
  *     console.error(err.statusCode, err.message)
@@ -250,6 +250,79 @@ export class NotFoundError extends LedewireError {
 }
 
 /**
+ * Thrown for any HTTP `429 Too Many Requests` refusal: the caller has sent
+ * more requests than an endpoint allows in its window. `content.search`, for
+ * example, allows 15 searches a minute per buyer.
+ *
+ * {@link LedewireError.retryAfter} carries the response's `Retry-After`
+ * header as seconds to wait, or `undefined` when the response sent none (back
+ * off on your own schedule then). It is still an `instanceof LedewireError`
+ * with `statusCode` 429, so existing `statusCode === 429` checks keep working.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await client.content.search({ query: 'quantum computing' })
+ * } catch (err) {
+ *   if (err instanceof RateLimitError) {
+ *     const seconds = err.retryAfter ?? 60
+ *     console.warn(`Rate limited — retry in ${seconds}s`)
+ *   }
+ * }
+ * ```
+ */
+export class RateLimitError extends LedewireError {
+  static override readonly brand: string = 'RateLimitError'
+
+  constructor(
+    message: string,
+    code?: number,
+    type?: ErrorTypeValue,
+    details?: Record<string, unknown>,
+    retryAfter?: number,
+  ) {
+    super(message, 429, code, type, details, retryAfter)
+    this.name = 'RateLimitError'
+  }
+}
+
+/**
+ * Thrown when `content.search` refuses its `cursor`: HTTP `422` whose API error
+ * body's `error.type` is `'invalid_cursor'`. The cursor is invalid, expired (they
+ * last 24 hours), in an older format, or was issued for a different `query`,
+ * `tags`, `max_price_cents`, `metadata`, `publication`, `form_type`, `ticker`,
+ * `cik` or `limit`. Nothing was searched.
+ *
+ * The remedy is the same for every reason: drop the cursor and start the search
+ * again from the first page, without one. The same cursor never succeeds on
+ * retry. `message` says which reason applied, as prose; branch on the class, not
+ * on the message.
+ *
+ * Matched on `error.type` alone. Any other `422` stays a plain {@link LedewireError}.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   page = await client.content.search({ query, cursor })
+ * } catch (err) {
+ *   if (err instanceof InvalidCursorError) {
+ *     page = await client.content.search({ query }) // restart from the first page
+ *   } else {
+ *     throw err
+ *   }
+ * }
+ * ```
+ */
+export class InvalidCursorError extends LedewireError {
+  static override readonly brand: string = 'InvalidCursorError'
+
+  constructor(message: string, code?: number, details?: Record<string, unknown>) {
+    super(message, 422, code, 'invalid_cursor', details)
+    this.name = 'InvalidCursorError'
+  }
+}
+
+/**
  * Thrown when the purchase cannot be completed due to a validation
  * failure, such as a price mismatch or a duplicate purchase.
  */
@@ -284,7 +357,7 @@ export class PurchaseError extends LedewireError {
  * @example
  * ```ts
  * try {
- *   await client.purchases.create({ content_id })
+ *   await client.purchases.create({ content_id, price_cents })
  * } catch (err) {
  *   if (err instanceof SpendCapReachedError) {
  *     // Do NOT prompt the buyer to fund their wallet — that won't help.

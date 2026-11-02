@@ -63,3 +63,23 @@ export class InsufficientFundsError extends LedewireError {
     this.name = 'InsufficientFundsError'
   }
 }
+
+/**
+ * Extracts a human-readable message from a parsed API error body, tolerating
+ * both shapes seen in the wild: `{ error: "string" }` (some legacy Ledewire
+ * responses) and `{ error: { code, message, type } }` (the documented
+ * `ErrorResponse` envelope). Falls back to `fallback` — never throws.
+ *
+ * @param body - Parsed JSON body of an error response, or `undefined`/`null`.
+ * @param fallback - Message to use when the body carries no usable string.
+ */
+export function extractApiErrorMessage(body: unknown, fallback: string): string {
+  if (!body || typeof body !== 'object') return fallback
+  const raw = (body as Record<string, unknown>)['error']
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') {
+    const message = (raw as Record<string, unknown>)['message']
+    if (typeof message === 'string') return message
+  }
+  return fallback
+}

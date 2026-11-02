@@ -265,7 +265,7 @@ try {
 }
 ```
 
-`AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError` are re-exported from
+`AuthError`, `ForbiddenError`, `LedewireError`, `RateLimitError`, and `SpendCapReachedError` are re-exported from
 `@ledewire/core` — LedeWire's private shared internals, not published to npm. Always import them
 from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` directly.
 
@@ -278,6 +278,7 @@ from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` 
 | `NonceExpiredError`             | —                                       | Payment nonce expired before retry — simply retry `fetch()`     |
 | `UnsupportedSchemeError`        | —                                       | 402 response uses a non-`ledewire-wallet` scheme                |
 | `MalformedPaymentRequiredError` | —                                       | `PAYMENT-REQUIRED` header is invalid or missing required fields |
+| `RateLimitError`                | — (HTTP `429`)                          | Paid retry or buyer-key login rate-limited — see `.retryAfter`  |
 | `PaymentOriginNotAllowedError`  | —                                       | `buildPaymentSignature` called for a URL off the configured API |
 | `LedewireError`                 | any other value, on `err.type`          | All other Ledewire API errors — check `.statusCode`/`.type`     |
 
@@ -285,6 +286,9 @@ from `@ledewire/x402-client` (or `@ledewire/node`), never from `@ledewire/core` 
 header on the paid leg, the same errors are inferred from the bare response instead — a `402`
 spend-cap body maps to `SpendCapReachedError`, `422` to `InsufficientFundsError`, `401` to
 `AuthError`, and `403` to `ForbiddenError`.
+
+A failed buyer-key login (a wrong key or secret) rejects with `AuthError` before the paid retry,
+and `err.message` is the API's own message.
 
 A `402` on the _first_ (unpaid) request always means "here's your `PAYMENT-REQUIRED` challenge" —
 the API never refuses that first request, so a bare `402` with no `PAYMENT-REQUIRED` header

@@ -69,7 +69,7 @@
         } else if (action === 'purchase') {
           document.getElementById('status').textContent = 'Purchase this article to read the full content.'
           btn.textContent = 'Buy article'
-          btn.onclick = () => purchase()
+          btn.onclick = () => purchase(state.price_cents)
         }
       }
 
@@ -103,19 +103,21 @@
         //      // On form submit:
         //      await stripe.confirmPayment({ elements, confirmParams: { return_url: '...' } })
         //
-        // After Stripe confirms payment, poll getPaymentStatus until it's 'succeeded':
+        // After Stripe confirms payment, poll getPaymentStatus until it's 'completed':
         const status = await lw.wallet.getPaymentStatus(session.session_id)
-        console.log('Payment status:', status.payment_status)
-        // Once status.payment_status === 'succeeded', the wallet is funded.
+        console.log('Payment status:', status.status)
+        // Once status.status === 'completed', the wallet is funded.
         await checkAccess()
       }
 
-      async function purchase() {
+      async function purchase(priceCents) {
         // Purchases are single-use: the content is delivered directly in
         // this response, and this is the only place it will ever appear —
         // there is no route that serves the same delivery again, so persist
         // it immediately if you need it beyond this page view.
-        const purchase = await lw.purchases.create({ content_id: CONTENT_ID })
+        // priceCents is the price the buyer was quoted (checkout state). If the Seller
+        // has changed it since, the API refuses (422) and charges nothing.
+        const purchase = await lw.purchases.create({ content_id: CONTENT_ID, price_cents: priceCents })
         renderContent(purchase)
       }
 

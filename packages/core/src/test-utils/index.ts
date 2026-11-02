@@ -5,3 +5,4 @@
  */
 export * from './server.js'
 export * from './fixtures.js'
+export type * from './spec-types.js'

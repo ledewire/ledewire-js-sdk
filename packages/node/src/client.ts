@@ -16,7 +16,6 @@ import { MerchantNamespace } from './resources/merchant/index.js'
 import { PublicationsNamespace } from './resources/publications.js'
 import { TopicsNamespace } from './resources/topics.js'
 import { PurchasesNamespace } from './resources/purchases.js'
-import { SellerNamespace } from './resources/seller/index.js'
 import { UserNamespace } from './resources/user/index.js'
 import { WalletNamespace } from './resources/wallet.js'
 import { X402Namespace } from './resources/x402.js'
@@ -26,15 +25,34 @@ import { X402Namespace } from './resources/x402.js'
  */
 export interface NodeClientConfig {
   /**
-   * LedeWire API key.
-   * Required for all seller and buyer operations.
-   * Omit when using merchant email/password auth exclusively.
+   * Store API key. When set, the client logs in with it automatically
+   * (`POST /v1/auth/login/api-key`), the same login as
+   * `client.auth.loginWithApiKey()`:
+   *
+   * - before its first authenticated request, when no token is stored
+   *   (construction itself sends nothing; concurrent first requests share one login)
+   * - again when a token refresh fails, retrying the request once
+   *
+   * A client that already holds a token (from `storage`, or an explicit login)
+   * does not log in. A refused key rejects the request with an `AuthError`
+   * carrying the API's message, and `onAuthExpired` fires once per failed login.
+   *
+   * On a client created with `apiKey`, clearing the stored tokens doesn't drop
+   * the credentials: the next request logs in again. To stop for good, create a
+   * client without `apiKey`. Don't mix another login (email, Google, merchant)
+   * on an `apiKey` client: if that session's refresh fails, the client falls
+   * back to the store key.
+   *
+   * To read the key's `store_id`, call `client.auth.loginWithApiKey()` once
+   * yourself; the client then holds a token and doesn't log in again.
+   *
+   * Omit when using merchant email/password or buyer auth.
    */
   apiKey?: string
   /**
-   * LedeWire API secret.
-   * When combined with `apiKey`, grants `full` (read/write) seller permission.
-   * When omitted, `apiKey` alone grants `view` (read-only) seller permission.
+   * Secret paired with `apiKey`, sent with the automatic login.
+   * When combined with `apiKey`, grants `full` (read/write) store permission.
+   * When omitted, `apiKey` alone grants `view` (read-only) store permission.
    */
   apiSecret?: string
   /**
@@ -92,6 +110,8 @@ export interface NodeClientConfig {
   /**
    * Called when the session fully expires and cannot be refreshed.
    * Handle this by prompting the user to re-authenticate.
+   * With `apiKey` set, the client logs in again with the key instead, and this
+   * fires only when an automatic login fails (once per failed attempt).
    */
   onAuthExpired?: () => void | Promise<void>
 }
@@ -99,13 +119,20 @@ export interface NodeClientConfig {
 /**
  * Creates a fully configured LedeWire Node.js client.
  *
- * @example API key + secret (seller / buyer access):
+ * @example Store API key + secret (logs in automatically on the first request):
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
  * const client = createClient({
  *   apiKey: process.env.LEDEWIRE_API_KEY,
  *   apiSecret: process.env.LEDEWIRE_API_SECRET,
+ * })
+ * const sales = await client.merchant.sales.list(storeId)
+ *
+ * // Need the key's store_id? Log in explicitly once; the client won't repeat it.
+ * const { store_id } = await client.auth.loginWithApiKey({
+ *   key: process.env.LEDEWIRE_API_KEY,
+ *   secret: process.env.LEDEWIRE_API_SECRET,
  * })
  * ```
  *
@@ -155,11 +182,28 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
     )
   }
 
+  // A store API key logs in by itself, through the same `loginWithApiKey` an
+  // explicit login uses (a credential exchange, so it never re-enters the
+  // token manager). `client` is read only when a request needs a token, by
+  // which point it is constructed below.
+  const { apiKey, apiSecret } = config
+  const login =
+    apiKey === undefined
+      ? undefined
+      : async (): Promise<string> => {
+          const res = await client.auth.loginWithApiKey({
+            key: apiKey,
+            ...(apiSecret !== undefined && { secret: apiSecret }),
+          })
+          return res.access_token
+        }
+
   const tokenManager = new TokenManager({
     storage,
     refreshFn: createRefreshFn(baseUrl),
     ...(config.onTokenRefreshed !== undefined && { onTokenRefreshed: config.onTokenRefreshed }),
     ...(config.onAuthExpired !== undefined && { onAuthExpired: config.onAuthExpired }),
+    ...(login !== undefined && { login }),
   })
 
   const http = new HttpClient({
@@ -168,7 +212,8 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
     onUnauthorized: () => tokenManager.handleUnauthorized(),
   })
 
-  return new NodeClient(http, tokenManager, config)
+  const client = new NodeClient(http, tokenManager, config)
+  return client
 }
 
 /**
@@ -187,9 +232,6 @@ export class NodeClient {
 
   /** Merchant operations: store auth, team management, content, sales */
   readonly merchant: MerchantNamespace
-
-  /** Seller content and sales management (API key auth) */
-  readonly seller: SellerNamespace
 
   /** Buyer wallet: balance, fund, transactions */
   readonly wallet: WalletNamespace
@@ -230,7 +272,6 @@ export class NodeClient {
     this.config = new ConfigNamespace(_http)
     this.auth = new AuthNamespace(_http, _tokenManager)
     this.merchant = new MerchantNamespace(_http, _tokenManager)
-    this.seller = new SellerNamespace(_http)
     this.wallet = new WalletNamespace(_http)
     this.purchases = new PurchasesNamespace(_http)
     this.content = new ContentNamespace(_http)
@@ -309,8 +350,8 @@ export type AgentClient = Pick<
  * `TokenManager` then refreshes it proactively in the background — the agent
  * never needs to call `auth.loginWithBuyerApiKey()` manually.
  *
- * Only buyer-relevant namespaces are exposed. `merchant`, `seller`, and
- * `config` are intentionally absent.
+ * Only buyer-relevant namespaces are exposed. `merchant` and `config` are
+ * intentionally absent.
  *
  * @example
  * ```ts
@@ -327,12 +368,16 @@ export type AgentClient = Pick<
  *   secret: process.env.LEDEWIRE_BUYER_SECRET,
  * })
  *
- * const balance = await agent.wallet.balance()
- * const purchase = await agent.purchases.create({
- *   content_id: 'abc123',
- *   price_cents: 150,
- * })
- * const content = await agent.content.getWithAccess(purchase.content_id)
+ * // Check access before buying: a preview and access_info, never the deliverable
+ * const preview = await agent.content.getWithAccess('abc123')
+ * if (preview.access_info.next_required_action === 'purchase') {
+ *   // The purchase response is the only delivery (single-use): keep it now
+ *   const purchase = await agent.purchases.create({
+ *     content_id: preview.id,
+ *     price_cents: preview.price_cents,
+ *   })
+ *   const deliverable = purchase.content_body ?? purchase.content_uri
+ * }
  * ```
  */
 export function createAgentClient(config: AgentClientConfig): AgentClient {

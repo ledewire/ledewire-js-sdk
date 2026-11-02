@@ -43,6 +43,45 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/.well-known/oauth-protected-resource/v1/mcp': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * OAuth 2.0 Protected Resource Metadata (RFC 9728)
+     * @description Names the MCP endpoint as the protected resource and this server as its authorization server. This is the RFC 9728 path-suffixed URL the `/v1/mcp` 401 challenge names in `resource_metadata`. There is no root `/.well-known/oauth-protected-resource`: §3.3 makes a client discard a document whose `resource` differs from the URL it was fetched for.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description Protected resource metadata */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthProtectedResourceMetadata']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/oauth/register': {
     parameters: {
       query?: never
@@ -82,7 +121,7 @@ export interface paths {
             'application/json': components['schemas']['OauthClientRegistrationResponse']
           }
         }
-        /** @description `invalid_redirect_uri` when a redirect URI is missing, malformed, carries a fragment, or is http on a non-loopback host. `invalid_client_metadata` for any other unusable metadata, including a `token_endpoint_auth_method` other than `none`. */
+        /** @description `invalid_redirect_uri` when a redirect URI is missing, malformed, longer than 2000 characters, carries a fragment, or is http on a non-loopback host. `invalid_client_metadata` for any other unusable metadata, including more than 10 `redirect_uris`, a `token_endpoint_auth_method` other than `none`, a `client_name` over 255 characters, or a descriptive field over its bounds (500 characters per string, 10 entries per array). */
         400: {
           headers: {
             [name: string]: unknown
@@ -94,9 +133,324 @@ export interface paths {
         /** @description Rate limit exceeded (5 registrations per minute per IP). */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTooManyRequestsResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/oauth/authorize': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * OAuth authorization (consent page)
+     * @description A browser flow, not an API call: a person's browser is sent here by the MCP client and answered with an HTML consent page.
+     *
+     *     `redirect_uri` is checked by who the client is. A registered client (an `lwc_` id from `POST /oauth/register`) must have registered it. A `client_id` that is an https URL is treated as a Client ID Metadata Document: the document is fetched (3-second timeout, private and loopback hosts refused) and must list the URI in its `redirect_uris`. Any other client, including none, may only redirect to `localhost` or `127.0.0.1`.
+     */
+    get: {
+      parameters: {
+        query: {
+          /** @description Where the code is sent. See the description for which URIs a client may use. */
+          redirect_uri: string
+          /** @description PKCE code challenge, `BASE64URL(SHA256(code_verifier))`. */
+          code_challenge: string
+          /** @description Must be `S256` (compared case-insensitively). */
+          code_challenge_method: 'S256' | 's256'
+          /** @description A registered `lwc_` client id, an https Client ID Metadata Document URL, or omitted. */
+          client_id?: string
+          /** @description Conventionally `code`; not validated. */
+          response_type?: string
+          /** @description Space-delimited. Of `mcp:search mcp:purchase mcp:manage_content mcp:analytics`; anything else is dropped. */
+          scope?: string
+          /** @description Echoed back on the redirect. */
+          state?: string
+        }
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The consent page. The parameters are kept in the browser session for the steps that follow. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/html': string
+          }
+        }
+        /** @description The authorization parameters are unusable. Answered as JSON, not HTML: `redirect_uri is required`, `code_challenge is required`, `code_challenge_method must be S256`, `redirect_uri not registered for this client_id`, `client_id metadata fetch failed`, `redirect_uri not permitted by client_id metadata` or `redirect_uri must be localhost`. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthAuthorizeErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    /**
+     * OAuth consent submission
+     * @description The consent page's form post — a browser flow, not an API call, and it requires the page's CSRF token. Carries the same authorization parameters as `GET /oauth/authorize`, validated the same way, plus the person's credentials: `email` and `password`, or nothing when `POST /oauth/authorize/google` has already verified them in this session. A person who holds more than one store must also choose one with `store_id`. On success the browser is redirected to `redirect_uri` with `code` (valid 10 minutes, single use) and `state`.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/x-www-form-urlencoded': {
+            redirect_uri: string
+            code_challenge: string
+            /** @enum {string} */
+            code_challenge_method: 'S256' | 's256'
+            client_id?: string
+            response_type?: string
+            scope?: string
+            state?: string
+            email?: string
+            password?: string
+            /** @description Required when the person holds more than one store they own or author. */
+            store_id?: string
+            /** @description The CSRF token from the consent page. */
+            authenticity_token: string
+          }
+        }
+      }
+      responses: {
+        /** @description The consent page again: with an error (`Invalid email or password`, or `Session expired. Please sign in again.` when the Google-verified session no longer names a user), or with a store picker for a person holding several stores. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/html': string
+          }
+        }
+        /** @description Consent given; redirected to `redirect_uri?code=<code>&state=<state>`. */
+        302: {
+          headers: {
+            Location?: string
             [name: string]: unknown
           }
           content?: never
+        }
+        /** @description The authorization parameters are unusable. Answered as JSON, not HTML: `redirect_uri is required`, `code_challenge is required`, `code_challenge_method must be S256`, `redirect_uri not registered for this client_id`, `client_id metadata fetch failed`, `redirect_uri not permitted by client_id metadata` or `redirect_uri must be localhost`; or `store not accessible` for a `store_id` the person cannot use. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthAuthorizeErrorResponse']
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 5 submissions per minute, answered with JSON. Repeated failed passwords against one email address also earn that address a growing backoff (up to 15 minutes), shared with the email login routes, answered by re-rendering the consent page with a 429 status. */
+        429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTooManyRequestsResponse']
+            'text/html': string
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/oauth/authorize/google': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * OAuth consent — sign in with Google
+     * @description The consent page's Google sign-in post — a browser flow, not an API call, and it requires the page's CSRF token. Verifies a Google ID token and, on success, records the person in the session so `POST /oauth/authorize` needs no password. The authorization parameters come from the session `GET /oauth/authorize` started, not from this request.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/x-www-form-urlencoded': {
+            /** @description Google ID token from Google Identity Services. */
+            id_token: string
+            authenticity_token: string
+          }
+        }
+      }
+      responses: {
+        /** @description The consent page, ready to approve; or with `Google sign-in failed. Please try again.` when the token does not verify, Google has not verified the address, or it belongs to a machine user. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/html': string
+          }
+        }
+        /** @description No authorization in progress in this session. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 5 Google sign-ins per minute. */
+        429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTooManyRequestsResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/oauth/token': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * OAuth token endpoint
+     * @description Exchanges an authorization code for a token pair, or rotates a refresh token. Both answer in RFC 6749's flat error shape, never the API's `ErrorResponse` envelope.
+     *
+     *     **`authorization_code`** needs `code`, the PKCE `code_verifier` (S256) and the same `redirect_uri` the authorization used. `client_id` may be sent and is only recorded. The granted scopes may be narrower than those consented to: store scopes are limited to what the person's role in the store permits at the moment of exchange, and `scope` in the response says what was granted.
+     *
+     *     **`refresh_token`** needs `refresh_token`. Each refresh token works once, and rotating it also replaces the access token's secret, so the previous access token stops working.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/x-www-form-urlencoded': components['schemas']['OauthTokenRequest']
+          'application/json': components['schemas']['OauthTokenRequest']
+        }
+      }
+      responses: {
+        /** @description Token pair */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTokenResponse']
+          }
+        }
+        /** @description `unsupported_grant_type` for any other `grant_type`. `invalid_grant` for a code that is unknown, already used or expired; with `error_description` `PKCE verification failed` or `redirect_uri mismatch`; and for a refresh token that is unknown, malformed, expired, already used, revoked, or past its 90-day age limit. Never 401. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTokenErrorResponse']
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 10 requests per minute, shared by both grants. */
+        429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['OauthTooManyRequestsResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/oauth/revoke': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Revoke an OAuth token (RFC 7009)
+     * @description Revokes the MCP key behind an access token or refresh token. The token itself is the credential, so no other authentication is needed; it is not throttled. Always answers 200 with an empty object — including for an unknown, malformed or missing token — so the answer says nothing about whether a token existed.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/x-www-form-urlencoded': components['schemas']['OauthRevokeRequest']
+          'application/json': components['schemas']['OauthRevokeRequest']
+        }
+      }
+      responses: {
+        /** @description Revoked, or nothing to revoke */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': Record<string, never>
+          }
         }
       }
     }
@@ -168,8 +522,8 @@ export interface paths {
         }
       }
       responses: {
-        /** @description Token pair */
-        200: {
+        /** @description Account created; token pair */
+        201: {
           headers: {
             [name: string]: unknown
           }
@@ -177,7 +531,25 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
-        /** @description An invitation token was sent and can't be accepted. No account is created. `error.type` is `invitation_not_accepted`; `reason` says why and `invitation` says which. Every invitation refusal is a 422, so a `409` from this route still means only that the email is taken. */
+        /** @description A required field is missing or empty, or the new account fails validation (for example a password shorter than 6 characters). */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An account with this email address already exists. */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An invitation token was sent and can't be accepted. No account is created. `error.type` is `invitation_not_accepted`; `reason` says why (`not_found`, `expired`, `wrong_email`, `already_accepted`, `already_member`, `already_in_company` or `invalid`) and `invitation` says which. Every invitation refusal is a 422, so a `409` from this route still means only that the email is taken. */
         422: {
           headers: {
             [name: string]: unknown
@@ -186,18 +558,10 @@ export interface paths {
             'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 10 signups per minute. There is no per-account backoff on this route. */
         429: {
           headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Error response */
-        default: {
-          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -244,8 +608,8 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
-        429: {
+        /** @description A required field is missing or empty. */
+        400: {
           headers: {
             [name: string]: unknown
           }
@@ -253,9 +617,19 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description Unknown email or wrong password; the two are deliberately indistinguishable. */
+        401: {
           headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/login/email`, `/login/google`, `/login/api-key` and `/login/buyer-api-key`. Repeated failures against one email address also earn that address a growing backoff (up to 15 minutes), shared with the merchant email login and the OAuth consent screen. */
+        429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -302,17 +676,8 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
-        /** @description Invalid request */
+        /** @description Every problem with the token, and only those: `id_token` missing or not a three-segment JWT; a signature that does not verify, an expired token, a token minted for another OAuth client, or Google's key set unreachable (all `Invalid token signature`); a token that cannot be read (`Invalid token`); a verified token naming no usable address (`Failed to create user`, `Invalid user data`); or an unexpected failure while verifying (`Authentication failed`). This route never answers 401 or 503. */
         400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Invalid or expired token */
-        401: {
           headers: {
             [name: string]: unknown
           }
@@ -338,18 +703,10 @@ export interface paths {
             'application/json': components['schemas']['InvitationNotAcceptedError']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/login/email`, `/login/google`, `/login/api-key` and `/login/buyer-api-key`. There is no per-account backoff on this route. */
         429: {
           headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Google service unavailable */
-        503: {
-          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -375,7 +732,7 @@ export interface paths {
     put?: never
     /**
      * Exchange a buyer API key + secret for a JWT
-     * @description Authenticate as a buyer using a named API key and secret. Returns the same token shape as `POST /v1/auth/login/email`. Rate-limited to 60 requests per minute per IP.
+     * @description Authenticate as a buyer using a named API key and secret. Returns the same token shape as `POST /v1/auth/login/email`.
      */
     post: {
       parameters: {
@@ -399,6 +756,15 @@ export interface paths {
             'application/json': components['schemas']['AuthenticationResponse']
           }
         }
+        /** @description `key` or `secret` missing or empty. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Invalid key or secret */
         401: {
           headers: {
@@ -408,18 +774,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/login/email`, `/login/google`, `/login/api-key` and `/login/buyer-api-key`. Repeated failures against one `key` also earn that key a growing backoff (up to 15 minutes), shared with `POST /v1/auth/login/api-key`. */
         429: {
           headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Error response */
-        default: {
-          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -441,7 +799,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** List buyer API keys for the authenticated user */
+    /**
+     * List buyer API keys for the authenticated user
+     * @description Every key the caller holds, newest first (`created_at` descending). Not paginated: the full list is returned. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
+     */
     get: {
       parameters: {
         query?: never
@@ -451,7 +812,7 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description List of API keys (secret never included) */
+        /** @description List of API keys (secret never included), newest first */
         200: {
           headers: {
             [name: string]: unknown
@@ -460,8 +821,17 @@ export interface paths {
             'application/json': components['schemas']['UserApiKey'][]
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -472,7 +842,10 @@ export interface paths {
       }
     }
     put?: never
-    /** Create a new buyer API key */
+    /**
+     * Create a new buyer API key
+     * @description Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`. A Machine user cannot create its own keys — its Company's admins manage them.
+     */
     post: {
       parameters: {
         query?: never
@@ -495,7 +868,25 @@ export interface paths {
             'application/json': components['schemas']['UserApiKeyCreateResponse']
           }
         }
-        /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+        /** @description The body failed validation: `name` missing or blank, or `spending_limit_cents` not an integer from 1 to 2147483647. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is a Machine user, whose keys its Company's admins manage (`Machine users cannot manage their own keys`), or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -504,8 +895,8 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description The key could not be saved — most often, the caller already has a key with this name. */
+        422: {
           headers: {
             [name: string]: unknown
           }
@@ -531,7 +922,10 @@ export interface paths {
     get?: never
     put?: never
     post?: never
-    /** Revoke a buyer API key */
+    /**
+     * Revoke a buyer API key
+     * @description Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`. Only the caller's own keys can be revoked; another user's key id answers 404.
+     */
     delete: {
       parameters: {
         query?: never
@@ -550,7 +944,16 @@ export interface paths {
           }
           content?: never
         }
-        /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is a Machine user, whose keys its Company's admins manage (`Machine users cannot manage their own keys`), or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -559,7 +962,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Key not found */
+        /** @description The caller has no key with this id (including another user's key). */
         404: {
           headers: {
             [name: string]: unknown
@@ -604,8 +1007,17 @@ export interface paths {
             'application/json': components['schemas']['UserSpendCap']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid buyer token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -655,7 +1067,7 @@ export interface paths {
             'application/json': components['schemas']['UserSpendCap']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid buyer token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -664,7 +1076,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The buyer holds an open Company membership. A member's cap is set by a Company admin through PATCH /v1/company/members/{id}, admins' own included. */
+        /** @description The buyer holds an open Company membership. A member's cap is set by a Company admin through PATCH /v1/company/members/{id}, admins' own included. Also returned, as `Invalid Role`, when the token is not a buyer token. */
         403: {
           headers: {
             [name: string]: unknown
@@ -673,7 +1085,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Cap is negative, fractional, non-integer, or the field was omitted */
+        /** @description Cap is negative, above 2147483647, fractional, non-integer, or the field was omitted. Every validation failure on this operation is a 422, never a 400. */
         422: {
           headers: {
             [name: string]: unknown
@@ -724,7 +1136,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyInvitationList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -733,7 +1145,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -742,7 +1154,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller belongs to no Company, or the target was not found */
+        /** @description The caller belongs to no Company */
         404: {
           headers: {
             [name: string]: unknown
@@ -756,7 +1168,7 @@ export interface paths {
     put?: never
     /**
      * Invite someone to the Company
-     * @description Company admins only. Every invitation emails a token that accepting requires: an existing user accepts with it, a new address signs up with it. Nobody joins until they accept. Inviting someone who belongs to another Company succeeds; their accept is refused.
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. Every invitation emails a token that accepting requires: an existing user accepts with it, a new address signs up with it. Nobody joins until they accept. Inviting someone who belongs to another Company succeeds; their accept is refused.
      */
     post: {
       parameters: {
@@ -780,7 +1192,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyInvitation']
           }
         }
-        /** @description No email given */
+        /** @description No `email`, or an `email` or `role` that is empty or not a string */
         400: {
           headers: {
             [name: string]: unknown
@@ -789,7 +1201,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -798,7 +1210,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -807,7 +1219,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller belongs to no Company, or the target was not found */
+        /** @description The caller belongs to no Company */
         404: {
           headers: {
             [name: string]: unknown
@@ -825,7 +1237,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unknown role */
+        /** @description Unknown role, or an `email` that is blank once surrounding whitespace is trimmed (`Email is required`) */
         422: {
           headers: {
             [name: string]: unknown
@@ -854,7 +1266,7 @@ export interface paths {
     post?: never
     /**
      * Revoke a pending invitation
-     * @description Company admins only. Withdraws an invitation that has not been accepted, revoked or expired, so the address can be invited again at once rather than when this one expires. The emailed token can no longer be accepted.
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. Withdraws an invitation that has not been accepted, revoked or expired, so the address can be invited again at once rather than when this one expires. The emailed token can no longer be accepted.
      */
     delete: {
       parameters: {
@@ -874,7 +1286,7 @@ export interface paths {
           }
           content?: never
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -883,7 +1295,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -961,13 +1373,24 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is a Machine user, which is created into its Company and never invited (`Machine users cannot accept an invitation`, reason `invalid`), or the token is not a buyer token (`Invalid Role`), which carries no `reason`. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json':
+              | components['schemas']['InvitationNotAcceptedError']
+              | components['schemas']['ErrorResponse']
           }
         }
         /** @description No invitation with this token addressed to this buyer */
@@ -1034,7 +1457,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMachineUserList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1043,7 +1466,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1066,7 +1489,7 @@ export interface paths {
     put?: never
     /**
      * Create a Machine user
-     * @description Company admins only. Creates a Buyer with a name and no email, password or login, joined at once as an active non-admin member with the default daily Spend cap. Every human-only flow (login, Google sign-in, OAuth consent, password reset, accepting or leaving a membership) refuses it.
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. Creates a Buyer with a name and no email, password or login, joined at once as an active non-admin member with the default daily Spend cap. Every human-only flow (login, Google sign-in, OAuth consent, password reset, accepting or leaving a membership) refuses it.
      */
     post: {
       parameters: {
@@ -1090,7 +1513,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMachineUser']
           }
         }
-        /** @description No name given */
+        /** @description No `name`, or a `name` or `description` that is not a string, or an empty `name` */
         400: {
           headers: {
             [name: string]: unknown
@@ -1099,7 +1522,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1108,7 +1531,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1126,7 +1549,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description An active Machine user in the Company already has this name */
+        /** @description An active Machine user in the Company already has this name (compared case-sensitively) */
         409: {
           headers: {
             [name: string]: unknown
@@ -1135,7 +1558,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The name is blank or longer than 100 characters */
+        /** @description The name is blank once surrounding whitespace is trimmed, or longer than 100 characters after trimming */
         422: {
           headers: {
             [name: string]: unknown
@@ -1164,7 +1587,7 @@ export interface paths {
     post?: never
     /**
      * Deactivate a Machine user, permanently
-     * @description Company admins only. In one transaction closes its membership, revokes every key it holds and ends its sessions. It cannot be reactivated; create a new one, which may reuse the name.
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. In one transaction closes its membership, revokes every key it holds and ends its sessions. It cannot be reactivated; create a new one, which may reuse the name.
      */
     delete: {
       parameters: {
@@ -1186,7 +1609,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMachineUser']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1195,7 +1618,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1228,7 +1651,7 @@ export interface paths {
     head?: never
     /**
      * Rename a Machine user or change its description
-     * @description Company admins only. Changes `name`, `description`, or both, under the same name rules as creating one; keeping its own current name is not a conflict. Its keys and sessions are untouched, so the agent keeps working without being re-issued anything. Attribution reads the name live: GET /v1/company/members, /v1/company/purchases and /v1/company/spend show the new name, on earlier purchases as well as later ones.
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. Changes `name`, `description`, or both, under the same name rules as creating one; keeping its own current name is not a conflict. Its keys and sessions are untouched, so the agent keeps working without being re-issued anything. Attribution reads the name live: GET /v1/company/members, /v1/company/purchases and /v1/company/spend show the new name, on earlier purchases as well as later ones.
      */
     patch: {
       parameters: {
@@ -1263,7 +1686,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1272,7 +1695,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1290,7 +1713,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Another active Machine user in the Company has this name, or this one is deactivated */
+        /** @description Another active Machine user in the Company has this name (compared case-sensitively), or this one is deactivated */
         409: {
           headers: {
             [name: string]: unknown
@@ -1299,7 +1722,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The name is blank or longer than 100 characters */
+        /** @description The name is blank once surrounding whitespace is trimmed, or longer than 100 characters after trimming */
         422: {
           headers: {
             [name: string]: unknown
@@ -1343,7 +1766,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMachineUserBuyerKeyList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1352,7 +1775,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1410,7 +1833,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1419,7 +1842,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1496,7 +1919,7 @@ export interface paths {
           }
           content?: never
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1505,7 +1928,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1514,7 +1937,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description No such Machine user in the caller's Company, or no such active key */
+        /** @description No such Machine user in the caller's Company, or no such key */
         404: {
           headers: {
             [name: string]: unknown
@@ -1552,7 +1975,7 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description The keys, oldest first */
+        /** @description The active keys, oldest first */
         200: {
           headers: {
             [name: string]: unknown
@@ -1561,7 +1984,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMachineUserMcpKeyList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1570,7 +1993,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1628,7 +2051,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1637,7 +2060,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1664,7 +2087,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The key failed validation, e.g. a duplicate name */
+        /** @description The label is blank once surrounding whitespace is trimmed. Labels need not be unique. */
         422: {
           headers: {
             [name: string]: unknown
@@ -1714,7 +2137,7 @@ export interface paths {
           }
           content?: never
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1723,7 +2146,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1777,7 +2200,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMemberList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1786,7 +2209,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1795,7 +2218,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller belongs to no Company, or the target was not found */
+        /** @description The caller belongs to no Company */
         404: {
           headers: {
             [name: string]: unknown
@@ -1828,10 +2251,12 @@ export interface paths {
     get: {
       parameters: {
         query?: {
-          /** @description Page number (1-based). */
+          /** @description Page number (1-based). A value below 1, or one that is not a number, reads as 1; a page past the end returns an empty `data`. */
           page?: number
-          /** @description Number of items per page. Maximum 100. */
+          /** @description Number of items per page. A value above 100 is capped at 100, not refused; a negative one is refused with 400. When it is absent, 0 or not a number, `limit` is read instead, and failing that the default applies. */
           per_page?: number
+          /** @description An alias for `per_page`, under the same rules, read only when `per_page` is absent, 0 or not a number. */
+          limit?: number
           /** @description A membership id (`member.id`), open or closed. A person who left and rejoined has one per membership. */
           member?: string
           /** @description The first day to include, `YYYY-MM-DD`, read in the Company's timezone — the same days its Spend window counts. */
@@ -1865,7 +2290,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1874,7 +2299,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1947,7 +2372,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -1956,7 +2381,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -1996,7 +2421,7 @@ export interface paths {
     post?: never
     /**
      * Remove a member
-     * @description Company admins only. Closes the membership; the member's ledger accounts stay with the Company. The last admin cannot be removed. Removing a Machine user deactivates it permanently, as DELETE /v1/company/machine-users/{id} does.
+     * @description Company admins remove any member. Any member may also remove their own membership, which is leaving the Company exactly as DELETE /v1/company/membership does. Closes the membership; the member's ledger accounts stay with the Company. The last admin cannot be removed. Removing a Machine user deactivates it permanently, as DELETE /v1/company/machine-users/{id} does.
      */
     delete: {
       parameters: {
@@ -2016,7 +2441,7 @@ export interface paths {
           }
           content?: never
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -2025,7 +2450,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin and the membership is not their own; the caller is a Machine user removing its own membership (`Machine users cannot leave a Company`); or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -2034,8 +2459,17 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller belongs to no Company, or the target was not found */
+        /** @description The caller belongs to no Company, or the member is not in it (including one just removed) */
         404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The member is a Machine user that is already deactivated, e.g. by a concurrent removal (`Machine user is already deactivated`) */
+        409: {
           headers: {
             [name: string]: unknown
           }
@@ -2058,7 +2492,7 @@ export interface paths {
     head?: never
     /**
      * Change a member's role or daily Spend cap
-     * @description Company admins only. Promote a member or demote an admin, including yourself, so long as the Company keeps at least one admin. Set any member's daily Spend cap, including your own. A Machine user cannot be made an admin (422).
+     * @description Company admins only. A non-admin is refused with 403 before the body or any id is read. Promote a member or demote an admin, including yourself, so long as the Company keeps at least one admin. Set any member's daily Spend cap, including your own. A Machine user cannot be made an admin (422).
      */
     patch: {
       parameters: {
@@ -2084,7 +2518,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyMember']
           }
         }
-        /** @description Neither role nor daily_spend_limit_cents given, or the cap is null or negative */
+        /** @description Neither `role` nor `daily_spend_limit_cents` given, a `role` that is empty or not a string, or a cap that is null, not an integer, negative or above 2147483647 */
         400: {
           headers: {
             [name: string]: unknown
@@ -2093,7 +2527,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -2102,7 +2536,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -2111,7 +2545,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller belongs to no Company, or the target was not found */
+        /** @description The caller belongs to no Company, or the member is not in it */
         404: {
           headers: {
             [name: string]: unknown
@@ -2120,7 +2554,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unknown role, or it would leave the Company with no admin */
+        /** @description Unknown role, a Machine user made an admin, or it would leave the Company with no admin */
         422: {
           headers: {
             [name: string]: unknown
@@ -2162,8 +2596,17 @@ export interface paths {
             'application/json': components['schemas']['CompanyMembership']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -2204,8 +2647,17 @@ export interface paths {
           }
           content?: never
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The caller is a Machine user (`Machine users cannot leave a Company`), or the token is not a buyer token (`Invalid Role`). */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -2267,7 +2719,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyWallet']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -2276,7 +2728,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -2339,7 +2791,7 @@ export interface paths {
             'application/json': components['schemas']['WalletPaymentSessionResponse']
           }
         }
-        /** @description Invalid request data */
+        /** @description The body failed validation: `amount_cents` missing or not from 1 to 2147483647, a `currency` other than `usd`, or `metadata` that is not an object or breaks its limits. */
         400: {
           headers: {
             [name: string]: unknown
@@ -2348,7 +2800,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -2366,7 +2818,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -2421,7 +2873,7 @@ export interface paths {
             'application/json': components['schemas']['CompanyPendingTopUpList']
           }
         }
-        /** @description Missing or invalid buyer session token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -2430,7 +2882,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The caller is not a Company admin */
+        /** @description The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -2472,8 +2924,8 @@ export interface paths {
      * @description Authenticate as a seller using API credentials.
      *
      *     **Permission Levels:**
-     *     - Provide only `api_key` (without `api_secret`) to receive a token with **`view` permission** (read-only access)
-     *     - Provide both `api_key` and `api_secret` to receive a token with **`full` permission** (read/write access)
+     *     - Provide only `key` (without `secret`) to receive a token with **`view` permission** (read-only access)
+     *     - Provide both `key` and `secret` to receive a token with **`full` permission** (read/write access)
      */
     post: {
       parameters: {
@@ -2494,11 +2946,11 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['AuthenticationResponse']
+            'application/json': components['schemas']['StoreAuthenticationResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
-        429: {
+        /** @description `key` missing or empty, or `secret` sent but empty. */
+        400: {
           headers: {
             [name: string]: unknown
           }
@@ -2506,9 +2958,19 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description The key (or the key and secret) match no store or API key; an unknown key and a wrong secret are deliberately indistinguishable. */
+        401: {
           headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/login/email`, `/login/google`, `/login/api-key` and `/login/buyer-api-key`. Repeated failures against one `key` also earn that key a growing backoff (up to 15 minutes), shared with `POST /v1/auth/login/buyer-api-key`. A key-only (view) login never clears it. */
+        429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -2532,7 +2994,10 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Refresh an access token */
+    /**
+     * Refresh an access token
+     * @description Exchanges a refresh token for a new token pair; the refresh token is rotated. A refresh token issued by a merchant login answers in the merchant shape (with `stores`), one issued by a store API-key login in the store shape (with `store_id`); every other refresh token answers in the plain shape.
+     */
     post: {
       parameters: {
         query?: never
@@ -2552,12 +3017,43 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['AuthenticationResponse']
+            'application/json':
+              | components['schemas']['AuthenticationResponse']
+              | components['schemas']['MerchantAuthenticationResponse']
+              | components['schemas']['StoreAuthenticationResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description `refresh_token` missing or empty. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Unknown or expired refresh token; the two are not distinguished. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description A merchant refresh token whose account no longer owns or authors any store. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Too many requests. The source IP is limited to 60 refreshes per minute. There is no per-account backoff on this route. */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -2581,7 +3077,7 @@ export interface paths {
     }
     /**
      * List stores the authenticated user can manage
-     * @description Returns all stores the authenticated user has a StoreUser record for. Requires a merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
+     * @description Returns the stores the authenticated user owns or authors; a membership that is neither is not listed. Requires a merchant JWT. The response includes `is_author` so clients can determine what actions the user may perform in each store.
      */
     get: {
       parameters: {
@@ -2638,6 +3134,117 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/v1/auth/merchant/accept-invitation': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Accept a store invitation
+     * @description Joins the signed-in merchant to the store whose invitation `invitation_token` names. The invitation must be addressed to one of the account's addresses (its email or its Google email, compared case-insensitively) and must be less than 7 days old. Not throttled.
+     */
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description The token from the store invitation email. */
+            invitation_token: string
+          }
+        }
+      }
+      responses: {
+        /** @description The membership the invitation created */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['MerchantInvitationAcceptedResponse']
+          }
+        }
+        /** @description `invitation_token` missing or empty. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No, invalid or expired Bearer token, or its user no longer exists. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The Bearer token is not a merchant token (`This token does not have merchant access`), or the invitation was sent to a different address (`reason` `wrong_email`, in the `InvitationNotAcceptedError` shape). */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json':
+              | components['schemas']['ErrorResponse']
+              | components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description No invitation has this token */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description Already accepted (`already_accepted`), or the account already belongs to the store (`already_member`). */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description The invitation was sent more than 7 days ago */
+        410: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+        /** @description The membership could not be saved */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InvitationNotAcceptedError']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/v1/auth/merchant/login/email': {
     parameters: {
       query?: never
@@ -2682,6 +3289,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Unknown email or wrong password; the two are deliberately indistinguishable. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Authenticated successfully but the account has no merchant store access. The credentials are valid; the account needs to be added as an owner or author to at least one store before it can use the merchant API. */
         403: {
           headers: {
@@ -2691,18 +3307,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Invalid email or password */
-        404: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/merchant/login/email` and `/merchant/login/google`, and counted apart from the buyer login routes. Repeated failures against one email address also earn that address a growing backoff (up to 15 minutes), shared with the buyer email login and the OAuth consent screen. */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -2728,7 +3336,7 @@ export interface paths {
     put?: never
     /**
      * Log in as a merchant with Google OAuth
-     * @description Authenticates a user via Google OAuth and returns a store-agnostic merchant JWT.
+     * @description Authenticates a user via Google OAuth and returns a store-agnostic merchant JWT. Token problems are refused exactly as on `POST /v1/auth/login/google`.
      */
     post: {
       parameters: {
@@ -2752,17 +3360,8 @@ export interface paths {
             'application/json': components['schemas']['MerchantAuthenticationResponse']
           }
         }
-        /** @description Missing or invalid request fields */
+        /** @description Every problem with the token, and only those: `id_token` missing or not a three-segment JWT; a signature that does not verify, an expired token, a token minted for another OAuth client, or Google's key set unreachable (all `Invalid token signature`); a token that cannot be read (`Invalid token`); a verified token naming no usable address (`Failed to create user`, `Invalid user data`); or an unexpected failure while verifying (`Authentication failed`). This route never answers 401 or 503. */
         400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Invalid or expired Google token */
-        401: {
           headers: {
             [name: string]: unknown
           }
@@ -2782,18 +3381,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 20 requests per minute, one budget shared by `POST /v1/auth/merchant/login/email` and `/merchant/login/google`, and counted apart from the buyer login routes. There is no per-account backoff on this route. */
         429: {
           headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Google service unavailable */
-        503: {
-          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -2846,7 +3437,7 @@ export interface paths {
             'application/json': components['schemas']['MessageResponse']
           }
         }
-        /** @description Invalid request */
+        /** @description Missing or invalid email */
         400: {
           headers: {
             [name: string]: unknown
@@ -2855,9 +3446,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (rate limit exceeded) */
+        /** @description Too many requests. The source IP is limited to 10 requests per minute, one budget shared by `POST /v1/auth/merchant/password/reset-request` and `/merchant/password/reset`, and counted apart from the buyer password-reset routes. Each address may also request only a few codes before a growing backoff (up to 15 minutes) applies; every request counts, whether or not the account exists. */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -2917,7 +3509,7 @@ export interface paths {
             'application/json': components['schemas']['MessageResponse']
           }
         }
-        /** @description Invalid request, code, or password */
+        /** @description A field is missing or invalid (email format, a `reset_code` that is not 6 digits, a password shorter than 6 characters), or the code is wrong or expired. */
         400: {
           headers: {
             [name: string]: unknown
@@ -2935,8 +3527,76 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 10 requests per minute, one budget shared by `POST /v1/auth/merchant/password/reset-request` and `/merchant/password/reset`, and counted apart from the buyer password-reset routes. Repeated failed resets against one address also earn it a growing backoff (up to 15 minutes). */
         429: {
+          headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/auth/invite-info/{token}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Look up a pending store invitation
+     * @description What the store invitation behind `token` is for, so a signup page can show it before the invitee has an account. No authentication and no throttle; the token is the credential. An invitation expires 7 days after it was sent.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description The `invitation_token` from the invitation email. */
+          token: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The pending invitation */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['InviteInfoResponse']
+          }
+        }
+        /** @description No invitation has this token */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The invitation has already been accepted */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The invitation was sent more than 7 days ago */
+        410: {
           headers: {
             [name: string]: unknown
           }
@@ -2946,6 +3606,8 @@ export interface paths {
         }
       }
     }
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -3049,7 +3711,7 @@ export interface paths {
       }
       responses: {
         /** @description User added or invitation sent */
-        200: {
+        201: {
           headers: {
             [name: string]: unknown
           }
@@ -3059,15 +3721,22 @@ export interface paths {
               | components['schemas']['MerchantInviteResponse']
           }
         }
-        /** @description User added or invitation sent */
-        201: {
+        /** @description No, invalid or expired Bearer token, or its user no longer exists (`User not found`). */
+        401: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json':
-              | components['schemas']['MerchantUser']
-              | components['schemas']['MerchantInviteResponse']
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Forbidden — insufficient permissions */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description User is already a member of this store */
@@ -3138,6 +3807,15 @@ export interface paths {
           }
           content?: never
         }
+        /** @description No, invalid or expired Bearer token, or its user no longer exists (`User not found`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Forbidden — cannot remove self or insufficient permissions */
         403: {
           headers: {
@@ -3196,6 +3874,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['MerchantUser']
+          }
+        }
+        /** @description No, invalid or expired Bearer token, or its user no longer exists (`User not found`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description Forbidden — cannot modify own record or insufficient permissions */
@@ -3260,6 +3947,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['PaginatedContentList']
+          }
+        }
+        /** @description Invalid pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description Unauthorized */
@@ -3427,6 +4123,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Forbidden — not a member of this store, or an API key for another store */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
       }
     }
     delete?: never
@@ -3481,6 +4186,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description Forbidden — not a member of this store, or an API key for another store */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Content not found or not accessible */
         404: {
           headers: {
@@ -3496,7 +4210,7 @@ export interface paths {
     post?: never
     /**
      * Delete a content item
-     * @description Permanently delete a content item. Owners and API keys can delete any content. `is_author` users can only delete their own.
+     * @description Permanently delete a content item. Owners and API keys with `full` permission can delete any content; a `view` key receives `403 Forbidden`. `is_author` users can only delete their own.
      */
     delete: {
       parameters: {
@@ -3545,6 +4259,15 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
+        /** @description The content cannot be deleted — it has purchases, or other records still reference it */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
       }
     }
     options?: never
@@ -3553,8 +4276,9 @@ export interface paths {
      * Update a content item
      * @description Update an existing content item.
      *
-     *     - `owner` and API key: can update any content, including reassigning
-     *       the author via `store_user_id`.
+     *     - `owner` and API key with `full` permission: can update any content,
+     *       including reassigning the author via `store_user_id`. A `view` key
+     *       receives `403 Forbidden`.
      *
      *     - `is_author: true` (non-owner): can only update their own content;
      *       `store_user_id` is ignored even if provided.
@@ -3614,6 +4338,15 @@ export interface paths {
         }
         /** @description Content not found or not accessible */
         404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The update was rejected — the author is not in this store, or the content failed validation */
+        422: {
           headers: {
             [name: string]: unknown
           }
@@ -3734,6 +4467,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['PaginatedSalesList']
+          }
+        }
+        /** @description Invalid pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description Unauthorized */
@@ -3890,6 +4632,15 @@ export interface paths {
             'application/json': components['schemas']['PaginatedBuyersList']
           }
         }
+        /** @description Invalid pagination parameters */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Unauthorized */
         401: {
           headers: {
@@ -3946,7 +4697,8 @@ export interface paths {
           }
           content: {
             'application/json': {
-              google_client_id?: string
+              /** @description null when the server has no Google client ID configured. */
+              google_client_id: string | null
             }
           }
         }
@@ -3989,7 +4741,7 @@ export interface paths {
     put?: never
     /**
      * Initialize a wallet funding payment session
-     * @description Creates a payment session for wallet funding and returns the necessary details for client-side payment processing. Currently implemented using Stripe payment intents. The client should use the returned client_secret with the payment provider's client library to collect payment details and process the payment. After payment is processed, the provider will send a webhook notification to confirm the payment status.
+     * @description Creates a payment session for wallet funding and returns the necessary details for client-side payment processing. Currently implemented using Stripe payment intents. The client should use the returned client_secret with the payment provider's client library to collect payment details and process the payment. After payment is processed, the provider will send a webhook notification to confirm the payment status. Opening a new session cancels the caller's earlier sessions that are still `pending`. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
      */
     post: {
       parameters: {
@@ -4013,7 +4765,7 @@ export interface paths {
             'application/json': components['schemas']['WalletPaymentSessionResponse']
           }
         }
-        /** @description Invalid request data */
+        /** @description The body failed validation: `amount_cents` missing or not from 1 to 2147483647, a `currency` other than `usd`, or `metadata` that is not an object or breaks its limits. */
         400: {
           headers: {
             [name: string]: unknown
@@ -4022,7 +4774,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4031,8 +4783,8 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
-        403: {
+        /** @description The payment provider refused to create the payment intent. `message` carries the provider's reason. The session is recorded as failed and no money moved. */
+        402: {
           headers: {
             [name: string]: unknown
           }
@@ -4040,15 +4792,13 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Error response */
-        default: {
+        /** @description The token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              error?: string
-            }
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -4068,13 +4818,14 @@ export interface paths {
     }
     /**
      * Check the status of a wallet payment
-     * @description Allows clients to check the current status of a payment session. This endpoint can be polled after payment submission to determine when a webhook has been processed.
+     * @description Allows clients to check the current status of a payment session. This endpoint can be polled after payment submission to determine when a webhook has been processed. Only the caller's own personal top-up sessions are found: another user's session id, and a Company wallet top-up's, answer 400 exactly as an unknown id does. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
      */
     get: {
       parameters: {
         query?: never
         header?: never
         path: {
+          /** @description The `session_id` returned by `POST /v1/wallet/payment-session`. */
           session_id: string
         }
         cookie?: never
@@ -4087,14 +4838,34 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              /** @enum {string} */
-              status?: 'pending' | 'succeeded' | 'completed' | 'failed' | 'canceled'
-              /** Format: date-time */
-              updated_at?: string
-              /** @description Current wallet balance if payment succeeded */
-              balance_cents?: number
-            }
+            'application/json': components['schemas']['WalletPaymentStatusResponse']
+          }
+        }
+        /** @description No personal top-up session of the caller's has this id (unknown, another user's, or a Company top-up). A 400, not a 404. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -4118,61 +4889,55 @@ export interface paths {
     put?: never
     /**
      * Webhook handler for wallet funding completion
-     * @description Receives webhook notifications from payment providers for payment events. When a payment success event is received for a wallet funding transaction, the system will automatically update the transaction status and fund the user's wallet. Currently implemented for Stripe webhook events.
+     * @description Receives webhook notifications from payment providers for payment events. When a payment success event is received for a wallet funding transaction, the system will automatically update the transaction status and fund the user's wallet. Currently implemented for Stripe webhook events. The body is verified against the `Stripe-Signature` header over the raw request bytes. Every verified event answers 200 `{received: true}` — including event types with no handler, intents that are not wallet funding, unknown intents, and a funding-transfer id mismatch. Not authenticated by bearer token and not throttled; the signature is the credential.
      */
     post: {
       parameters: {
         query?: never
-        header?: never
+        header: {
+          /** @description Stripe's signature over the raw body, verified with the endpoint signing secret. */
+          'Stripe-Signature': string
+        }
         path?: never
         cookie?: never
       }
       requestBody: {
         content: {
-          'application/json': {
-            [key: string]: unknown
-          }
+          'application/json': components['schemas']['PaymentWebhookEvent']
         }
       }
       responses: {
-        /** @description Webhook processed successfully */
+        /** @description Event received (handled, ignored, or of a type with no handler) */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
             'application/json': {
-              /** @example true */
-              received?: boolean
+              /** @enum {boolean} */
+              received: true
             }
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Forbidden - User lacks sufficient permissions */
-        403: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Error response */
-        default: {
+        /** @description The signature did not verify (including a missing `Stripe-Signature` header), or the body is not JSON. `error` carries the underlying message. */
+        400: {
           headers: {
             [name: string]: unknown
           }
           content: {
             'application/json': {
-              error?: string
+              error: string
+            }
+          }
+        }
+        /** @description The event verified but handling it failed; Stripe retries it. */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': {
+              error: string
             }
           }
         }
@@ -4195,51 +4960,56 @@ export interface paths {
     put?: never
     /**
      * Generic payment provider webhook endpoint
-     * @description Receives webhook notifications from payment providers for all types of events. This endpoint handles all payment provider events and routes them to the appropriate handlers. Currently implemented for Stripe webhook events.
+     * @description Receives Stripe webhook events and routes them to the appropriate handlers. The body is a Stripe event, and it is verified against the `Stripe-Signature` header over the raw request bytes, so it must be delivered exactly as Stripe sent it. Event types with no handler are acknowledged with the same 200. Not authenticated by bearer token and not throttled; the signature is the credential.
      */
     post: {
       parameters: {
         query?: never
-        header?: never
+        header: {
+          /** @description Stripe's signature over the raw body, verified with the endpoint signing secret. */
+          'Stripe-Signature': string
+        }
         path?: never
         cookie?: never
       }
       requestBody: {
         content: {
-          'application/json': {
-            [key: string]: unknown
-          }
+          'application/json': components['schemas']['PaymentWebhookEvent']
         }
       }
       responses: {
-        /** @description Webhook processed successfully */
+        /** @description Event received (handled, or of a type with no handler) */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
             'application/json': {
-              /** @example true */
-              received?: boolean
+              /** @enum {boolean} */
+              received: true
             }
           }
         }
-        /** @description Invalid webhook payload */
+        /** @description The signature did not verify (including a missing `Stripe-Signature` header), or the body is not JSON. `error` carries the underlying message. */
         400: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': {
+              error: string
+            }
           }
         }
-        /** @description Invalid webhook signature */
-        401: {
+        /** @description The event verified but handling it failed; Stripe retries it. */
+        500: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': {
+              error: string
+            }
           }
         }
       }
@@ -4257,7 +5027,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Get wallet balance */
+    /**
+     * Get wallet balance
+     * @description The caller's own wallet; there is no id in the path. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
+     */
     get: {
       parameters: {
         query?: never
@@ -4276,7 +5049,7 @@ export interface paths {
             'application/json': components['schemas']['WalletBalanceResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4285,7 +5058,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
+        /** @description The token is not a buyer token. */
         403: {
           headers: {
             [name: string]: unknown
@@ -4313,7 +5086,7 @@ export interface paths {
     }
     /**
      * Wallet transaction history
-     * @description Returns a unified ledger of all events that have changed the authenticated user's wallet balance, newest first. Only completed events appear — pending and failed funding transfers are excluded.
+     * @description Returns the authenticated user's wallet ledger, newest first. Not paginated: the full history is returned. It contains: completed funding transfers into the user's personal wallet (credits; pending, processing, failed and cancelled ones are excluded, as are Company wallet top-ups); purchases that are `completed` or `refunded` and are not part of a Bulk acquisition; and Bulk acquisitions, one entry each, that are still holding funds or have captured something (`captured_cents > 0`). Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
      */
     get: {
       parameters: {
@@ -4333,8 +5106,17 @@ export interface paths {
             'application/json': components['schemas']['WalletTransactionItem'][]
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -4359,13 +5141,19 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Get content with access control information */
+    /**
+     * Preview a work, with the caller's checkout state
+     * @description A Buyer's preview of one work, telling them what it is, what it costs, and whether they can buy it. It takes a **Buyer token**, and answers about that Buyer only, with their own balance or, for a Company member, their Remaining and Company. With **no token** it gives the unauthenticated preview (`next_required_action: authenticate`).
+     *
+     *     **A store credential is refused** with 403: a seller API-key token, a merchant token or a store-manager token. Whether a Buyer can afford a work is answered only to that Buyer. A store reads its own works through the Merchant API.
+     *
+     *     The id resolves as it does for `GET /v1/checkout/state/{content_id}` and `POST /v1/purchases`: the work where one exists, and the licensable Catalog entry where nobody has bought it yet. An unlisted or archived work gives 404.
+     *
+     *     The response is a preview and never delivers the work: there is no `content_body` or `content_uri`, even after a purchase. `has_sufficient_funds` and `next_required_action` agree with `GET /v1/checkout/state/{content_id}` for the same Buyer and work.
+     */
     get: {
       parameters: {
-        query?: {
-          /** @description Optional user ID to check specific user's access status. If not provided, returns generic access info. */
-          user_id?: string
-        }
+        query?: never
         header?: never
         path: {
           id: string
@@ -4374,21 +5162,40 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Content with access information */
+        /** @description The preview and the caller's checkout state. */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              content?: components['schemas']['ContentResponse']
-              access?: {
-                has_full_access?: boolean
-                /** @enum {string} */
-                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
-                paywall_position?: number
-              }
-            }
+            'application/json': components['schemas']['ContentWithAccessResponse']
+          }
+        }
+        /** @description An `Authorization` header that does not authenticate (`Invalid token`). A header that is present is never downgraded to the unauthenticated preview. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not a Buyer token: a seller API-key token, a merchant token or a store-manager token, whether or not the request names a Buyer. This endpoint answers a Buyer about themselves. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No work for sale under this id, including an unlisted or archived one (`Content was not found`). */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -4414,7 +5221,7 @@ export interface paths {
      * Search LedeWire for content from every Store and every Publication
      * @description A signed-in Buyer's LedeWire search, the same search as MCP `search_content`: works from every Store and brokered works from every Publication, taken in turn, each in its own order of relevance. Each brokered work names its Publication. Unlisted and archived works never appear.
      *
-     *     Paged by one opaque cursor. Send each page's `next_cursor` back as `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`, until it comes back null. A page never holds more than `limit` rows. A cursor lasts 24 hours. Without a `query`, only Store works are searched.
+     *     Paged by one opaque cursor. Send each page's `next_cursor` back as `cursor`, with the same `query`, `tags`, `max_price_cents`, `metadata`, `publication` and `limit`, until it comes back null. A page never holds more than `limit` rows. A cursor lasts 24 hours. Without a `query`, only Store works are searched, unless `form_type`, `ticker` or `cik` lists SEC filings.
      *
      *     When part of the search cannot be run the call still succeeds, with what could be found and `partial_results: true`. `next_cursor` then still points at what was missed, so sending it asks for it again. `unavailable_providers` is deprecated and always empty.
      *
@@ -4469,13 +5276,13 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata` or `limit`. Nothing was searched. Start again without one. */
+        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata`, `publication` or `limit`. Nothing was searched. Start again without one. `error.type` is `invalid_cursor` for every one of these reasons; branch on it rather than on `error.message`. The same sentence is also repeated as a top-level `message`. This is the route's only 422: a body it cannot read is a 400. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': components['schemas']['InvalidCursorError']
           }
         }
         /** @description Too many searches from this Buyer — 15 a minute per authenticated user, because a search with a `query` is a live search of brokered works. Counted per Buyer, not per address, and apart from the `GET /v1/publications/{id}/works` budget. Nothing was searched. Waiting `Retry-After` seconds is always enough. */
@@ -4504,7 +5311,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Get user's current checkout state for specific content */
+    /**
+     * Get user's current checkout state for specific content
+     * @description Public, with optional authentication. Without an `Authorization` header it answers the anonymous state (`is_authenticated: false`, `has_sufficient_funds: null`, `next_required_action: authenticate`). An `Authorization` header that is present is authenticated and never downgraded to anonymous: an empty or invalid token answers 401, and a token that is not a buyer token answers 403 `Invalid Role`. Creates nothing.
+     */
     get: {
       parameters: {
         query?: never
@@ -4522,19 +5332,28 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              content_id?: string
-              checkout_state?: {
-                is_authenticated?: boolean
-                has_sufficient_funds?: boolean
-                has_purchased?: boolean
-                /** @enum {string} */
-                next_required_action?: 'authenticate' | 'fund_wallet' | 'purchase'
-              }
-            }
+            'application/json': components['schemas']['CheckoutStateResponse']
           }
         }
-        /** @description No work for sale has this id. Answered for an id that names nothing, and for a work that is unlisted or archived. A partner work found by `POST /v1/content/search` that nobody has bought yet resolves like any other, at the price the search quoted. */
+        /** @description An `Authorization` header was sent but did not authenticate: empty (`Request must include a valid Bearer Token`), invalid or expired (`Invalid token`), or a deactivated Machine user (`Machine user is deactivated`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No work for sale has this id. Answered for an id that names nothing, and for a work that is unlisted or archived. A Publication's work found by `POST /v1/content/search` that nobody has bought yet resolves like any other, at the price the search quoted. */
         404: {
           headers: {
             [name: string]: unknown
@@ -4560,7 +5379,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** List user purchases */
+    /**
+     * List user purchases
+     * @description Every purchase the caller has made, in every status (`completed`, `pending`, `failed`, `reverted`, `refunded`), including a Bulk acquisition's per-work purchases. Takes no parameters. Not paginated and in no guaranteed order. Never carries `content_body` or `content_uri`. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
+     */
     get: {
       parameters: {
         query?: never
@@ -4579,7 +5401,7 @@ export interface paths {
             'application/json': components['schemas']['PurchaseResponse'][]
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4588,7 +5410,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
+        /** @description The token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -4602,7 +5424,7 @@ export interface paths {
     put?: never
     /**
      * Complete a content purchase
-     * @description Buys one work and delivers its body on this response. `content_id` and `price_cents` are taken from wherever the Buyer found the work, including a result from `POST /v1/content/search` — a Store work and a partner work alike, whether or not anybody has bought that partner work before.
+     * @description Buys one work and delivers its body on this response. `content_id` and `price_cents` are taken from wherever the Buyer found the work, including a result from `POST /v1/content/search` — a Store's work and a Publication's work alike, whether or not anybody has bought that work before. Buying a work already bought is allowed and is a new purchase. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
      */
     post: {
       parameters: {
@@ -4626,7 +5448,7 @@ export interface paths {
             'application/json': components['schemas']['PurchaseResponse']
           }
         }
-        /** @description Invalid purchase request */
+        /** @description The body failed validation: `content_id` or `price_cents` missing, or of the wrong type. Nothing was charged. */
         400: {
           headers: {
             [name: string]: unknown
@@ -4635,7 +5457,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4653,7 +5475,7 @@ export interface paths {
             'application/json': components['schemas']['DailySpendCapReachedError']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
+        /** @description The token is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -4662,7 +5484,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Content not found — no work carries this id, **or** the work it names is not `public`. Visibility is access control rather than discoverability: a work a Seller has set to `unlisted` is withheld from sale on every buyer-facing path, and this endpoint answers for it exactly as it does for an id that names nothing. The refusal is free — it precedes the wallet debit, so no funds move and no purchase record is written. A Seller's own access to their unlisted work through the seller-scoped paths is unaffected. */
+        /** @description Content not found — no work carries this id (and no licensable catalogue entry does), **or** the work it names is not `public`. Visibility is access control rather than discoverability: a work a Seller has set to `unlisted` is withheld from sale on every buyer-facing path, and this endpoint answers for it exactly as it does for an id that names nothing. The refusal is free — it precedes the wallet debit, so no funds move and no purchase record is written. A Seller's own access to their unlisted work through the seller-scoped paths is unaffected. */
         404: {
           headers: {
             [name: string]: unknown
@@ -4671,7 +5493,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unprocessable Content — the wallet cannot cover the price (`InsufficientFundsError`), a price mismatch, or another refusal. */
+        /** @description Unprocessable Content. Either `price_cents` does not match the work's current price (a plain message, no `error.type`), or the purchase was refused with an `error.type`: `insufficient_funds` (the wallet cannot cover the price; the body is an `InsufficientFundsError`), or one of the brokered-delivery refusals `retrieval_failed`, `not_licensable`, `not_found`, `price_drifted` and `client_error` (see `ErrorResponse.error.type` for what each means). `client_error` also covers a purchase that could not be recorded. `not_subscribed` refuses a work sold only to Buyers whose Company subscribes to it, before anything is charged or fetched. */
         422: {
           headers: {
             [name: string]: unknown
@@ -4697,7 +5519,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Get purchase by ID */
+    /**
+     * Get purchase by ID
+     * @description One of the caller's own purchases. Another buyer's purchase answers 404, exactly as an unknown id does (the lookup is scoped to the caller), and so does an id that is not a UUID. Never carries `content_body` or `content_uri`. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
+     */
     get: {
       parameters: {
         query?: never
@@ -4719,7 +5544,7 @@ export interface paths {
             'application/json': components['schemas']['PurchaseResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4728,7 +5553,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
+        /** @description The token is not a buyer token. Never returned for another buyer's purchase, which is a 404. */
         403: {
           headers: {
             [name: string]: unknown
@@ -4737,7 +5562,78 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Purchase not found */
+        /** @description The caller has no purchase with this id (unknown, not a UUID, or another buyer's). */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/purchases/{id}/license_document': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get a purchase's licence document
+     * @description The licence document one of the caller's own purchases was delivered under, as Ledewire captured it from the work's source: the bytes, with the content type the source served them as (usually `application/pdf`). For an SEC filing, Ledewire's terms for SEC filings in the version it was delivered under, as `text/markdown`. Always sent as an attachment. This is where a purchase's `license.document_url` points. Requires a buyer token, or an MCP API key with the `mcp:search` scope sent as `Bearer <key>:<secret>`. Another buyer's purchase, a purchase that is not completed, and one whose document has not been captured all answer 404, exactly as an unknown id does.
+     */
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          /** @description Purchase ID */
+          id: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description The licence document's bytes. */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/pdf': string
+            'text/markdown': string
+            'application/octet-stream': string
+          }
+        }
+        /** @description Missing or invalid token, or an MCP API key that does not authenticate. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description A token that is not a buyer token, or an MCP API key without the `mcp:search` scope. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No captured licence document for one of the caller's completed purchases with this id. */
         404: {
           headers: {
             [name: string]: unknown
@@ -4763,10 +5659,14 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Verify purchase */
+    /**
+     * Verify purchase
+     * @description Reports whether the caller has bought a work. This is history, not access. When the caller holds several purchases of the work, the one reported is chosen completed first, then newest. `has_purchased` is true only when that purchase is `completed`. `purchase_details` and `checkout_readiness` are present whenever the caller holds any purchase of the work, in any status, so they can appear alongside `has_purchased: false` (for a pending, failed or refunded purchase). An unknown `content_id`, or none at all, answers 200 `{has_purchased: false}` rather than an error. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`.
+     */
     get: {
       parameters: {
         query: {
+          /** @description The work to check. Documented as required, but not enforced: omitting it, or naming no work, answers `{has_purchased: false}`. */
           content_id: string
         }
         header?: never
@@ -4784,7 +5684,7 @@ export interface paths {
             'application/json': components['schemas']['PurchaseVerifyResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -4793,17 +5693,8 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - User lacks sufficient permissions */
+        /** @description The token is not a buyer token (`Invalid Role`). */
         403: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Content not found */
-        404: {
           headers: {
             [name: string]: unknown
           }
@@ -4830,9 +5721,12 @@ export interface paths {
     }
     /**
      * List user content
-     * @description Returns all content items for the authenticated seller's store.
+     * @deprecated
+     * @description Returns the store's content, unpaginated and newest first. Owners and API keys see all of it; a store user with `is_author: true` sees only their own work; any other store user sees none.
      *
      *     **Required Permission:** `view` or `full`
+     *
+     *     **Deprecated.** Use `GET /v1/merchant/{store_id}/content` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     get: {
       parameters: {
@@ -4846,14 +5740,26 @@ export interface paths {
         /** @description List of content */
         200: {
           headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ContentResponse'][]
+            'application/json': components['schemas']['ContentListItem'][]
           }
         }
-        /** @description Unauthorized */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not a store credential (`Invalid Role`) — a buyer token, or a merchant token without a `store_id` for one of its stores. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -4866,6 +5772,7 @@ export interface paths {
     put?: never
     /**
      * Create a new piece of content
+     * @deprecated
      * @description Supports the following content types:
      *     - **`markdown`** — written article, base64-encoded body stored in `content_body`
      *     - **`external_ref`** — proxy content pointing to an external resource (Vimeo, YouTube,
@@ -4876,7 +5783,9 @@ export interface paths {
      *     **Authorization:**
      *     Store manager tokens: only `owner` role and users with `is_author: true` may create content. Users with neither (no role, `is_author: false`) will receive a `403 Forbidden`.
      *
-     *     API key/secret authentication: permitted with `full` permission. The store's `owner` will be automatically set as the author if one exists; otherwise content is created without an author.
+     *     API key/secret authentication: permitted with `full` permission; a `view` key gets 403 `Invalid Role`. The store's `owner` will be automatically set as the author if one exists; otherwise content is created without an author.
+     *
+     *     **Deprecated.** Use `POST /v1/merchant/{store_id}/content` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     post: {
       parameters: {
@@ -4894,13 +5803,16 @@ export interface paths {
         /** @description Content created successfully */
         201: {
           headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['ContentResponse']
           }
         }
-        /** @description Invalid content parameters */
+        /** @description The body failed validation. The message is the first failure only, from the request contract (e.g. `title is missing`) or from the model (e.g. a reserved `external_identifier` prefix). The same model failure on update is a 422. */
         400: {
           headers: {
             [name: string]: unknown
@@ -4909,7 +5821,16 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Forbidden - insufficient role to create content */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Insufficient permissions to create content` for a store user who is neither owner nor author; `Invalid Role` for a `view` API key, a buyer token, or a merchant token without a `store_id` for one of its stores. */
         403: {
           headers: {
             [name: string]: unknown
@@ -4937,9 +5858,12 @@ export interface paths {
     put?: never
     /**
      * Search content
-     * @description Search for content by title (partial, case-insensitive), URI (partial, case-insensitive), and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied. Metadata search supports internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields.
+     * @deprecated
+     * @description Search for content by title (partial, case-insensitive), URI (partial, case-insensitive), and/or metadata key/value pairs (exact AND logic). At least one criterion must be supplied. Metadata search supports internal reference identifiers such as vimeo_id, external_url, or any custom metadata fields. Unpaginated, newest first, and scoped like the list: a store user with `is_author: true` finds only their own work, and a store user who is neither owner nor author finds none.
      *
      *     **Required Permission:** `view` or `full`
+     *
+     *     **Deprecated.** Use `POST /v1/merchant/{store_id}/content/search` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     post: {
       parameters: {
@@ -4968,10 +5892,13 @@ export interface paths {
         /** @description List of matching content */
         200: {
           headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ContentResponse'][]
+            'application/json': components['schemas']['ContentListItem'][]
           }
         }
         /** @description Bad request - invalid parameters */
@@ -4983,8 +5910,17 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unauthorized */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not a store credential (`Invalid Role`) — a buyer token, or a merchant token without a `store_id` for one of its stores. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -5009,9 +5945,12 @@ export interface paths {
     }
     /**
      * Get content by ID
-     * @description Retrieve a specific content item by its ID.
+     * @deprecated
+     * @description Retrieve a specific content item by its ID. A store user with `is_author: true` may read only their own work; a store user who is neither owner nor author gets 404 for every item.
      *
      *     **Required Permission:** `view` or `full`
+     *
+     *     **Deprecated.** Use `GET /v1/merchant/{store_id}/content/{id}` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     get: {
       parameters: {
@@ -5028,13 +5967,16 @@ export interface paths {
         /** @description Content retrieved successfully */
         200: {
           headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['ContentResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -5043,7 +5985,16 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Content not found */
+        /** @description Not a store credential (`Invalid Role`) — a buyer token, or a merchant token without a `store_id` for one of its stores. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not found in the calling store, or not one this store user may see (`Content was not found`). */
         404: {
           headers: {
             [name: string]: unknown
@@ -5058,9 +6009,12 @@ export interface paths {
     post?: never
     /**
      * Delete content item
-     * @description Permanently delete a content item.
+     * @deprecated
+     * @description Permanently delete a content item. Refused once anyone has bought it.
      *
      *     **Required Permission:** `full`
+     *
+     *     **Deprecated.** Use `DELETE /v1/merchant/{store_id}/content/{id}` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     delete: {
       parameters: {
@@ -5074,13 +6028,50 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Content deleted */
+        /** @description Content deleted. No body. */
         204: {
+          headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
+        401: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': unknown
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: a `view` API key, a buyer token, or a merchant token without a `store_id` for one of its stores. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Not found in the calling store, or not one this store user may see (`Content was not found`). */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Cannot delete content with existing purchases`, or `Cannot delete content due to existing references` when another record still points at it. */
+        422: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -5089,6 +6080,7 @@ export interface paths {
     head?: never
     /**
      * Update content item
+     * @deprecated
      * @description Update an existing content item.
      *
      *     **Authorization:**
@@ -5096,9 +6088,13 @@ export interface paths {
      *       the author via `store_user_id`.
      *
      *     - `is_author: true` (non-owner): can only update their own content; `store_user_id` is ignored even if provided.
-     *     - API key (`full` permission): can update any content and reassign authorship.
+     *     - API key (`full` permission): can update any content and reassign authorship. A `view`
+     *       key gets 403 `Invalid Role`.
+     *
      *
      *     **Assigning an author:** pass a `store_user_id` from `GET /v1/merchant/{store_id}/users`. Pass `null` to clear attribution.
+     *
+     *     **Deprecated.** Use `PATCH /v1/merchant/{store_id}/content/{id}` instead. Every response carries `Deprecation: true`, `Sunset: 2026-09-01` and a `Link` to the successor; the route still serves past that date. Besides a store-manager token or a seller API-key token, a merchant token is accepted when sent with a `store_id` (query or body) naming one of the merchant's stores.
      */
     patch: {
       parameters: {
@@ -5119,13 +6115,16 @@ export interface paths {
         /** @description Content updated */
         200: {
           headers: {
+            Deprecation: components['headers']['SellerContentDeprecation']
+            Sunset: components['headers']['SellerContentSunset']
+            Link: components['headers']['SellerContentSuccessor']
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['ContentResponse']
           }
         }
-        /** @description Invalid content parameters */
+        /** @description The body failed the request contract; the message is the first failure only. */
         400: {
           headers: {
             [name: string]: unknown
@@ -5134,7 +6133,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unauthorized - Invalid or missing authentication token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -5143,91 +6142,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Content not found */
-        404: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-      }
-    }
-    trace?: never
-  }
-  '/v1/seller/sales': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Get sales data */
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description Sales list */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['SalesStatisticsItem'][]
-          }
-        }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/v1/seller/sales/summary': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Get sales summary with revenue and sales data */
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description Sales summary data */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['SalesSummaryResponse']
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ErrorResponse']
-          }
-        }
-        /** @description Forbidden - Seller access required */
+        /** @description `Invalid Role`: a `view` API key, a buyer token, or a merchant token without a `store_id` for one of its stores. */
         403: {
           headers: {
             [name: string]: unknown
@@ -5236,93 +6151,26 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/v1/seller/buyers': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Get buyer statistics
-     * @description Returns seller-scoped, aggregated buyer statistics for reporting.
-     *
-     *     This endpoint is designed to minimize exposure of buyer identity data.
-     */
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description Buyer data */
-        200: {
+        /** @description Not found in the calling store, or not one this store user may see (`Content was not found`). */
+        404: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['BuyerStatisticsItem'][]
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/v1/seller/config': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Get Store Configuration */
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description Client configuration */
-        200: {
+        /** @description `Author not found in this store` for a `store_user_id` from another store, or the first model validation failure (e.g. a reserved `external_identifier` prefix). The same model failure on create is a 400. */
+        422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              google_client_id?: string
-            }
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
     }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
     trace?: never
   }
   '/v1/auth/password/reset-request': {
@@ -5334,7 +6182,10 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Request a password reset code */
+    /**
+     * Request a password reset code
+     * @description Sends a 6-digit reset code to the given email address if a matching account exists. Always returns 200 to prevent email enumeration.
+     */
     post: {
       parameters: {
         query?: never
@@ -5357,15 +6208,10 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              data?: {
-                /** @example If an account with this email exists, a reset code has been sent. */
-                message?: string
-              }
-            }
+            'application/json': components['schemas']['MessageResponse']
           }
         }
-        /** @description Invalid request */
+        /** @description Missing or invalid email */
         400: {
           headers: {
             [name: string]: unknown
@@ -5374,9 +6220,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (rate limit exceeded) */
+        /** @description Too many requests. The source IP is limited to 10 requests per minute, one budget shared by `POST /v1/auth/password/reset-request` and `POST /v1/auth/password/reset`. Each address may also request only a few codes before a growing backoff (up to 15 minutes) applies; every request counts, whether or not the account exists. */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -5400,7 +6247,10 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Reset password using code */
+    /**
+     * Reset password using code
+     * @description Validates the 6-digit reset code and replaces the user's password. The reset code is single-use and expires after a short window.
+     */
     post: {
       parameters: {
         query?: never
@@ -5414,11 +6264,11 @@ export interface paths {
             /** Format: email */
             email: string
             /**
-             * @description 6-digit numeric code
-             * @example 123456
+             * @description 6-digit numeric code received by email
+             * @example 246810
              */
             reset_code: string
-            /** @description New password (min 6 chars) */
+            /** @description New password (minimum 6 characters) */
             password: string
           }
         }
@@ -5430,15 +6280,10 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              data?: {
-                /** @example Password has been successfully reset. */
-                message?: string
-              }
-            }
+            'application/json': components['schemas']['MessageResponse']
           }
         }
-        /** @description Invalid request or code */
+        /** @description A field is missing or invalid (email format, a `reset_code` that is not 6 digits, a password shorter than 6 characters), or the code is wrong or expired. */
         400: {
           headers: {
             [name: string]: unknown
@@ -5456,9 +6301,10 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Too many requests (throttled by source IP or per-account backoff) */
+        /** @description Too many requests. The source IP is limited to 10 requests per minute, one budget shared by `POST /v1/auth/password/reset-request` and `POST /v1/auth/password/reset`. Repeated failed resets against one address also earn it a growing backoff (up to 15 minutes). */
         429: {
           headers: {
+            'Retry-After': components['headers']['AuthRetryAfter']
             [name: string]: unknown
           }
           content: {
@@ -5484,12 +6330,21 @@ export interface paths {
     put?: never
     /**
      * Track an analytics event
-     * @description Track custom events for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send event data for tracking user behavior and interactions.
+     * @description Records product-analytics events, using the Ahoy gem's own endpoint and contract. These are Ahoy's events: they carry no Company and no user, and per-Company usage reporting never counts them.
+     *
+     *     Every request must identify a visit and a visitor: send the `Ahoy-Visit` and `Ahoy-Visitor` headers (or `visit_token` / `visitor_token` in the body). Without both the answer is a plain-text 400. An event for a visit not yet recorded creates the visit.
+     *
+     *     A request whose `User-Agent` reads as a bot, or is absent, still gets a 200 and records nothing.
      */
     post: {
       parameters: {
         query?: never
-        header?: never
+        header?: {
+          /** @description The visit token. Required unless `visit_token` is in the body. */
+          'Ahoy-Visit'?: string
+          /** @description The visitor token. Required unless `visitor_token` is in the body. */
+          'Ahoy-Visitor'?: string
+        }
         path?: never
         cookie?: never
       }
@@ -5499,25 +6354,31 @@ export interface paths {
         }
       }
       responses: {
-        /** @description Event tracked successfully */
+        /** @description Accepted. The body is always an empty object. */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': {
-              /** @example true */
-              success?: boolean
-            }
+            'application/json': Record<string, never>
           }
         }
-        /** @description Invalid event data */
+        /** @description The visit or visitor token is missing (`Missing required parameters`), or the body is neither a named event nor a batch (`Invalid parameters`). Plain text, not `ErrorResponse`. */
         400: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'text/plain': string
+          }
+        }
+        /** @description The body is over 8 KB. Plain text, not `ErrorResponse`. */
+        413: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
           }
         }
       }
@@ -5539,40 +6400,60 @@ export interface paths {
     put?: never
     /**
      * Track a visit
-     * @description Track visit data for analytics purposes. This endpoint is provided by the Ahoy gem and allows clients to send visit data for tracking user sessions and behavior.
+     * @description Records a visit, using the Ahoy gem's own endpoint and contract. Send the `Ahoy-Visit` and `Ahoy-Visitor` headers (or the tokens in the body); without both the answer is a plain-text 400. Re-posting a visit token already recorded is not an error and changes nothing.
+     *
+     *     A request whose `User-Agent` reads as a bot, or is absent, still gets a 200 and records nothing.
      */
     post: {
       parameters: {
         query?: never
-        header?: never
+        header?: {
+          /** @description The visit token. Required unless `visit_token` is in the body. */
+          'Ahoy-Visit'?: string
+          /** @description The visitor token. Required unless `visitor_token` is in the body. */
+          'Ahoy-Visitor'?: string
+        }
         path?: never
         cookie?: never
       }
-      requestBody: {
+      requestBody?: {
         content: {
           'application/json': components['schemas']['AhoyVisitRequest']
         }
       }
       responses: {
-        /** @description Visit tracked successfully */
+        /** @description Accepted. Echoes the tokens in force; `visit_id` and `visitor_id` repeat them under Ahoy's legacy names. */
         200: {
           headers: {
             [name: string]: unknown
           }
           content: {
             'application/json': {
-              /** @example true */
-              success?: boolean
+              visit_token: string
+              visitor_token: string
+              /** @description Same as `visit_token`. */
+              visit_id: string
+              /** @description Same as `visitor_token`. */
+              visitor_id: string
             }
           }
         }
-        /** @description Invalid visit data */
+        /** @description The visit or visitor token is missing. Plain text, not `ErrorResponse`. */
         400: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'text/plain': string
+          }
+        }
+        /** @description The body is over 8 KB. Plain text, not `ErrorResponse`. */
+        413: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
           }
         }
       }
@@ -5593,20 +6474,20 @@ export interface paths {
     /**
      * Fetch content via x402 payment protocol
      * @description Implements the x402 v2 payment protocol using the `ledewire-wallet` scheme. On the first request (no `PAYMENT-SIGNATURE` header) the server responds with `402 Payment Required` and a `PAYMENT-REQUIRED` header describing the price and a single-use nonce. The client retries with a `PAYMENT-SIGNATURE` header containing the buyer JWT and nonce. On success the server responds with `200`, a `PAYMENT-RESPONSE` header with the settlement result, and the content body.
-     *     **Short-circuits (no 402 round-trip):** - Free content (`price_cents: 0`) — returns `200` immediately. - Returning purchaser — if `Authorization` header is present and the resolved
-     *       buyer already has a completed purchase, returns `200` directly.
+     *
+     *     Free seller content (`price_cents: 0`) returns `200` immediately, with no handshake and no purchase. Every priced work goes through the handshake on every request: a past purchase does not skip it, and each settled handshake is a new charge.
+     *
+     *     Retrying is **not** idempotent. There is no idempotency key; a nonce is single-use, so a replayed `PAYMENT-SIGNATURE` gets a fresh 402 rather than a second charge, but a client that starts a new handshake after a lost response pays again.
      */
     get: {
       parameters: {
         query?: never
         header?: {
-          /** @description Base64-encoded x402 v2 PaymentPayload JSON. Required for paid content (unless returning purchaser short-circuit applies). The optional `extensions.payment-identifier` field accepts a stable UUID; if the server has already settled a payment for that identifier it returns the original PAYMENT-RESPONSE from cache without re-charging — safe to retry on network errors. */
+          /** @description Base64-encoded x402 v2 PaymentPayload JSON object. Required for paid content. Must carry `x402Version: 2`; `accepted.scheme: "ledewire-wallet"` and `accepted.network: "ledewire:v1"`; and `payload.contentId` (this work's id), `payload.nonce` (from the 402's `accepts[0].extra.nonce`) and `payload.token` (a buyer JWT, with or without a `Bearer ` prefix). Other members are ignored. An unknown, expired or already-used nonce gets a fresh 402 with a new nonce, not a 400. */
           'PAYMENT-SIGNATURE'?: string
-          /** @description Optional Bearer JWT. If present and the buyer has already purchased this content, returns 200 directly without a 402 round-trip. */
-          Authorization?: string
         }
         path: {
-          /** @description Content UUID */
+          /** @description Content UUID, or the work UUID of a licensable catalogue entry (as returned by search) that has no content row yet. */
           id: string
         }
         cookie?: never
@@ -5616,7 +6497,7 @@ export interface paths {
         /** @description Payment settled; content delivered. */
         200: {
           headers: {
-            /** @description Base64-encoded x402 v2 SettlementResponse JSON. Omitted for free content and when the returning-purchaser short-circuit applies (no new settlement). The decoded JSON includes `accessToken` — a short-lived RS256-signed JWT (default 24h TTL) that third-party proxies and CMS plugins can verify offline against `/.well-known/x402-jwks.json`. */
+            /** @description Base64-encoded x402 v2 SettlementResponse JSON. Omitted for free content. */
             'PAYMENT-RESPONSE'?: string
             [name: string]: unknown
           }
@@ -5624,7 +6505,7 @@ export interface paths {
             'application/json': components['schemas']['X402ContentResponse']
           }
         }
-        /** @description Malformed PAYMENT-SIGNATURE (invalid Base64 or JSON), unsupported x402Version, mismatched scheme/network, or contentId mismatch. */
+        /** @description `Malformed PAYMENT-SIGNATURE header` (not Base64, not JSON, not a JSON object, or an `accepted` or `payload` that is not an object), `Unsupported x402 version`, `Unsupported payment scheme or network`, `Content ID mismatch in payment payload`, or `Nonce was not issued for this content`. */
         400: {
           headers: {
             [name: string]: unknown
@@ -5633,7 +6514,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Invalid JWT in PAYMENT-SIGNATURE payload. */
+        /** @description Invalid or expired JWT in `payload.token` (`Invalid token`). */
         401: {
           headers: {
             [name: string]: unknown
@@ -5646,7 +6527,7 @@ export interface paths {
         402: {
           headers: {
             /**
-             * @description Base64-encoded x402 v2 PaymentRequired JSON describing accepted schemes, price, and payment parameters. The `accepts[0].extra` object contains `nonce` (single-use token), `expiresAt` (Unix timestamp), and `contentId` (UUID of the content being purchased). The `extensions` block contains two sub-objects: `payment-identifier: { supported: true }` (server advertises idempotent retry support — clients should generate a stable UUID per logical fetch and include it in `extensions.payment-identifier` of the PAYMENT-SIGNATURE to avoid double-charging on network errors), and `ledewire-wallet` (discovery block with `apiBase` [request-derived, environment-aware], `authEndpoint` [`/v1/auth/login/buyer-api-key`], `signupUrl` [configurable via `LEDEWIRE_SIGNUP_URL`], `schemeVersion` [`ledewire:v1`], and `contentId` [UUID of the Ledewire content record]). Clients such as `@ledewire/x402-client` use the `ledewire-wallet` block to self-configure without hardcoding the API location. `contentId` is essential for the Worker gate case where the origin URL carries no Ledewire identifier — the client reads it from here to construct the `PAYMENT-SIGNATURE` payload.
+             * @description Base64-encoded x402 v2 PaymentRequired JSON: `x402Version` (2); `error` (`PAYMENT-SIGNATURE header is required`); `resource` with `url` (this endpoint for the work), `description` (the work's display title) and `mimeType` (`application/json`); `accepts`, one entry with `scheme` (`ledewire-wallet`), `network` (`ledewire:v1`), `amount` (price in cents, as a string), `asset` (`USD`), `payTo` (`store:<store id>`, the Store selling the work; for a brokered work, LedeWire's fixed id `f67c246e-206c-5d62-b113-c526c54fac76`), `maxTimeoutSeconds` (300) and `extra` with `nonce` (single-use, valid 300 seconds) and `expiresAt` (Unix timestamp); and `extensions`, always `{}`. The work's id is not in the payload: it is the `id` in the request path, which the client echoes as `payload.contentId`.
              *     A 402 carrying a `DailySpendCapReachedError` body and **no** PAYMENT-REQUIRED header is the other case: the buyer's daily spend cap would be exceeded. Retrying the handshake cannot help and neither can funding the wallet — the cap resets at `resets_at`.
              */
             'PAYMENT-REQUIRED'?: string
@@ -5658,7 +6539,7 @@ export interface paths {
               | components['schemas']['ErrorResponse']
           }
         }
-        /** @description JWT in PAYMENT-SIGNATURE belongs to a non-buyer role (merchant or store-manager). */
+        /** @description The JWT in `payload.token` is not a buyer token (`Invalid Role`). */
         403: {
           headers: {
             [name: string]: unknown
@@ -5676,7 +6557,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Insufficient wallet balance, or another refusal of the purchase. */
+        /** @description Insufficient wallet balance, or another refusal of the purchase — including a work whose body could not be built, rolled back with `type: client_error`. */
         422: {
           headers: {
             [name: string]: unknown
@@ -5687,9 +6568,11 @@ export interface paths {
               | components['schemas']['ErrorResponse']
           }
         }
-        /** @description Rate limit exceeded (30 requests per minute per IP). */
+        /** @description Rate limit exceeded (30 requests per minute per IP). Waiting `Retry-After` seconds is always enough. */
         429: {
           headers: {
+            /** @description Seconds to wait. Always the full window (60). */
+            'Retry-After'?: number
             [name: string]: unknown
           }
           content: {
@@ -5729,9 +6612,9 @@ export interface paths {
     get: {
       parameters: {
         query?: {
-          /** @description Number of resources to return (max 100). */
+          /** @description Number of resources to return. A value above 100 is not refused: it is capped at 100. Below 1 or not a base-10 integer is a 400. */
           limit?: number
-          /** @description Zero-based offset for pagination. */
+          /** @description Zero-based offset for pagination. Negative, above 1000000, or not a base-10 integer is a 400. */
           offset?: number
         }
         header?: never
@@ -5747,6 +6630,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['X402BazaarDiscoveryResponse']
+          }
+        }
+        /** @description `limit` or `offset` out of range or not a base-10 integer. */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
       }
@@ -5769,13 +6661,16 @@ export interface paths {
     /**
      * Verify that a URL is a registered Ledewire content item
      * @description Unauthenticated endpoint used by the browser extension, JS snippet, and proxy to confirm that a URL is legitimately registered as a Ledewire content item before showing any payment UI. Returns `verified: false` silently for unknown URLs to prevent enumeration and to avoid misleading users.
-     *     Responses are HTTP-cached for the configured TTL (default 1 hour). New content registrations propagate within that window.
+     *
+     *     Only `verified: true` responses are HTTP-cached, for the configured TTL (default 1 hour); `verified: false` is never cached, so a newly registered URL verifies at once.
      */
     get: {
       parameters: {
         query: {
-          /** @description Absolute URL of the page to verify (e.g. https://theirsite.com/articles/slug) */
+          /** @description Absolute URL of the page to verify (e.g. https://theirsite.com/articles/slug). A missing or invalid URL is not a 400: it answers `verified: false`. */
           url: string
+          /** @description The store whose pricing rules may cover the URL. When the URL is not yet registered, the store has verified its domain, and one of the store's pricing rules matches it, the server registers it — creating a content record on this GET — and answers `verified: true`. A caller with a known store id can therefore learn which URLs that store's rules cover. */
+          store_id?: string
         }
         header?: never
         path?: never
@@ -5783,7 +6678,7 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Always returns 200. `verified: true` means the URL is registered; `verified: false` means it is not (or the URL was invalid). */
+        /** @description Except when rate limited, always 200. `verified: true` means the URL is registered; `verified: false` means it is not (or the URL was missing or invalid). */
         200: {
           headers: {
             [name: string]: unknown
@@ -5794,9 +6689,11 @@ export interface paths {
               | components['schemas']['VerifyOriginUnverified']
           }
         }
-        /** @description Rate limit exceeded. */
+        /** @description Rate limit exceeded (60 requests per minute per IP). Waiting `Retry-After` seconds is always enough. */
         429: {
           headers: {
+            /** @description Seconds to wait. Always the full window (60). */
+            'Retry-After'?: number
             [name: string]: unknown
           }
           content: {
@@ -5845,13 +6742,16 @@ export interface paths {
             'application/json': components['schemas']['JwksResponse']
           }
         }
-        /** @description Key material unavailable (credentials not configured). */
+        /** @description Key material unavailable (credentials not configured). Sent with `Cache-Control: no-store`. The body is a bare string, not the ErrorResponse envelope. */
         503: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': {
+              /** @enum {string} */
+              error: 'JWKS unavailable'
+            }
           }
         }
       }
@@ -5879,7 +6779,7 @@ export interface paths {
      *
      *     `q`, `bulk_licensable` and `topics[]` narrow the list on the server and combine with AND; `pagination` counts the filtered set. Without any of them, the list is unfiltered. `unclassified_count` is how many listed publications have no Topics yet, whatever the filter, so a Topic-filtered page that may be incomplete says so.
      *
-     *     **Authorization:** none.
+     *     **Authorization:** none, or a **Buyer token**. A Buyer whose Company holds a Subscription also sees the Publications it opens, listed, filtered and counted like the rest. Without a token, or with a Buyer token and no Subscription, the list is the same. A token that is sent must be a valid Buyer token: anything else is refused rather than read as anonymous.
      */
     get: {
       parameters: {
@@ -5893,8 +6793,12 @@ export interface paths {
           bulk_licensable?: boolean
           /** @description Only publications carrying any of these Topics. Repeat the parameter for several (`topics[]=sports&topics[]=travel`). An unknown Topic is a 400 naming the valid ones. */
           'topics[]'?: components['schemas']['TopicSlug'][]
+          /** @description Page number (1-based). A value below 1, or one that is not a number, reads as 1; a page past the end returns an empty `data`. */
           page?: number
+          /** @description Number of items per page. A value above 100 is capped at 100, not refused; a negative one is refused with 400. When it is absent, 0 or not a number, `limit` is read instead, and failing that the default applies. */
           per_page?: number
+          /** @description An alias for `per_page`, under the same rules, read only when `per_page` is absent, 0 or not a number. */
+          limit?: number
         }
         header?: never
         path?: never
@@ -5913,6 +6817,24 @@ export interface paths {
         }
         /** @description Invalid pagination parameters, a `bulk_licensable` that is not a boolean, or a `topics[]` entry that is not a Topic (the message names the valid ones) */
         400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description An `Authorization` header that is not a valid Buyer token (`Request must include a valid Bearer Token`, `Invalid token`, `User not found`), or a deactivated Machine user (`Machine user is deactivated`). Leave the header out to browse anonymously. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -5939,9 +6861,9 @@ export interface paths {
     }
     /**
      * Get one publication
-     * @description One Publication, exactly as its row in `GET /v1/publications`. Served from the same registry, so it answers even while the Broker is unreachable, and an id the list would not show (not ready to license, or withdrawn) is a 404 here too.
+     * @description One Publication, exactly as its row in `GET /v1/publications`. Served from the same registry, so it answers even while the Broker is unreachable, and an id the list would not show to this caller (not ready to license, withdrawn, or opened only by a Subscription the caller does not hold) is a 404 here too.
      *
-     *     **Authorization:** none.
+     *     **Authorization:** none, or a **Buyer token**, as on `GET /v1/publications`.
      */
     get: {
       parameters: {
@@ -5963,7 +6885,25 @@ export interface paths {
             'application/json': components['schemas']['Publication']
           }
         }
-        /** @description No listed publication has that id */
+        /** @description An `Authorization` header that is not a valid Buyer token (`Request must include a valid Bearer Token`, `Invalid token`, `User not found`), or a deactivated Machine user (`Machine user is deactivated`). Leave the header out to browse anonymously. */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description The token is not a buyer token (`Invalid Role`). */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description No publication listed to this caller has that id */
         404: {
           headers: {
             [name: string]: unknown
@@ -6146,7 +7086,7 @@ export interface paths {
       requestBody: {
         content: {
           'application/json': {
-            /** @description The works to license, in the order they should be recorded. Every row gets a disposition, refused ones included — a row that vanished silently between upload and quote is the failure the acknowledgement step exists to prevent. */
+            /** @description The works to license, in the order they should be recorded, one URL per element — taken whole, so a comma in a query string is part of the URL. Every element gets a disposition, refused ones included — a row that vanished silently between upload and quote is the failure the acknowledgement step exists to prevent. So a blank element, or one containing a line break, is a 400 rather than a row. */
             urls: string[]
           }
         }
@@ -6162,7 +7102,7 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description No `urls`, or an empty list */
+        /** @description No `urls`, an empty list, a `urls` that is not an array of strings, or an element that is blank or contains a line break (the message gives its index). */
         400: {
           headers: {
             [name: string]: unknown
@@ -6171,7 +7111,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -6180,7 +7120,16 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Refused whole, before any upstream call. `error.type` distinguishes the two and they want different remedies: `selection_too_large` carries `maximum` and `submitted` and means trim the file, where `selection_value_too_large` means split this into two acquisitions. */
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description Refused whole, before any upstream call. `error.type` distinguishes the two and they want different remedies: `selection_too_large` carries `maximum` and `submitted` and means trim the file, where `selection_value_too_large` carries `maximum_cents` and `submitted` and means split this into two acquisitions. Both fields sit at the top level, beside `error`. */
         422: {
           headers: {
             [name: string]: unknown
@@ -6246,8 +7195,17 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6318,8 +7276,17 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6336,7 +7303,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Refused. `error.type` is `quote_in_progress` when a re-pricing is already running — pricing is expensive upstream, so a client polling and re-quoting in one loop is not allowed to queue one per iteration. Otherwise it is `invalid_acquisition_state`, with `status` and `expected_status`: the hold is already placed, and a re-quote moves the total the funds are reserved against, so it is refused once the money is committed. A `failed` quote is re-quotable, and asking again is the remedy for it. */
+        /** @description Refused. `error.type` is `quote_in_progress` (with `quote_state`) when a re-pricing is already running — pricing is expensive upstream, so a client polling and re-quoting in one loop is not allowed to queue one per iteration. Otherwise it is `invalid_acquisition_state`, with `status` and `expected_status`: the hold is already placed, and a re-quote moves the total the funds are reserved against, so it is refused once the money is committed. A `failed` quote is re-quotable, and asking again is the remedy for it. */
         422: {
           headers: {
             [name: string]: unknown
@@ -6394,8 +7361,17 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6473,7 +7449,7 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
           headers: {
             [name: string]: unknown
@@ -6489,6 +7465,15 @@ export interface paths {
           }
           content: {
             'application/json': components['schemas']['DailySpendCapReachedError']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
           }
         }
         /** @description No such acquisition for this Buyer */
@@ -6571,8 +7556,17 @@ export interface paths {
             'application/json': components['schemas']['AcquisitionResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6589,7 +7583,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The acquisition is not in a state this caller can cancel: the Buyer's own acquisition once it is past its quote, or a Company admin's once it has settled or failed. `error.type` is `invalid_acquisition_state`, with `status` and `expected_status` alongside. Nothing is changed. */
+        /** @description The acquisition is not in a state this caller can cancel: the Buyer's own acquisition once it is past its quote, or, for an open admin of the Company that paid, one that is not held (still quoted by another member, settled or failed). `error.type` is `invalid_acquisition_state`, with `status` and `expected_status` alongside; `expected_status` is `quoted` for a Buyer and `holding` (meaning `authorized` or `acquiring`) for a Company admin. Nothing is changed. */
         422: {
           headers: {
             [name: string]: unknown
@@ -6609,8 +7603,12 @@ export interface paths {
   '/v1/acquisitions/{acquisition_id}/works': {
     parameters: {
       query?: {
+        /** @description Page number (1-based). A value below 1, or one that is not a number, reads as 1; a page past the end returns an empty `data`. */
         page?: number
+        /** @description Number of items per page. A value above 100 is capped at 100, not refused; a negative one is refused with 400. When it is absent, 0 or not a number, `limit` is read instead, and failing that the default applies. */
         per_page?: number
+        /** @description An alias for `per_page`, under the same rules, read only when `per_page` is absent, 0 or not a number. */
+        limit?: number
         /** @description Only works the run left in this state. `undelivered` is what was attempted and failed; an excluded work is never attempted and stays `pending`. */
         delivery_state?: 'pending' | 'delivered' | 'undelivered'
         /** @description Only works the quote left in this state. */
@@ -6625,6 +7623,7 @@ export interface paths {
           | 'excluded_insufficient_rights'
           | 'excluded_above_price_ceiling'
           | 'excluded_rate_unavailable'
+          | 'excluded_not_sold_in_bulk'
       }
       header?: never
       path: {
@@ -6646,8 +7645,12 @@ export interface paths {
     get: {
       parameters: {
         query?: {
+          /** @description Page number (1-based). A value below 1, or one that is not a number, reads as 1; a page past the end returns an empty `data`. */
           page?: number
+          /** @description Number of items per page. A value above 100 is capped at 100, not refused; a negative one is refused with 400. When it is absent, 0 or not a number, `limit` is read instead, and failing that the default applies. */
           per_page?: number
+          /** @description An alias for `per_page`, under the same rules, read only when `per_page` is absent, 0 or not a number. */
+          limit?: number
           /** @description Only works the run left in this state. `undelivered` is what was attempted and failed; an excluded work is never attempted and stays `pending`. */
           delivery_state?: 'pending' | 'delivered' | 'undelivered'
           /** @description Only works the quote left in this state. */
@@ -6662,6 +7665,7 @@ export interface paths {
             | 'excluded_insufficient_rights'
             | 'excluded_above_price_ceiling'
             | 'excluded_rate_unavailable'
+            | 'excluded_not_sold_in_bulk'
         }
         header?: never
         path: {
@@ -6690,8 +7694,17 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6732,9 +7745,9 @@ export interface paths {
      * Where the corpus is
      * @description Answers with a **state**, never with an error — every case is a 200. A corpus is a rendering of Purchases the Buyer already holds rather than an entitlement of its own, so a blob past its 30-day retention answers `rebuild_required`: a 404 or a 410 would say something was lost, and nothing was.
      *
-     *     Reading the state never starts work. It does not need to: assembly is queued when the acquisition settles with something delivered, so a settled acquisition's corpus reads `pending`, `assembling` or `ready` without being asked for. Use `POST` to ask for a rebuild once it has expired, or to retry a failure.
+     *     Reading the state never starts work. It does not need to: assembly is queued when the acquisition settles with something delivered, so a settled acquisition's corpus reads `pending`, `assembling` or `ready` without being asked for. Use `POST` to ask for a rebuild once it has expired, or to retry a failure. Before the acquisition finishes the state is `not_ready`; once it has finished without buying a single work (a withdrawn quote included), `nothing_purchased`.
      *
-     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own, or paid from the Company wallet of a Company the caller is an open admin of.
      */
     get: {
       parameters: {
@@ -6758,8 +7771,17 @@ export interface paths {
             'application/json': components['schemas']['CorpusResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6787,7 +7809,7 @@ export interface paths {
      *
      *     A separate verb from `GET` rather than a flag on it, because a Buyer polling every few seconds while a run finishes would otherwise queue one assembly per poll.
      *
-     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own, or paid from the Company wallet of a Company the caller is an open admin of — who may ask for a rebuild too.
      */
     post: {
       parameters: {
@@ -6801,7 +7823,7 @@ export interface paths {
       }
       requestBody?: never
       responses: {
-        /** @description Nothing started — a corpus is already downloadable, a run is queued (`pending`) or in flight, or the failure is not one a rebuild can fix. The state says which. */
+        /** @description Nothing started — a corpus is already downloadable, a run is queued (`pending`) or in flight, the failure is not one a rebuild can fix, the acquisition has not finished (`not_ready`), or it bought nothing (`nothing_purchased`). The state says which. */
         200: {
           headers: {
             'Retry-After': components['headers']['PollRetryAfter']
@@ -6821,8 +7843,17 @@ export interface paths {
             'application/json': components['schemas']['CorpusResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6867,7 +7898,7 @@ export interface paths {
      *
      *     A corpus that is not `ready` answers with its state at 200, exactly as the state endpoint would: asking for the file of an expired corpus is the same situation as asking where it is.
      *
-     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own, or paid from the Company wallet of a Company the caller is an open admin of.
      */
     get: {
       parameters: {
@@ -6892,8 +7923,17 @@ export interface paths {
             'application/json': components['schemas']['CorpusResponse']
           }
         }
-        /** @description Missing or invalid token */
+        /** @description Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`), or the caller is a deactivated Machine user (`Machine user is deactivated`). A buyer token whose user no longer exists gets `User not found`. */
         401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
+        /** @description `Invalid Role`: the token is not a buyer token. */
+        403: {
           headers: {
             [name: string]: unknown
           }
@@ -6936,7 +7976,7 @@ export interface paths {
      *
      *     To verify a corpus against it, resolve `signing_kid` through `/.well-known/ledewire-signing-keys.json`, match the key on all 32 raw public-key bytes, check it was valid at `signed_at`, verify the detached signature over the manifest's exact bytes, recompute every delivered entry's content hash against its file, and check the archive holds no file the manifest does not list. See docs/bulk-corpus-and-manifest.md.
      *
-     *     **Authorization:** buyer JWT. The acquisition must be the caller's own.
+     *     **Authorization:** buyer JWT. The acquisition must be the caller's own, or paid from the Company wallet of a Company the caller is an admin of.
      */
     get: {
       parameters: {
@@ -6977,7 +8017,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The acquisition exists and has no manifest yet. The manifest is written once, at first assembly, which starts by itself when the acquisition settles with at least one work delivered. So this answers while the run or that first assembly is still under way, and for an acquisition that delivered nothing — "not yet", rather than "there is nothing here". */
+        /** @description The acquisition exists and has no manifest yet. The manifest is written once, at first assembly, which starts by itself when the acquisition settles with at least one work delivered. So this answers while the run or that first assembly is still under way — "not yet", rather than "there is nothing here". An acquisition that finished without buying a single work never gets a manifest, and the message says it purchased nothing. An older one may still have a manifest from before that rule, recording no works delivered; it is served like any other. */
         409: {
           headers: {
             [name: string]: unknown
@@ -7021,15 +8061,24 @@ export interface paths {
         /** @description The key history, in chain order */
         200: {
           headers: {
-            /** @description max-age=86400, public */
+            /** @description `max-age=300, public`. Five minutes, not a day, so a revocation reaches verifiers quickly. */
             'Cache-Control'?: string
+            /** @description Changes whenever an entry is appended. Send it back as `If-None-Match` to revalidate. */
+            ETag?: string
             [name: string]: unknown
           }
           content: {
             'application/json': components['schemas']['SigningKeyHistoryResponse']
           }
         }
-        /** @description No signing key has been activated. Deliberately not an empty list — a verifier reading `[]` would conclude its signature came from a key we never had, which is the answer it should get for a forgery, and the two must not look alike. */
+        /** @description The history is unchanged since the `If-None-Match` ETag. No body; carries the same `Cache-Control`. */
+        304: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description No signing key has been activated, or the history could not be read. Deliberately not an empty list — a verifier reading `[]` would conclude its signature came from a key we never had, which is the answer it should get for a forgery, and the two must not look alike. Sent with `Cache-Control: no-store`, so no cache keeps it. */
         503: {
           headers: {
             [name: string]: unknown
@@ -7150,6 +8199,15 @@ export interface paths {
             'application/json': components['schemas']['MerchantPricingRule']
           }
         }
+        /** @description Invalid parameters — url_pattern or price_cents missing, or price_cents negative or out of range */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Unauthorized */
         401: {
           headers: {
@@ -7168,7 +8226,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description Unprocessable — domain not verified, invalid pattern, or negative price */
+        /** @description Unprocessable — domain not verified, an invalid pattern (not http(s), or unsupported characters), or the pattern already has a pricing rule (active or deactivated) */
         422: {
           headers: {
             [name: string]: unknown
@@ -7356,6 +8414,15 @@ export interface paths {
             'application/json': components['schemas']['MerchantDomainVerification']
           }
         }
+        /** @description domain is missing or blank */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Unauthorized */
         401: {
           headers: {
@@ -7524,6 +8591,15 @@ export interface paths {
             }
           }
         }
+        /** @description domain is missing or blank */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['ErrorResponse']
+          }
+        }
         /** @description Unauthorized */
         401: {
           headers: {
@@ -7566,11 +8642,17 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    get?: never
+    /**
+     * Not supported — always 405
+     * @description The server is stateless and answers in JSON, so there is no SSE stream to open. POST every request.
+     */
+    get: operations['mcpGet']
     put?: never
     /**
      * Ledewire MCP Server — JSON-RPC 2.0 dispatcher
-     * @description Single endpoint for the Ledewire Model Context Protocol (MCP) server. All requests are JSON-RPC 2.0 with `Content-Type: application/json`.
+     * @description Single endpoint for the Ledewire Model Context Protocol (MCP) server, served over Streamable HTTP in stateless JSON mode. Every request is one JSON-RPC 2.0 object POSTed with `Content-Type: application/json` (otherwise `415`) and an `Accept` header that includes `application/json` (otherwise `406`); a request carrying a 2026-07-28 `MCP-Protocol-Version` must accept `text/event-stream` as well. No `Mcp-Session-Id` is issued. `GET` and `DELETE` are answered `405`: there is no SSE stream to open and no session to end. Requests from any `Origin` are served.
+     *
+     *     **Two lifecycles.** A legacy client opens with `initialize`, as below. A 2026-07-28 client skips it: every request carries `MCP-Protocol-Version: 2026-07-28`, an `Mcp-Method` header equal to the body's `method`, `Mcp-Name` equal to `params.name` (or `params.uri`) on `tools/call`, `resources/read` and `prompts/get`, and a `params._meta` envelope with `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`. Its failures are HTTP errors, not 200s: a header that does not match the body is `400` / `-32020`; a version this server does not speak is `400` / `-32022` with the supported list in `error.data.supported`; a missing or malformed envelope is `400` / `-32602`; an unknown method is `404` / `-32601`, and that includes `initialize`, `ping` and `logging/setLevel`, which the 2026-07-28 lifecycle removed. `server/discover` returns the server's capabilities without a handshake.
      *
      *     **Protocol version.** The revision is negotiated per `initialize`: send the revision you support as `params.protocolVersion` and the server echoes it back in `result.protocolVersion` when it can speak it — including revisions older and newer than the pinned one. A client that requests an unsupported revision is answered at `2025-11-25`. Do not hard-code the value from the examples below; read what `initialize` returned.
      *
@@ -7578,9 +8660,13 @@ export interface paths {
      *
      *     **Protocol methods:**
      *
-     *     | `method` | Auth required | Description | |---|---|---| | `initialize` | No | Handshake — negotiates the protocol version and returns capabilities, server info, and onboarding instructions | | `notifications/initialized` | No | Client acknowledgement. Carries no `id` and is answered with HTTP `202` and an empty body | | `ping` | No | Liveness check. Returns an empty `result` object | | `tools/list` | No | Lists all 16 tools with `description`, `inputSchema`, `outputSchema`, and `_meta` | | `tools/call` | Per tool — see below | Invokes one tool by name | | `resources/list` | No | Lists the 3 resources with `uri`, `name`, `description`, and `mimeType` | | `resources/read` | Per resource | Reads one resource by `uri` | | `prompts/list` | No | Lists the 3 prompt templates with their arguments | | `prompts/get` | No | Renders one prompt template with the supplied arguments |
+     *     | `method` | Auth required | Description | |---|---|---| | `initialize` | No | Handshake — negotiates the protocol version and returns capabilities, server info, and onboarding instructions | | `notifications/initialized` | No | Client acknowledgement. Carries no `id` and is answered with HTTP `202` and an empty body | | `ping` | No | Liveness check. Returns an empty `result` object | | `tools/list` | No | Lists all 19 tools with `description`, `inputSchema`, `outputSchema`, and `_meta` | | `tools/call` | Per tool — see below | Invokes one tool by name | | `resources/list` | No | Lists the 3 resources with `uri`, `name`, `description`, and `mimeType` | | `resources/read` | Per resource | Reads one resource by `uri` | | `prompts/list` | No | Lists the 3 prompt templates with their arguments | | `prompts/get` | No | Renders one prompt template with the supplied arguments |
      *
-     *     A JSON array of request objects is accepted as a batch, and answered with an array of responses in no guaranteed order — match them by `id`.
+     *     Other methods the SDK knows (`resources/templates/list`, `resources/subscribe`, `completion/complete`, `logging/setLevel` and others) are not part of this server's surface, and are refused with `-32601`.
+     *
+     *     Batches are not accepted: a JSON array body is refused with `400` / `-32600`. Send one request per POST.
+     *
+     *     A request id is any string or an integer, and is echoed back. A `null` id is refused with `-32600` (HTTP 200 for a legacy request, 400 for a 2026-07-28 one). A body with no `id` is a notification whatever its `method`: it is answered `202` and not run. A JSON-RPC response the client POSTs is acknowledged `202` and otherwise ignored; this server sends no requests to answer.
      *
      *     **Tools (`tools/call`):** every tool is listed by `tools/list` regardless of the caller's auth state, so a client can see the full surface before authenticating. A tool's tier determines what it requires.
      *
@@ -7602,13 +8688,19 @@ export interface paths {
      *
      *     A missing required argument is rejected with `-32602`. A prompt taking no arguments omits the `arguments` key from `prompts/list` rather than publishing an empty array.
      *
-     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works`, `list_topics` and `register` tools require no authentication.
+     *     **Authentication:** Pass `Authorization: Bearer <key>:<secret>` for auth-required tools. The `search_content`, `list_publications`, `list_publication_works`, `list_topics` and `register` tools require no authentication. An OAuth access token from `POST /oauth/token` is the same kind of credential — a `key:secret` string — and is sent the same way.
      *
-     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
+     *     **Authentication and authorization failures are HTTP statuses**, per the MCP authorization spec and RFC 6750, each with a `WWW-Authenticate: Bearer` challenge whose `resource_metadata` names the protected-resource metadata document:
+     *
+     *     | Request | Status | Challenge | |---|---|---| | A Bearer credential that does not authenticate (wrong secret, revoked, expired, or not `key:secret` at all, such as a JWT) — on **any** method, open tools and `tools/list` included | `401` | `error="invalid_token"`, plus `scope` when the request names a protected tool | | No credential, on a `tools/call` naming a tool that is not open | `401` | no `error`; `scope` names what the call needs | | A key without the scope a tool's tier requires (a buyer tool from a key without `can_search`; a seller tool from a key that is not store-scoped, lacks the flag, or whose holder's store role no longer permits it) | `403` | `error="insufficient_scope"`, `scope` naming what the call needs | | A store-scoped key whose store membership has been revoked | `403` | `error="insufficient_scope"`, no `scope`: no scope fixes it |
+     *
+     *     A credential that fails is never served as anonymous: send no `Authorization` header to call open tools without one. A tool name the server does not have, or no name, is challenged like a buyer tool (`mcp:search`) when sent without credentials, so an anonymous caller cannot probe which names exist. The challenge is checked before anything else about the request, so an array body containing a protected call gets the 401 or 403 rather than the batch refusal, and its `scope` names every scope the calls in it need.
+     *
+     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata`, `publication` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`, its text an `McpInvalidCursorError`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
      *
      *     **`search_content` completeness:** `partial_results` is true when part of the catalog could not be searched for this page, and false when everything answered. A part that is down contributes no rows, which looks exactly like one that answered and held no match — so a short or empty `results` with `partial_results: true` is an incomplete search, not a finding. Carry on with `next_cursor`: it moves on what was found and asks the part that was missing again from where it left off.
      *
-     *     **Rate limits:** 15 req/min per IP unauthenticated; 60 req/min per key authenticated.
+     *     **Rate limits:** 15 req/min per IP unauthenticated; 60 req/min per key authenticated. Exceeding one is an HTTP 429 with `Retry-After` and a JSON-RPC error `-31429` with no `id`. A credential that fails to authenticate counts against the per-IP limit.
      *
      *     **x402 payment flow for `get_content`:**
      *     1. First call (no `_meta`) on unpurchased content → `result.isError: true` with `structuredContent`
@@ -7623,7 +8715,11 @@ export interface paths {
      *        signed; the content is delivered either way.
      */
     post: operations['mcpCall']
-    delete?: never
+    /**
+     * Not supported — always 405
+     * @description The server is stateless and answers in JSON, so there is no session to end. POST every request.
+     */
+    delete: operations['mcpDelete']
     options?: never
     head?: never
     patch?: never
@@ -7638,7 +8734,7 @@ export interface paths {
     }
     /**
      * List active MCP API keys
-     * @description Returns all non-revoked MCP API keys for the authenticated user, ordered by `created_at DESC`. Revoked keys are excluded. The secret is never returned after initial creation.
+     * @description Returns all non-revoked MCP API keys for the authenticated user, ordered by `created_at DESC`. Revoked keys are excluded; keys issued by the OAuth flow are listed too, including expired ones, since only revocation removes a key from this list. The secret is never returned after initial creation.
      */
     get: operations['listMcpKeys']
     put?: never
@@ -7682,24 +8778,27 @@ export interface components {
   schemas: {
     /** @description Platform-level public configuration. No authentication required. */
     PublicConfigResponse: {
-      /** @description Google OAuth client ID for initialising the Google Identity Services library. */
-      google_client_id: string
+      /** @description Google OAuth client ID for initialising the Google Identity Services library. null when the server has none configured. */
+      google_client_id: string | null
     }
+    /** @description The caller's own checkout state for one work. `GET /v1/content/{id}/with-access` takes a Buyer token or none, so this is only ever about the Buyer asking, never about another Buyer. Without a token, every Buyer field is `null` or `false` and `next_required_action` is `authenticate`. */
     ContentAccessInfo: {
+      /** @description The caller's own id. `null` without a token. */
       user_id: string | null
+      /** @description Whether the caller has ever bought this work. History, not access: a past purchase is a spent receipt, and the work is delivered again only by buying it again. */
       has_purchased: boolean
-      /** @description Whether the buyer can afford the price. For a Company member, whether their Remaining covers it — the Company balance is never consulted, and a shortfall there surfaces only as the refusal at purchase. */
+      /** @description Whether the caller can afford the price. For a Company member, whether their Remaining covers it — the Company balance is never consulted, and a shortfall there surfaces only as the refusal at purchase. */
       has_sufficient_funds: boolean
-      /** @description The buyer's wallet balance. null for a Company member, who never sees the Company balance. */
+      /** @description The caller's personal wallet balance. `null` for a Company member, who is shown their Remaining and never the Company balance, and `null` without a token. */
       wallet_balance_cents: number | null
       /**
        * @description Never fund_wallet for a Company member, who cannot fund the Company wallet.
        * @enum {string}
        */
       next_required_action: 'authenticate' | 'fund_wallet' | 'purchase'
-      /** @description Spend cap minus spend so far today — for a Company member, their membership's cap. null when the buyer is uncapped or unauthenticated. */
+      /** @description What the caller's daily spend cap leaves today: a member's cap from their Company, or a non-member's own cap. `null` when uncapped, and without a token. */
       remaining_cents: number | null
-      /** @description The buyer's Company, if they hold an open membership. */
+      /** @description The caller's Company, for a Company member. `null` otherwise. */
       company_name: string | null
     }
     AuthenticationResponse: {
@@ -7726,7 +8825,7 @@ export interface components {
       message?: string
     }
     /**
-     * @description Why an invitation was not accepted. `not_found` also covers a Company invitation addressed to another email, deliberately indistinguishable; `expired` covers a withdrawn one; `wrong_email` is a store invitation sent to another address; `already_in_company` means the account belongs to another Company and must leave it first; `already_member` means it already belongs to the store; `invalid` is an invitation that could not be saved.
+     * @description Why an invitation was not accepted. `not_found` also covers a Company invitation addressed to another email, deliberately indistinguishable; `expired` covers a withdrawn one; `wrong_email` is a store invitation sent to another address; `already_in_company` means the account belongs to another Company and must leave it first; `already_member` means it already belongs to the store; `invalid` is an invitation that could not be saved, or a Machine user refused.
      * @enum {string}
      */
     InvitationRefusalReason:
@@ -7737,7 +8836,7 @@ export interface components {
       | 'already_in_company'
       | 'already_member'
       | 'invalid'
-    /** @description An invitation refused. Signup and Google sign-in return it with HTTP 422 and name the `invitation`; `POST /v1/company/invitations/accept` returns it with its own status (404, 409 or 410) and no `invitation`. */
+    /** @description An invitation refused. Signup and Google sign-in return it with HTTP 422 and name the `invitation`; `POST /v1/company/invitations/accept` (403, 404, 409 or 410) and `POST /v1/auth/merchant/accept-invitation` (403, 404, 409, 410 or 422) return it with their own status and no `invitation`. */
     InvitationNotAcceptedError: {
       error: {
         code: number
@@ -7748,6 +8847,23 @@ export interface components {
       reason: components['schemas']['InvitationRefusalReason']
       /** @enum {string} */
       invitation?: 'store' | 'company'
+    }
+    /** @description Token response for a store API key, from `POST /v1/auth/login/api-key` and from refreshing a token that login issued. Includes the authenticated store's id, which the `/v1/merchant/{store_id}/...` routes take. */
+    StoreAuthenticationResponse: {
+      /** @enum {string} */
+      token_type: 'Bearer'
+      access_token: string
+      refresh_token: string
+      /**
+       * Format: date-time
+       * @description When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
+       */
+      expires_at: string
+      /**
+       * Format: uuid
+       * @description The store the API key belongs to.
+       */
+      store_id: string
     }
     /** @description Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection. */
     MerchantAuthenticationResponse: {
@@ -7773,37 +8889,6 @@ export interface components {
        */
       role: 'owner' | 'author'
     }
-    JWTClaims: {
-      /** @description User or Store identifier */
-      sub?: string
-      /** @enum {string} */
-      role?: 'buyer' | 'seller-view' | 'seller-full' | 'merchant'
-      seller_claims?: {
-        seller_id?: string
-      }
-      buyer_claims?: {
-        user_id?: string
-        email?: string
-      }
-      /** @description Present on merchant tokens */
-      user_claims?: {
-        id?: string
-        email?: string
-        full_name?: string
-      }
-      iat?: number
-      exp?: number
-      nbf?: number
-      iss?: string
-      aud?: string
-      token_metadata?: {
-        /** Format: date-time */
-        created_at?: string
-        /** Format: date-time */
-        expires_at?: string
-        token_id?: string
-      }
-    }
     MessageResponse: {
       message: string
     }
@@ -7812,13 +8897,15 @@ export interface components {
         code: number
         message: string
         /**
-         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `not_found` means the publisher no longer has the work, so report it undelivered and do not retry; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not.
+         * @description Machine-readable reason, present on refusals that carry one. Branch on this rather than on `message`, which is prose and may be reworded. `retrieval_failed` is transient and worth retrying; `not_licensable` means report it undelivered; `not_found` means the publisher no longer has the work, so report it undelivered and do not retry; `price_drifted` means re-quote; `client_error` is ours to fix and must never be retried unchanged; `insufficient_funds` is cleared by funding the wallet and `daily_spend_cap_reached` deliberately is not; `not_subscribed` means the work is sold only to Buyers whose Company subscribes to it (SEC filings), so do not retry it until the Company subscribes. Each code means the same whichever kind of work was being bought, though only a work sold by subscription returns `not_subscribed`.
          *
-         *     On the Bulk acquisition steps: `exclusions_unacknowledged` means post the acknowledgement first; `quote_not_ready` means keep polling a `pending` quote or re-quote a `failed` one (`quote_state` says which); `quote_expired` and `quote_in_progress` mean re-quote, and wait for the re-quote already running; `invalid_acquisition_state` means re-read the acquisition (`status` and `expected_status` are alongside); `nothing_to_hold` means every work was excluded and a different selection is needed; `run_not_started` means the run could not be queued, so nothing was held and the same authorization is safe to retry.
+         *     On the Bulk acquisition steps: `exclusions_unacknowledged` means post the acknowledgement first; `quote_not_ready` means keep polling a `pending` quote or re-quote a `failed` one (`quote_state` says which); `quote_expired` and `quote_in_progress` mean re-quote, and wait for the re-quote already running; `invalid_acquisition_state` means re-read the acquisition (`status` and `expected_status` are alongside); `nothing_to_hold` means every work was excluded and a different selection is needed; `run_not_started` means the run could not be queued, so nothing was held and the same authorization is safe to retry. `selection_too_large` (with `maximum` and `submitted`) means trim the Selection; `selection_value_too_large` (with `maximum_cents` and `submitted`) means split it into two acquisitions.
          *
          *     `invitation_not_accepted` means a store or Company invitation was refused; `reason` alongside says why (see `InvitationNotAcceptedError`).
          *
          *     `email_not_verified` is a Google sign-in refused because Google has not verified the account's email address; signing in again will not help until the address is verified with Google.
+         *
+         *     `invalid_cursor` is a search `cursor` that cannot be used: invalid, expired, in an older format, or issued for a different search. Drop it and start again from the first page, without a cursor; the same cursor never succeeds on retry.
          * @enum {string}
          */
         type?:
@@ -7827,6 +8914,7 @@ export interface components {
           | 'not_found'
           | 'price_drifted'
           | 'client_error'
+          | 'not_subscribed'
           | 'insufficient_funds'
           | 'daily_spend_cap_reached'
           | 'exclusions_unacknowledged'
@@ -7836,25 +8924,30 @@ export interface components {
           | 'quote_expired'
           | 'quote_in_progress'
           | 'run_not_started'
+          | 'selection_too_large'
+          | 'selection_value_too_large'
           | 'invitation_not_accepted'
           | 'email_not_verified'
+          | 'invalid_cursor'
       }
     }
     AuthSignupRequest: {
       email: string
       password: string
-      name: string
+      /** @description Optional, but must not be empty when sent. */
+      name?: string
       /** @description The token from a store invitation email. Signup also accepts it and the new account joins the store. If the invitation can't be accepted, nothing is created and the signup is refused with a 422 (`InvitationNotAcceptedError`). */
       invitation_token?: string
       /** @description The token from a Company invitation email. Signup also accepts it and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the signup is refused with a 422. A signup carrying both tokens joins both or neither. */
       company_invitation_token?: string
     }
     AuthLoginEmailRequest: {
-      email?: string
-      password?: string
+      email: string
+      password: string
     }
     AuthLoginOAuthRequest: {
-      id_token?: string
+      /** @description A Google ID token, a three-segment JWT. */
+      id_token: string
       /** @description The token from a store invitation email. The account joins the store. When this call creates the account and the invitation can't be accepted, nothing is created and the call is refused with a 422. See `company_invitation_token` for an existing account. */
       invitation_token?: string
       /** @description The token from a Company invitation email. When this call creates the account, it also accepts the invitation and the new buyer joins the Company. If the invitation can't be accepted (unknown, addressed to another email, expired, withdrawn or already accepted), nothing is created and the call is refused with a 422. A call creating an account with both tokens joins both or neither. For an account that already exists, each token is accepted if it can be, the sign-in succeeds either way, and the response's `invitations` says what happened to each. */
@@ -7865,10 +8958,12 @@ export interface components {
       password: string
     }
     MerchantGoogleLoginRequest: {
+      /** @description A Google ID token, a three-segment JWT. */
       id_token: string
     }
     AuthLoginApiKeyRequest: {
       key: string
+      /** @description Optional. Without it the token has `view` permission; with it, `full`. */
       secret?: string
     }
     AuthLoginBuyerApiKeyRequest: {
@@ -7891,9 +8986,9 @@ export interface components {
       created_at: string
     }
     UserApiKeyCreateRequest: {
-      /** @description Human-readable label for the key */
+      /** @description Human-readable label for the key. Must not be blank, and must be unique among the caller's own keys (a duplicate is refused with 422). */
       name: string
-      /** @description Optional spend ceiling in cents */
+      /** @description Optional spend ceiling in cents, greater than zero. Omitted or null means no limit. */
       spending_limit_cents?: number | null
     }
     /** @description Returned once only at creation. The secret is not stored and cannot be retrieved again. */
@@ -8042,7 +9137,7 @@ export interface components {
        * @description Its Buyer id, which attribution and history name it by.
        */
       user_id: string
-      /** @description Unique among the Company's active Machine users; a deactivated one's may be reused. */
+      /** @description Unique among the Company's active Machine users, compared case-sensitively (`Bot` and `bot` may both be active); a deactivated one's may be reused. */
       name: string
       description: string | null
       /** Format: uuid */
@@ -8056,12 +9151,14 @@ export interface components {
       data: components['schemas']['CompanyMachineUser'][]
     }
     CompanyMachineUserRequest: {
+      /** @description Trimmed of surrounding whitespace before it is checked; over 100 characters after trimming is refused with 422. */
       name: string
       description?: string | null
     }
     /** @description At least one of `name` and `description`. A null or blank `description` clears it; `name` cannot be null. */
     CompanyMachineUserUpdateRequest:
       | {
+          /** @description Trimmed of surrounding whitespace before it is checked; over 100 characters after trimming is refused with 422. */
           name?: string
           description?: string | null
         }
@@ -8177,12 +9274,15 @@ export interface components {
       token: string
     }
     /** @description At least one of role and daily_spend_limit_cents. */
-    CompanyMemberRoleRequest: {
-      /** @enum {string} */
-      role?: 'admin' | 'member'
-      /** @description The member's daily Spend cap in cents. Any admin may set any member's, their own included. null is refused — a member is never uncapped. Writes an AuditEvent. */
-      daily_spend_limit_cents?: number
-    }
+    CompanyMemberRoleRequest:
+      | {
+          /** @enum {string} */
+          role?: 'admin' | 'member'
+          /** @description The member's daily Spend cap in cents. Any admin may set any member's, their own included. null is refused — a member is never uncapped. Writes an AuditEvent. */
+          daily_spend_limit_cents?: number
+        }
+      | unknown
+      | unknown
     /** @description The authenticated buyer's own open Company membership. Names the Company but never its balance. */
     CompanyMembership: {
       /** Format: uuid */
@@ -8197,7 +9297,7 @@ export interface components {
     }
     /** @description Sets the buyer's cap. The field is required and nullable: null is how a buyer becomes uncapped, and an omitted field is treated as a client error rather than as a request to be uncapped. A cap below spend already made in the current window is accepted — it simply leaves remaining_cents at zero until the window rolls. Zero is a valid cap and refuses every priced purchase. */
     UserSpendCapUpdateRequest: {
-      /** @description New cap in whole cents, or null to remove the cap. Negative and fractional values are rejected with 422. */
+      /** @description New cap in whole cents, or null to remove the cap. Negative, fractional and out-of-range values are rejected with 422. */
       daily_spend_limit_cents: number | null
     }
     McpApiKeyCreateRequest: {
@@ -8276,12 +9376,65 @@ export interface components {
       abstract: string | null
       /** @description DOI URL for academic works. Null for non-academic content or unknown values. */
       doi: string | null
-      /** @description When the work was published. For brokered works, the date the broker reports, as `YYYY-MM-DDTHH:MM:SS` with no zone, because the broker gives none. For academic works, the source's publication date. Null when it isn't known. Never filled from `last_modified_date`. */
+      /** @description When the work was published. For an SEC filing, the filing date: the day it was filed, as `YYYY-MM-DD`. For any other work from a Publication, the date the work's own page reports, as `YYYY-MM-DDTHH:MM:SS` with no zone, because the page gives none. For academic works, the source's publication date. Null when it isn't known. Never filled from `last_modified_date`. */
       publication_date: string | null
-      /** @description When the broker says the work's page last changed, as `YYYY-MM-DDTHH:MM:SS` in UTC. Reported for brokered works. Null when it isn't known. */
+      /** @description Null for an SEC filing. For any other work from a Publication, when the work's own page says it last changed, as `YYYY-MM-DDTHH:MM:SS` in UTC. Null when it isn't known. */
       last_modified_date: string | null
       /** @description Academic citation count from source metadata. Null for non-academic content or unknown values. */
       citation_count: number | null
+      /** @description For an SEC filing, who filed it and what it is; null for every other work. Always sent. Only Buyers whose Company subscribes to SEC filings are shown filings. */
+      filing: components['schemas']['ContentSearchFiling'] | null
+    }
+    /** @description An SEC filing's primary document, as a search result describes it. Its price is 0: the filing is public domain, and access comes with the Company's Subscription. */
+    ContentSearchFiling: {
+      /**
+       * @description The filer's name as the SEC records it.
+       * @example Apple Inc.
+       */
+      filer_name: string
+      /**
+       * @description The filer's first listed ticker. Null when the SEC lists none.
+       * @example AAPL
+       */
+      ticker: string | null
+      /**
+       * @description The filer's SEC Central Index Key, zero-padded to ten digits.
+       * @example 0000320193
+       */
+      cik: string
+      /**
+       * @description The form. An amendment ends in `/A`, as in `10-K/A`; a revised proxy statement is `DEFR14A`.
+       * @enum {string}
+       */
+      form_type:
+        | '10-K'
+        | '10-Q'
+        | '8-K'
+        | '20-F'
+        | 'S-1'
+        | 'DEF 14A'
+        | '10-K/A'
+        | '10-Q/A'
+        | '8-K/A'
+        | '20-F/A'
+        | 'S-1/A'
+        | 'DEFR14A'
+      /**
+       * Format: date
+       * @example 2024-11-01
+       */
+      filing_date: string
+      /**
+       * Format: date
+       * @description The period the filing reports on. Null when the form has none, as an 8-K or S-1 usually doesn't.
+       * @example 2024-09-28
+       */
+      period_of_report: string | null
+      /**
+       * @description The SEC's identifier for the filing.
+       * @example 0000320193-24-000123
+       */
+      accession_number: string
     }
     McpContentSearchResult: components['schemas']['ContentSearchResult']
     /** @description A `ContentSearchResult` as MCP `search_content` returns it, with the Topics of the Publication a brokered work comes from. `POST /v1/content/search` carries the same Topics as `publication.topics` instead. */
@@ -8297,7 +9450,7 @@ export interface components {
     }
     /** @description A `ContentSearchResult` as `POST /v1/content/search` returns it, naming the Publication a brokered work belongs to. MCP `search_content` results do not carry `publication`. */
     ContentSearchResultWithPublication: components['schemas']['ContentSearchResult'] & {
-      /** @description The Publication this work was published by, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Null for Store works and for brokered works on no listed Publication's domain. A work whose Publication is `bulk_licensable` can be added to a Selection for a Bulk acquisition. */
+      /** @description The Publication this work was published by, when it is brokered and its URL's host is one of a listed Publication's domains (`www.` and letter case ignored). Null for Store works and for brokered works on no listed Publication's domain. An SEC filing always names the Publication of SEC filings, which is not listed. A work whose Publication is `bulk_licensable` can be added to a Selection for a Bulk acquisition. */
       publication: components['schemas']['ContentSearchPublication'] | null
     }
     /** @description The Publication a search result belongs to. `id` is the same id `GET /v1/publications` lists. */
@@ -8317,9 +9470,9 @@ export interface components {
        */
       topics: components['schemas']['TopicSlug'][]
     }
-    /** @description A Buyer's LedeWire search, across every Store's works and the brokered works of every Publication. Every field is optional. Without a `query` only Store works are searched, filtered by the rest. */
+    /** @description A Buyer's LedeWire search, across every Store's works and the brokered works of every Publication. Every field is optional. Without a `query` only Store works are searched, filtered by the rest, unless `form_type`, `ticker` or `cik` is given: then the SEC filings they name are listed, newest first. */
     ContentSearchRequest: {
-      /** @description Full-text query. Brokered works are searched only when this is given. */
+      /** @description Full-text query. Brokered works are searched only when this is given, except SEC filings: `query` may be omitted when `form_type`, `ticker` or `cik` is given, to list the filings they name, newest first. */
       query?: string | null
       /** @description Only works carrying every one of these tags. */
       tags?: string[] | null
@@ -8329,7 +9482,24 @@ export interface components {
       metadata?: {
         [key: string]: unknown
       } | null
-      /** @description The previous page's `next_cursor`, sent with the same `query`, `tags`, `max_price_cents`, `metadata` and `limit`. A cursor sent with any of those changed, one more than 24 hours old, or one in an older format is refused with 422. Omit for the first page. */
+      /** @description Only works from this Publication: its `id`, as `GET /v1/publications` and each result's `publication` give it, or its exact `name` in any letter case. A value that names no Publication returns no results, not an error. */
+      publication?: string | null
+      /**
+       * @description Only SEC filings of this form, its amendments included: `10-K` also returns `10-K/A`, and `DEF 14A` also returns revised proxy statements (`DEFR14A`). Only an SEC filing matches it, so no other work is returned.
+       * @enum {string|null}
+       */
+      form_type?: '10-K' | '10-Q' | '8-K' | '20-F' | 'S-1' | 'DEF 14A' | null
+      /**
+       * @description Only SEC filings by the company listed under this ticker. A ticker that is not listed matches nothing. Only an SEC filing matches it, so no other work is returned.
+       * @example AAPL
+       */
+      ticker?: string | null
+      /**
+       * @description Only SEC filings by the filer with this SEC Central Index Key, zero-padded or not. Only an SEC filing matches it, so no other work is returned.
+       * @example 320193
+       */
+      cik?: string | null
+      /** @description The previous page's `next_cursor`, sent with the same `query`, `tags`, `max_price_cents`, `metadata`, `publication`, `form_type`, `ticker`, `cik` and `limit`. A cursor sent with any of those changed, one more than 24 hours old, or one in an older format is refused with 422. Omit for the first page. */
       cursor?: string | null
       /**
        * @description The most rows a page holds, shared between Store works and brokered works. Room one leaves unused is filled from the Store works where it can be.
@@ -8364,23 +9534,8 @@ export interface components {
       content_uri?: string | null
       /** Format: date-time */
       purchased_at: string
-      /** @description The licence the broker granted for this work, as returned on the retrieval — not the one we requested. Null when no grant was recorded: every non-brokered purchase, and brokered purchases made before the grant was captured. Null means "not recorded", never "no rights granted". */
-      license?: {
-        /**
-         * @description The broker's licence type, e.g. `ON_DEMAND_LICENSE` or `ON_DEMAND_FULL_USE_LICENSE`. Which one is minted depends on the rates the property publishes, so it varies per work.
-         * @example ON_DEMAND_LICENSE
-         */
-        type: string
-        /**
-         * @description The rights granted. `ON_DEMAND_LICENSE` carries `PARTIAL_USE` alone; `ON_DEMAND_FULL_USE_LICENSE` carries `FULL_USE` and `PARTIAL_USE`.
-         * @example [
-         *       "PARTIAL_USE"
-         *     ]
-         */
-        permissions: string[]
-        /** @description The broker-hosted licence document for this grant. */
-        document_url: string | null
-      } | null
+      /** @description The licence this work was delivered under, as granted on delivery — not the one asked for. Null when no licence was recorded: every purchase of a Store's work, and brokered purchases made before licences were recorded. Null means "not recorded", never "no rights granted". */
+      license?: components['schemas']['PurchaseLicense'] | null
       _meta: {
         'x402/payment-response': {
           success: boolean
@@ -8401,24 +9556,40 @@ export interface components {
       title: string
       /** @description Where the work lives. Not a way to read it — a brokered URL serves a paywall to an unlicensed caller. */
       url?: string | null
+      /** @description The Store that sold the work. For a brokered work, the same fixed id on every one (`f67c246e-206c-5d62-b113-c526c54fac76`), which stands for LedeWire and is not a Store that can be looked up. */
       store_id: string
+      /** @description The Store that sold the work: `LedeWire` for a brokered work, whose Publication names who originated it. */
       store_name: string
+      /** @description The Publication a brokered work was published under, as `content.publication` on `GET /v1/purchases` names it. Null for a Store's work, and for a brokered work on no listed Publication. */
+      publication: components['schemas']['PurchasePublication'] | null
       /** @description What this purchase was charged, at the price in force when it was made. */
       price_cents: number
       /** Format: date-time */
       purchased_at: string
-      /** @description The licence the broker granted for this purchase, as returned on the retrieval. Null when no grant was recorded: every non-brokered purchase, and brokered purchases made before the grant was captured. Null means "not recorded", never "no rights granted". */
-      license?: {
-        /** @example ON_DEMAND_LICENSE */
-        type: string
-        /**
-         * @example [
-         *       "PARTIAL_USE"
-         *     ]
-         */
-        permissions: string[]
-        document_url: string | null
-      } | null
+      /** @description The licence this purchase was delivered under, as granted on delivery. Null when no licence was recorded: every purchase of a Store's work, and brokered purchases made before licences were recorded. Null means "not recorded", never "no rights granted". */
+      license: components['schemas']['PurchaseLicense'] | null
+    }
+    /** @description The licence one purchase was delivered under, exactly as the work's source granted it. Ledewire buys each brokered work on the Buyer's behalf, and passes the source's licence through unchanged rather than restating it. The same on every purchase surface: `get_content`, `list_purchases`, x402 and `/v1/purchases`. */
+    PurchaseLicense: {
+      /**
+       * @description The licence type the work's source granted, in the source's own words. The known values are `ON_DEMAND_LICENSE` (partial use of the work), `ON_DEMAND_FULL_USE_LICENSE` (full use) and `public-domain` (an SEC filing: the work is not under copyright, so no use of it needs a licence). Which one a brokered work comes with depends on what its Publication licenses. A source may add others; read an unknown one as its licence document states it.
+       * @example ON_DEMAND_LICENSE
+       */
+      type: string
+      /**
+       * @description The permissions the source granted, in its own words, such as `PARTIAL_USE` and `FULL_USE`. Empty for a `public-domain` work, where nothing is granted because nothing needs to be.
+       * @example [
+       *       "PARTIAL_USE"
+       *     ]
+       */
+      permissions: string[]
+      /** @description The terms this work was delivered under, or null where none are recorded. A Ledewire URL, `/v1/purchases/{id}/license_document`, readable with the credential that made the purchase. For a work its source licenses, the licence document the source granted, as Ledewire captured it when the work was bought, and null until it has been captured. For an SEC filing (`public-domain`), Ledewire's terms for SEC filings as Markdown, in the version the filing was delivered under: a later version of the terms does not change what an earlier purchase reports. */
+      document_url: string | null
+    }
+    /** @description The Publication a purchased work was published under. */
+    PurchasePublication: {
+      id: string
+      name: string
     }
     McpGetWalletBalanceResult: {
       /** @description Current wallet balance in cents for the authenticated MCP key owner. null for a Company member, who never sees the Company balance; read remaining_cents instead. */
@@ -8456,7 +9627,7 @@ export interface components {
       offset: number
       limit: number
     }
-    /** @description Returned as structuredContent when a get_content payment attempt fails due to insufficient wallet balance. Always accompanied by isError: true. A Company member instead receives McpCompanyInsufficientFundsError, with the same error code. */
+    /** @description Returned as the JSON text in `content[0].text` when a get_content payment attempt fails due to insufficient wallet balance. Always accompanied by isError: true, and never in structuredContent. A Company member instead receives McpCompanyInsufficientFundsError, with the same error code. */
     McpInsufficientFundsError: {
       /** @enum {string} */
       error: 'insufficient_funds'
@@ -8477,7 +9648,7 @@ export interface components {
        */
       funded_by?: 'buyer'
     }
-    /** @description A Company member's get_content payment the Company wallet cannot cover. Always accompanied by isError: true. Same error code as McpInsufficientFundsError, but no balance, shortfall or funding_url: a member never sees the Company balance and cannot fund the Company wallet. The remedy is to ask a Company admin. */
+    /** @description A Company member's get_content payment the Company wallet cannot cover. Returned as the JSON text in `content[0].text`, always with isError: true and never in structuredContent. Same error code as McpInsufficientFundsError, but no balance, shortfall or funding_url: a member never sees the Company balance and cannot fund the Company wallet. The remedy is to ask a Company admin. */
     McpCompanyInsufficientFundsError: {
       /** @enum {string} */
       error: 'insufficient_funds'
@@ -8490,7 +9661,25 @@ export interface components {
        */
       funded_by?: 'company'
     }
-    /** @description Returned as structuredContent when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
+    /** @description Returned as the JSON text in `content[0].text` when a search_content call is refused because its `cursor` cannot be used: invalid, expired, in an older format, or issued for a different search. Always accompanied by isError: true, and never in structuredContent. Nothing was searched. The remedy is the same for every reason: search again without a cursor; the same cursor never succeeds on retry. */
+    McpInvalidCursorError: {
+      /** @enum {string} */
+      error: 'invalid_cursor'
+      /** @description Which reason, as prose. Branch on `error`, not on this. */
+      message: string
+    }
+    /** @description The REST form of McpInvalidCursorError, returned with HTTP 422 by POST /v1/content/search. `error.type` is the machine-readable discriminator; the top-level `message` repeats `error.message`, as the MCP form carries it. */
+    InvalidCursorError: {
+      error: {
+        /** @enum {integer} */
+        code: 422
+        message: string
+        /** @enum {string} */
+        type: 'invalid_cursor'
+      }
+      message: string
+    }
+    /** @description Returned as the JSON text in `content[0].text` when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true, and never in structuredContent. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
     McpDailySpendCapReachedError: {
       /** @enum {string} */
       error: 'daily_spend_cap_reached'
@@ -8510,7 +9699,7 @@ export interface components {
       /** @description The remedy in words. A Company member is told to ask a Company admin, who sets their cap; anyone else, that the daily cap is reached. */
       message?: string
     }
-    /** @description The REST and x402 web-gate form of the same refusal, returned with HTTP 402 Payment Required by POST /v1/purchases and GET /v1/x402/contents/{id}. Carries the same fields as McpDailySpendCapReachedError alongside the standard error envelope, and the same absence of a funding URL. `error.type` is the machine-readable discriminator. */
+    /** @description The REST and x402 web-gate form of the same refusal, returned with HTTP 402 Payment Required by POST /v1/purchases, GET /v1/x402/contents/{id} and POST /v1/acquisitions/{acquisition_id}/authorization. Carries the same fields as McpDailySpendCapReachedError alongside the standard error envelope, and the same absence of a funding URL. `error.type` is the machine-readable discriminator. */
     DailySpendCapReachedError: {
       error: {
         /** @enum {integer} */
@@ -8566,6 +9755,31 @@ export interface components {
        */
       url: string
     }
+    /** @description One JSON-RPC 2.0 response envelope: `result` on success, `error` on failure. */
+    McpJsonRpcResponse: {
+      /** @enum {string} */
+      jsonrpc: '2.0'
+      /** @description Echoed from the request. Absent when the request's id could not be read: a parse error (`-32700`), an invalid envelope or a `null` id (`-32600`), or a refusal made before the body was read (`405`, `406`, `413`, `415`, `429`). */
+      id?: number | string
+      /** @description Present on success. */
+      result?: {
+        /** @description On every 2026-07-28 result, `io.modelcontextprotocol/serverInfo` carries the server's identity (`name`, `version`), as `server/discover` does. Absent from legacy (`initialize`-era) results, which learn it from `initialize`. */
+        _meta?: {
+          'io.modelcontextprotocol/serverInfo'?: {
+            name: string
+            version: string
+          }
+        }
+      }
+      /** @description Present on failure. */
+      error?: {
+        /** @description JSON-RPC error codes: `-32700` malformed JSON, `-32600` invalid request envelope, `-32601` method not found, `-32602` invalid params (also an unknown `resources/read` URI, a missing required `prompts/get` argument, and a missing or malformed 2026-07-28 `_meta` envelope), `-32020` a 2026-07-28 header that does not match the body, `-32022` an unsupported protocol version, `-31429` rate limited (sent with HTTP 429; application-defined, since MCP defines no rate-limit code). Authentication and authorization failures are not JSON-RPC errors: they are a `401` or `403` with a `WWW-Authenticate` challenge. */
+        code: number
+        message: string
+        /** @description Optional detail, e.g. `{ uri }` for an unknown resource. */
+        data?: unknown
+      }
+    }
     /** @description One JSON-RPC 2.0 request envelope. `id` is omitted for notifications (`notifications/initialized`), which are acknowledged with HTTP 202 and no body. */
     McpJsonRpcRequest: {
       /** @enum {string} */
@@ -8575,13 +9789,14 @@ export interface components {
         | 'initialize'
         | 'notifications/initialized'
         | 'ping'
+        | 'server/discover'
         | 'tools/list'
         | 'tools/call'
         | 'resources/list'
         | 'resources/read'
         | 'prompts/list'
         | 'prompts/get'
-      /** @description Client-supplied request identifier. Echoed back in the response. Omitted for notifications. */
+      /** @description Client-supplied request identifier: any string, or an integer. Echoed back in the response. Omitted for notifications; a body without one is never run. `null` is refused with `-32600`. */
       id?: number | string
       /** @description Shape depends on `method`. `initialize`: `{ protocolVersion, capabilities, clientInfo }` — all three required. `tools/call`: `{ name: "<tool_name>", arguments: { ... } }`; call `tools/list` for each tool's full `inputSchema`. `resources/read`: `{ uri: "ledewire://..." }`. `prompts/get`: `{ name: "<prompt_name>", arguments: { ... } }`. `tools/list`, `resources/list`, `prompts/list` and `ping` take no parameters. */
       params?: {
@@ -8732,7 +9947,7 @@ export interface components {
       limit: number
     }
     AuthTokenRefreshRequest: {
-      refresh_token?: string
+      refresh_token: string
     }
     ManageableStore: {
       id: string
@@ -8789,16 +10004,16 @@ export interface components {
       expires_at: string
     }
     WalletPaymentSessionRequest: {
-      /** @description Amount to fund the wallet in cents */
+      /** @description Amount to fund the wallet in cents. Must be greater than 0. An amount within this range can still be declined by the payment provider, which answers 402. */
       amount_cents: number
       /**
-       * @description Currency code (defaults to USD)
+       * @description Currency code. Only `usd` is accepted, compared case-insensitively. Defaults to `usd`.
        * @default usd
        */
       currency: string
-      /** @description Additional metadata to include with the payment session */
+      /** @description Additional metadata to attach to the payment intent. At most 20 entries; each key at most 40 bytes; each value a string, number, boolean or null, at most 500 bytes in its string form (lengths here are bytes, not characters). Null values are dropped and the rest are sent as strings. The keys `user_id`, `funding_wallet` and `funding_transfer_id` are reserved and overwritten, as is `company_id` on `POST /v1/company/wallet/payment-session`. When sent, it must be an object: an explicit `null` is refused with 400. */
       metadata?: {
-        [key: string]: unknown
+        [key: string]: string | number | boolean | null
       }
     }
     WalletPaymentSessionResponse: {
@@ -8887,8 +10102,9 @@ export interface components {
       occurred_at: string
     }
     PurchaseCreateRequest: {
-      content_id?: string
-      price_cents?: number
+      content_id: string
+      /** @description The price the Buyer was quoted, in cents. Must equal the work's current price, or the purchase is refused with 422. A numeric string is coerced to an integer. */
+      price_cents: number
     }
     PurchaseVerifyResponse: {
       has_purchased: boolean
@@ -8917,7 +10133,7 @@ export interface components {
        */
       content_uri?: string
       /**
-       * @description Namespaced platform ID, e.g. `vimeo:123456789`. For `external_ref` content only.
+       * @description Namespaced platform ID, e.g. `vimeo:123456789`. Accepted for `external_ref` and `video` content; ignored for other types.
        * @example vimeo:123456789
        */
       external_identifier?: string | null
@@ -8940,6 +10156,7 @@ export interface components {
       content_id: string
       title: string
       total_sales: number
+      /** @description Store net revenue from this content's completed sales, in cents: the sale price less the platform fee and any author share. */
       total_revenue_cents: number
     }
     /**
@@ -8952,7 +10169,7 @@ export interface components {
       buyer_ref: string
       /** @description Number of completed purchases by this buyer for this seller. */
       purchases_count: number
-      /** @description Total amount spent by this buyer for this seller, in cents. */
+      /** @description Store net revenue from this buyer's completed purchases, in cents: what the store kept after the platform fee and any author share, not the amount the buyer paid. */
       total_spent_cents: number
       /**
        * Format: date-time
@@ -8970,179 +10187,48 @@ export interface components {
        */
       buyer_status: 'new' | 'repeat' | 'inactive'
     }
+    /** @description One event as `POST /ahoy/events` reads it. Any other key is ignored. */
     AhoyEvent: {
-      /** @description Name of the event being tracked */
+      /** @description The event name. Required for a single event sent at the top level; inside a batch it is not checked, and an event without one is stored with an empty name. */
       name?: string
-      /** @description Additional properties for the event */
+      /** @description Free-form properties, stored as given. */
       properties?: {
         [key: string]: unknown
       }
       /**
        * Format: date-time
-       * @description When the event occurred
+       * @description When the event happened. Honoured only if it falls within the last minute by the server's clock; any other value, or none, is replaced with the time of receipt.
        */
       time?: string
-      /**
-       * Format: uuid
-       * @description ID of the user associated with the event
-       */
-      user_id?: string
-      /**
-       * Format: uuid
-       * @description ID of the visit associated with the event
-       */
-      visit_id?: string
     }
-    AhoyVisit: {
-      /** @description Unique token for this visit */
-      visit_token?: string
-      /** @description Token identifying the visitor */
-      visitor_token?: string
-      /**
-       * Format: uuid
-       * @description ID of the user associated with the visit
-       */
-      user_id?: string
-      /** @description IP address of the visitor */
-      ip?: string
-      /** @description User agent string */
-      user_agent?: string
-      /** @description Referrer URL */
-      referrer?: string
-      /** @description Domain of the referrer */
-      referring_domain?: string
-      /** @description Landing page URL */
-      landing_page?: string
-      /** @description Browser name */
-      browser?: string
-      /** @description Operating system */
-      os?: string
-      /** @description Type of device */
-      device_type?: string
-      /** @description Country of the visitor */
-      country?: string
-      /** @description Region of the visitor */
-      region?: string
-      /** @description City of the visitor */
-      city?: string
-      /**
-       * Format: float
-       * @description Latitude coordinate
-       */
-      latitude?: number
-      /**
-       * Format: float
-       * @description Longitude coordinate
-       */
-      longitude?: number
-      /** @description UTM source parameter */
-      utm_source?: string
-      /** @description UTM medium parameter */
-      utm_medium?: string
-      /** @description UTM term parameter */
-      utm_term?: string
-      /** @description UTM content parameter */
-      utm_content?: string
-      /** @description UTM campaign parameter */
-      utm_campaign?: string
-      /** @description App version (for native apps) */
-      app_version?: string
-      /** @description OS version (for native apps) */
-      os_version?: string
-      /** @description Platform (for native apps) */
-      platform?: string
-      /**
-       * Format: date-time
-       * @description When the visit started
-       */
-      started_at?: string
-    }
-    AhoyEventRequest: {
-      /** @description Name of the event being tracked */
-      name: string
-      /** @description Additional properties for the event */
-      properties?: {
-        [key: string]: unknown
-      }
-      /**
-       * Format: date-time
-       * @description When the event occurred (defaults to current time)
-       */
-      time?: string
-      /**
-       * Format: uuid
-       * @description ID of the user associated with the event
-       */
-      user_id?: string
-      /**
-       * Format: uuid
-       * @description ID of the visit associated with the event
-       */
-      visit_id?: string
-    }
+    /** @description A single event at the top level (it must carry `name`), a batch under `events`, or a batch as a bare JSON array. Of a batch, only the first 10 are recorded and the rest are dropped without error. */
+    AhoyEventRequest:
+      | (components['schemas']['AhoyEvent'] & unknown)
+      | components['schemas']['AhoyEvent'][]
+      | {
+          events: components['schemas']['AhoyEvent'][]
+        }
+    /** @description What `POST /ahoy/visits` reads from the client. The server derives `ip`, `user_agent`, `browser`, `os`, `device_type`, `referring_domain` and `started_at` from the request itself, and ignores any value the client sends for them, or for a user or location. */
     AhoyVisitRequest: {
-      /** @description Unique token for this visit */
+      /** @description The visit's token. The `Ahoy-Visit` header takes precedence. */
       visit_token?: string
-      /** @description Token identifying the visitor */
+      /** @description The visitor's token. The `Ahoy-Visitor` header takes precedence. */
       visitor_token?: string
-      /**
-       * Format: uuid
-       * @description ID of the user associated with the visit
-       */
-      user_id?: string
-      /** @description IP address of the visitor */
-      ip?: string
-      /** @description User agent string */
-      user_agent?: string
-      /** @description Referrer URL */
+      /** @description Referrer URL. Its host is stored as `referring_domain`. */
       referrer?: string
-      /** @description Domain of the referrer */
-      referring_domain?: string
-      /** @description Landing page URL */
+      /** @description Landing page URL. Any `utm_*` parameters in its query string fill in the `utm_*` fields not sent directly. */
       landing_page?: string
-      /** @description Browser name */
-      browser?: string
-      /** @description Operating system */
-      os?: string
-      /** @description Type of device */
-      device_type?: string
-      /** @description Country of the visitor */
-      country?: string
-      /** @description Region of the visitor */
-      region?: string
-      /** @description City of the visitor */
-      city?: string
-      /**
-       * Format: float
-       * @description Latitude coordinate
-       */
-      latitude?: number
-      /**
-       * Format: float
-       * @description Longitude coordinate
-       */
-      longitude?: number
-      /** @description UTM source parameter */
       utm_source?: string
-      /** @description UTM medium parameter */
       utm_medium?: string
-      /** @description UTM term parameter */
       utm_term?: string
-      /** @description UTM content parameter */
       utm_content?: string
-      /** @description UTM campaign parameter */
       utm_campaign?: string
+      /** @description Platform (for native apps) */
+      platform?: string
       /** @description App version (for native apps) */
       app_version?: string
       /** @description OS version (for native apps) */
       os_version?: string
-      /** @description Platform (for native apps) */
-      platform?: string
-      /**
-       * Format: date-time
-       * @description When the visit started (defaults to current time)
-       */
-      started_at?: string
     }
     /** @description Create request body for content. Required fields vary by `content_type`: `markdown` requires `content_body`; `html` requires exactly one of `content_body` (inline) or `content_uri` (remote); `external_ref`, `pdf`, `image`, and `video` require `content_uri` (`content_body` is not accepted). */
     Content: {
@@ -9164,7 +10250,7 @@ export interface components {
        */
       content_uri?: string
       /**
-       * @description Optional namespaced platform ID, e.g. `vimeo:123456789` or `youtube:dQw4w9WgXcQ`.
+       * @description Optional namespaced platform ID, e.g. `vimeo:123456789` or `youtube:dQw4w9WgXcQ`. Accepted for `external_ref` and `video` content; silently dropped for other types.
        * @example vimeo:123456789
        */
       external_identifier?: string
@@ -9194,7 +10280,7 @@ export interface components {
     ContentResponse: {
       id: string
       /**
-       * @description The type of content. `pdf`, `image`, and `video` are remote-only types; `content_uri` is withheld until purchase. `brokered` is system-managed (e.g. Tollbit-sourced) and cannot be created directly via this API.
+       * @description The type of content. `pdf`, `image`, and `video` are remote-only types — buyers receive `content_uri` only after purchase, while the store's own content endpoints always return it. `brokered` is system-managed (a work LedeWire sells for the Publication it comes from) and cannot be created directly via this API.
        * @enum {string}
        */
       content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
@@ -9211,7 +10297,7 @@ export interface components {
        */
       content_uri?: string | null
       /**
-       * @description Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` content.
+       * @description Namespaced platform ID, e.g. `vimeo:123456789`. Present on `external_ref` and `video` content.
        * @example vimeo:123456789
        */
       external_identifier?: string | null
@@ -9324,25 +10410,37 @@ export interface components {
       created_at: string
       /** @description External URI for `external_ref` content; optional supplementary link for `markdown` content. Null when not set. */
       content_uri: string | null
-      /** @description Namespaced platform ID for `external_ref` content. Null for other types. */
+      /** @description Namespaced platform ID for `external_ref` and `video` content. Null when not set. */
       external_identifier?: string | null
       /** @description Canonical URL of this content on its origin site. Used by the x402 verify-origin endpoint. */
       resource_url?: string | null
     }
     /**
-     * @description Full content detail plus real-time access and wallet context for a specific user. Returned by the buyer-facing `GET /v1/content/:id/with-access` endpoint.
+     * @description A Buyer's preview of one work, plus that Buyer's checkout state. Returned by `GET /v1/content/{id}/with-access`, which takes a Buyer token or none.
      *
-     *     **URI gating for remote content:** `content_uri` is only present in the response when `access_info.has_purchased` is `true`. This applies to `external_ref` content and remote-mode `html` content (where the payload is a URI rather than an inline body). For all other states (unauthenticated, insufficient funds, not yet purchased) it is omitted, ensuring buyers cannot access the Vimeo link, PDF URI, or other external resource without completing a purchase.
+     *     **A preview, never a delivery.** There is no `content_body` and no `content_uri`, not even when `access_info.has_purchased` is `true`: the work is delivered through the purchase paths, which charge. Nor does it carry the work's `metadata` or `external_identifier`, which belong to the work's store.
      */
-    ContentWithAccessResponse: components['schemas']['ContentResponse'] & {
-      access_info: components['schemas']['ContentAccessInfo']
-    }
-    User: {
-      id?: string
-      name?: string
-      email?: string
+    ContentWithAccessResponse: {
+      id: string
       /** @enum {string} */
-      role?: 'buyer' | 'seller'
+      content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
+      /** @description The work's title or, for a work stored without one, its Publication and URL. `null` only when nothing names the work. */
+      title: string | null
+      /**
+       * Format: byte
+       * @description Teaser, base64 encoded. Must be base64-decoded before rendering.
+       */
+      teaser: string
+      /** @description What the work costs the caller, in cents. */
+      price_cents: number
+      /**
+       * @description Always `public`. An unlisted or archived work is not for sale, and gives 404.
+       * @enum {string}
+       */
+      visibility: 'public'
+      /** @description The work's URL on its origin site, where it has one. */
+      resource_url: string | null
+      access_info: components['schemas']['ContentAccessInfo']
     }
     /** @enum {string} */
     PurchaseStatus: 'completed' | 'refunded' | 'pending' | 'reverted' | 'failed'
@@ -9357,22 +10455,27 @@ export interface components {
         /** @description Where the work was published, as first recorded. Null for content with no URL. */
         resource_url: string | null
         /** @description The Publication a brokered work was published under. Null for non-brokered content. */
-        publication: {
-          id: string
-          name: string
-        } | null
+        publication: components['schemas']['PurchasePublication'] | null
+        /** @description For an SEC filing, who filed it and what it is, as search described it. Null for every other work, and for a filing bought before its filer was recorded. */
+        filing: components['schemas']['ContentSearchFiling'] | null
       }
       buyer_id: string
       buyer: {
         id: string
         name: string
       }
+      /** @description The Store that sold the work. For a brokered work, the same fixed id on every one (`f67c246e-206c-5d62-b113-c526c54fac76`), which stands for LedeWire and is not a Store that can be looked up. */
       seller_id: string
+      /** @description The Store that sold the work: for a brokered work, LedeWire, which sells it for the Publication named in `content.publication`. */
       seller: {
+        /** @description The same value as `seller_id`. */
         id: string
+        /** @description The Store's name. `LedeWire` for a brokered work. */
         name: string
       }
       amount_cents: number
+      /** @description The licence this purchase was delivered under, as granted on delivery. Null when no licence was recorded: every purchase of a Store's work, and brokered purchases made before licences were recorded. Null means "not recorded", never "no rights granted". */
+      license: components['schemas']['PurchaseLicense'] | null
       /** Format: date-time */
       timestamp: string
       status: components['schemas']['PurchaseStatus']
@@ -9396,38 +10499,36 @@ export interface components {
         content_type: string
         title: string
       }
-      buyer_id: string
-      buyer: {
-        id: string
-        name: string
-      }
+      /**
+       * @description Opaque, store-scoped reference to the buyer: the same value `GET /v1/merchant/{store_id}/buyers`
+       *     returns as `buyer_ref`, so a sale can be matched to that ranking. The buyer's global user id
+       *     and name are not disclosed.
+       * @example bref_v1_3f9a2c1d8e7b6a5f4e3d2c
+       */
+      buyer_ref: string
       seller_id: string
       seller: {
         id: string
         name: string
       }
       amount_cents: number
-      /** @description Platform fee split. Values are 0 (not null) on non-completed purchases. */
+      /**
+       * @description Platform fee split, snapshotted when the purchase completes. All three are `null` on a
+       *     purchase that has not completed (pending, failed) and on purchases recorded before fee
+       *     snapshots existed.
+       */
       fees: {
-        platform_fee_cents: number
-        store_net_cents: number
-        /** @description 0 for content without an author */
-        author_net_cents: number
+        platform_fee_cents: number | null
+        store_net_cents: number | null
+        /** @description 0 for completed content without an author */
+        author_net_cents: number | null
       }
       status: components['schemas']['PurchaseStatus']
       /** Format: date-time */
       timestamp: string
     }
-    MonthlyData: {
-      [key: string]: {
-        [key: string]: {
-          cents?: number
-          currency_iso?: string
-        }
-      }
-    }
     InviteInfoResponse: {
-      invited_email: string
+      invited_email: string | null
       store_name: string
       /** @enum {string|null} */
       role: 'owner' | null
@@ -9436,10 +10537,12 @@ export interface components {
     }
     CheckoutStateResponse: {
       content_id: string
-      content_title: string
+      /** @description The work's title, composed the same way as `PurchaseResponse.content.title`: the stored title, or for a work stored without one `<publication name> — <host/path>`, the publication name alone, or the host and path alone. Null only when the work has none of the three. */
+      content_title: string | null
       price_cents: number
       checkout_state: {
         is_authenticated: boolean
+        /** @description Null for an anonymous caller. */
         has_sufficient_funds?: boolean | null
         has_purchased: boolean
         /** @enum {string} */
@@ -9447,16 +10550,25 @@ export interface components {
       }
     }
     WalletPaymentStatusResponse: {
-      /** @enum {string} */
+      /**
+       * @description The funding transfer's status. `completed` means the funds are in the wallet. `processing` is a payment the provider accepted but has not settled (an ACH debit); `awaiting_verification` is an ACH payment waiting on microdeposit verification; neither is spendable yet. `cancelled` is usually a session superseded by a newer one (it returns to `pending` and then `completed` if the provider charges it anyway).
+       * @enum {string}
+       */
       status:
-        'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
+        | 'pending'
+        | 'completed'
+        | 'reverted'
+        | 'failed'
+        | 'cancelled'
+        | 'processing'
+        | 'awaiting_verification'
       /** Format: date-time */
       updated_at: string
       /** @description The wallet balance. null for a Company member, as on GET /v1/wallet/balance. */
       balance_cents: number | null
     }
     SalesSummaryResponse: {
-      /** @description Amount in cents */
+      /** @description Store net revenue from completed sales, in cents (after the platform fee and any author share) */
       total_revenue_cents: number
       /** @description Total number of sales */
       total_sales: number
@@ -9490,7 +10602,8 @@ export interface components {
       /** @description Unix timestamp (seconds) of the content's last update. */
       lastUpdated: number
       metadata: {
-        title: string
+        /** @description The stored title; null for a work stored untitled (e.g. one registered from a pricing rule). */
+        title: string | null
         /** @description Plain UTF-8 preview text. Never base64. */
         teaser: string
         store_name: string
@@ -9515,12 +10628,16 @@ export interface components {
       teaser: string
       /** @enum {string} */
       visibility: 'public' | 'unlisted' | 'private'
+      /** @description The work's descriptive metadata, as its Store recorded it. For a brokered work, only what describes the work itself: `publication_date`, `last_modified_date`, and the academic fields `authors`, `abstract`, `doi` and `cited_by_count` where known, and for an SEC filing `filing`: who filed it and what it is, shaped as `ContentSearchFiling`. */
       metadata?: {
         [key: string]: unknown
       }
+      /** @description The Store's own identifier for the work, when it gave one. Always null for a brokered work. */
       external_identifier?: string | null
       /** @description UUID of the settled Purchase record. Null for free content. */
       purchase_id?: string | null
+      /** @description The licence this purchase was delivered under, as on every purchase surface. Null for free content, and when no licence was recorded. */
+      license?: components['schemas']['PurchaseLicense'] | null
       /** @description Canonical URL of this content on its origin site. Set when content was registered via a pricing rule or manual resource_url assignment. */
       resource_url?: string | null
       /** @description Full article body in plain UTF-8 markdown. Present when content_type is markdown. */
@@ -9534,7 +10651,7 @@ export interface components {
       verified: true
       /** @description UUID of the matching Content record. */
       content_id: string
-      /** @description UUID of the store that owns this content. */
+      /** @description UUID of the Store that sells this content — the Store `payTo` names. For a brokered work, the same fixed id on every one (`f67c246e-206c-5d62-b113-c526c54fac76`), which stands for LedeWire and is not a Store that can be looked up. */
       store_id: string
       /** @description Price in cents as a string (e.g. "10" = $0.10). */
       amount: string
@@ -9581,7 +10698,7 @@ export interface components {
        */
       line_state: 'pending' | 'firm' | 'estimated' | 'excluded'
       /**
-       * @description Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason. `excluded_free_not_supported` is retired — a work published at zero is now included at no cost — and appears only on lines quoted before that; a re-quote prices them back in.
+       * @description Present only on an excluded line. `excluded_rate_unavailable` is the one transient reason. `excluded_free_not_supported` is retired — a work published at zero is now included at no cost — and appears only on lines quoted before that; a re-quote prices them back in. `excluded_not_sold_in_bulk` is an SEC filing, which is sold one at a time and never in a Bulk acquisition.
        * @enum {string|null}
        */
       exclusion_reason?:
@@ -9593,6 +10710,7 @@ export interface components {
         | 'excluded_insufficient_rights'
         | 'excluded_above_price_ceiling'
         | 'excluded_rate_unavailable'
+        | 'excluded_not_sold_in_bulk'
         | null
       /** @description What this work was quoted at, in micros. **Never published in cents.** Per-work cents are display-only and non-summable for a Bulk acquisition — the authoritative figure is micros and the acquisition total is what reconciles, so a client is given nothing here that invites adding up to the charge. */
       price_micros?: number | null
@@ -9629,6 +10747,26 @@ export interface components {
      *     Licensability is a rights answer, not a quality one. A publication that publishes no `FULL_USE` rate is still listed, with `bulk_licensable: false`: its works can be bought one at a time but are excluded from a corpus as `excluded_insufficient_rights`.
      */
     Publication: {
+      /** @description How the publication's own homepage describes itself, as read from its metadata when we last fetched it. This is the publisher's self-description, unverified: we do not check or endorse it. Null where the homepage has not been fetched, or could not be. Within the object, a field the page does not give is null. */
+      homepage: {
+        /**
+         * @description The page's `<title>`, or its `og:title` where it has no title.
+         * @example Fast Company | Business News, Innovation, Technology
+         */
+        title: string | null
+        /** @description The page's meta description, or its `og:description` where it has none. */
+        description: string | null
+        /**
+         * @description The page's `og:site_name`.
+         * @example Fast Company
+         */
+        site_name: string | null
+        /**
+         * @description The language the page declares (`<html lang>`), as written, such as `en` or `en-US`.
+         * @example en
+         */
+        language: string | null
+      } | null
       /** Format: uuid */
       id: string
       /** @description The Broker's display name for the publication. */
@@ -9818,7 +10956,7 @@ export interface components {
       /** @description What we cannot sell, grouped by reason and counted. Grouped rather than enumerated because a 10,000-work Selection can exclude thousands of rows and the acknowledgement step asks the Buyer to register what kinds of thing are not coming; the per-work detail is `GET /v1/acquisitions/{id}/works`, which paginates. */
       exclusions: {
         /**
-         * @description Six of these are the Buyer's to act on and one is ours. `excluded_rate_unavailable` is the only transient one — it says we could not reach the broker to ask, and is the only reason here worth asking us to retry. `excluded_not_deliverable` is a broker failure we observed; `excluded_insufficient_rights` is a rights decision we made; `excluded_above_price_ceiling` is a price we declined. Those three are the ones most easily collapsed and must not be.
+         * @description Seven of these are the Buyer's to act on and one is ours. `excluded_rate_unavailable` is the only transient one — it says we could not reach the broker to ask, and is the only reason here worth asking us to retry. `excluded_not_deliverable` is a broker failure we observed; `excluded_insufficient_rights` is a rights decision we made; `excluded_above_price_ceiling` is a price we declined. Those three are the ones most easily collapsed and must not be.
          * @enum {string}
          */
         reason:
@@ -9830,6 +10968,7 @@ export interface components {
           | 'excluded_insufficient_rights'
           | 'excluded_above_price_ceiling'
           | 'excluded_rate_unavailable'
+          | 'excluded_not_sold_in_bulk'
         count: number
       }[]
       /** @description What the run has done. `purchased` and `delivered` are separate facts and both are reported, because a Purchase can complete and its body fail to arrive — a delivery LedeWire owes, and not a reason to charge again. An acquisition with 10,000 purchases and 9,700 deliveries has 300 outstanding, which no single number says. */
@@ -9881,14 +11020,25 @@ export interface components {
      *
      *     `rebuild_required` covers "never assembled" as well as "expired", on purpose: from the Buyer's side they are one situation — there is no file, ask for one — and splitting them would put our bookkeeping into their contract.
      *
-     *     **Assembly starts by itself when the acquisition settles** with at least one work delivered, so a client polls the acquisition until `settled` and then polls this until `ready` — there is nothing to ask for in between. `POST` is for a corpus that has expired or failed. An acquisition that delivered nothing has nothing to render and reads `rebuild_required`.
+     *     Asking cannot change two states. `not_ready`: the acquisition is still quoted or running, and nothing can be built until it finishes, so poll the acquisition, not this. `nothing_purchased` (below) is final.
+     *
+     *     **Assembly starts by itself when the acquisition settles** with at least one work delivered, so a client polls the acquisition until `settled` and then polls this until `ready` — there is nothing to ask for in between. `POST` is for a corpus that has expired or failed.
+     *
+     *     `nothing_purchased` is final: the acquisition finished without buying a single work, so there is no corpus to build and no manifest is signed. That includes a quote withdrawn before any funds were held. A work is bought exactly when it is delivered, so this is also every finished acquisition that delivered nothing.
      */
     CorpusResponse: {
       /**
-       * @description `ready` is downloadable now. `assembling` means a run is in flight and `pending` that one is queued — poll either. `rebuild_required` means ask for it again, with `POST /v1/acquisitions/{id}/corpus`, and is also what a run abandoned mid-assembly (a worker that died) reads as once it has gone two hours without progress. `failed` carries a reason; a POST retries one that failed transiently, and leaves one that failed because our records disagree with the signed manifest as it is.
+       * @description `not_ready` means the acquisition is still quoted or running, so there is nothing to build yet and a `POST` starts nothing. `nothing_purchased` means it finished without buying any work, so there never will be. `ready` is downloadable now. `assembling` means a run is in flight and `pending` that one is queued — poll either. `rebuild_required` means ask for it again, with `POST /v1/acquisitions/{id}/corpus`, and is also what a run abandoned mid-assembly (a worker that died) reads as once it has gone two hours without progress. `failed` carries a reason; a POST retries one that failed transiently, and leaves one that failed because our records disagree with the signed manifest as it is.
        * @enum {string}
        */
-      state: 'pending' | 'assembling' | 'ready' | 'rebuild_required' | 'failed'
+      state:
+        | 'pending'
+        | 'assembling'
+        | 'ready'
+        | 'rebuild_required'
+        | 'failed'
+        | 'not_ready'
+        | 'nothing_purchased'
       /**
        * @description The archive rendering. There is no size-conditional switching — a client never branches on how big its corpus is.
        * @enum {string|null}
@@ -9903,7 +11053,7 @@ export interface components {
       expires_at?: string | null
       /** @description Why assembly broke. Present only when `state` is `failed`. */
       failure_reason?: string | null
-      /** @description Seconds to wait before polling again, also sent as `Retry-After`. Present only while `state` is `pending` or `assembling`; `ready`, `failed` and `rebuild_required` carry neither, since nothing changes until the Buyer acts. Grows with the number of works the corpus renders, from 2 seconds to at most 60. */
+      /** @description Seconds to wait before polling again, also sent as `Retry-After`. Present only while `state` is `pending` or `assembling`; `ready`, `failed` and `rebuild_required` carry neither, since nothing changes until the Buyer acts, and nor do `nothing_purchased`, which is final, or `not_ready`, which waits on the acquisition. Grows with the number of works the corpus renders, from 2 seconds to at most 60. */
       poll_after_seconds?: number
       /**
        * @description Where to fetch the archive, relative to this API, and null in every state but `ready`.
@@ -9986,8 +11136,8 @@ export interface components {
       network: 'ledewire:v1'
       /** @description UUID of the buying user. */
       payer: string
-      /** @description Short-lived RS256-signed JWT for offline entitlement verification. Verifiable via `/.well-known/x402-jwks.json`. Omitted if signing key is not configured. */
-      accessToken?: string | null
+      /** @description RS256-signed JWT for offline entitlement verification (default 24h TTL), verifiable via `/.well-known/x402-jwks.json`. Omitted, never null, if no signing key is configured. */
+      accessToken?: string
     }
     MerchantPricingRule: {
       /** @description UUID of the pricing rule. */
@@ -10047,10 +11197,12 @@ export interface components {
       code_challenge_methods_supported: string[]
       client_id_metadata_document_supported?: boolean
       token_endpoint_auth_methods_supported?: string[]
+      /** @description RFC 9207. Always `true`: the authorization redirect carries `iss`, equal to `issuer`, alongside `code` and `state`. */
+      authorization_response_iss_parameter_supported?: boolean
     }
     /** @description RFC 7591 client metadata. Only `redirect_uris` is required; unrecognised members are ignored rather than rejected, so clients sending extensions this server does not implement still register successfully. */
     OauthClientRegistrationRequest: {
-      /** @description Must be https, or http on a loopback host (`localhost`, `127.0.0.1`, `[::1]`). Fragments are not permitted. These become the allowlist for the issued client_id. */
+      /** @description Must be https, or http on a loopback host (`localhost`, `127.0.0.1`, `[::1]`). Fragments are not permitted. These become the allowlist for the issued client_id. More than 10 is refused as `invalid_client_metadata`, not `invalid_redirect_uri`. */
       redirect_uris: string[]
       client_name?: string
       client_uri?: string
@@ -10097,11 +11249,118 @@ export interface components {
       error: 'invalid_redirect_uri' | 'invalid_client_metadata'
       error_description?: string
     }
+    /** @description The store membership an accepted invitation created. */
+    MerchantInvitationAcceptedResponse: {
+      /**
+       * Format: uuid
+       * @description The membership (store user) id.
+       */
+      id: string
+      /** Format: uuid */
+      store_id: string
+      store_name: string | null
+      /**
+       * @description `owner` if the invitation makes the user an owner (owners are authors too); `author` if it grants authorship only; null for a membership that is neither.
+       * @enum {string|null}
+       */
+      role: 'owner' | 'author' | null
+      /** Format: date-time */
+      accepted_at: string
+    }
+    /** @description RFC 9728 Protected Resource Metadata. */
+    OauthProtectedResourceMetadata: {
+      /**
+       * @description The MCP endpoint, `<base URL>/v1/mcp`.
+       * @example https://api.ledewire.com/v1/mcp
+       */
+      resource: string
+      /**
+       * @example [
+       *       "https://api.ledewire.com"
+       *     ]
+       */
+      authorization_servers: string[]
+      /**
+       * @description The scopes the MCP endpoint accepts.
+       * @example [
+       *       "mcp:search",
+       *       "mcp:purchase",
+       *       "mcp:manage_content",
+       *       "mcp:analytics"
+       *     ]
+       */
+      scopes_supported?: string[]
+      bearer_methods_supported: 'header'[]
+    }
+    /** @description RFC 6749 token request. Which fields are needed depends on `grant_type`: `code`, `code_verifier` and `redirect_uri` for `authorization_code`; `refresh_token` for `refresh_token`. */
+    OauthTokenRequest: {
+      /** @enum {string} */
+      grant_type: 'authorization_code' | 'refresh_token'
+      /** @description The authorization code from the consent redirect. Single use, valid 10 minutes. */
+      code?: string
+      /** @description The PKCE verifier whose S256 challenge was sent to `/oauth/authorize`. */
+      code_verifier?: string
+      /** @description Must equal the `redirect_uri` the authorization used. */
+      redirect_uri?: string
+      /** @description Optional; recorded, not checked. */
+      client_id?: string
+      /** @description `<key>:<secret>`, from a previous token response. */
+      refresh_token?: string
+    }
+    OauthTokenResponse: {
+      /** @description `<key>:<secret>` — an MCP API key. Send as `Authorization: Bearer <access_token>`. */
+      access_token: string
+      /** @description `<key>:<secret>`. Works once; each refresh returns a new one. */
+      refresh_token: string
+      /** @enum {string} */
+      token_type: 'bearer'
+      /**
+       * @description Seconds until the access token expires (3600).
+       * @example 3600
+       */
+      expires_in: number
+      /**
+       * @description Space-delimited scopes actually granted.
+       * @example mcp:search mcp:purchase
+       */
+      scope: string
+    }
+    /** @description RFC 6749 §5.2 token error response. */
+    OauthTokenErrorResponse: {
+      /** @enum {string} */
+      error: 'invalid_grant' | 'unsupported_grant_type'
+      /** @enum {string} */
+      error_description?: 'PKCE verification failed' | 'redirect_uri mismatch'
+    }
+    /** @description RFC 7009 revocation request. */
+    OauthRevokeRequest: {
+      /** @description An access token or refresh token, `<key>:<secret>`. */
+      token?: string
+      /** @description Accepted and ignored. */
+      token_type_hint?: string
+    }
+    /** @description A refused authorization, in a flat shape rather than the `ErrorResponse` envelope. */
+    OauthAuthorizeErrorResponse: {
+      error: string
+    }
+    /** @description A throttled OAuth endpoint, in RFC 6749's flat error shape. */
+    OauthTooManyRequestsResponse: {
+      /** @enum {string} */
+      error: 'too_many_requests'
+    }
   }
   responses: never
   parameters: never
   requestBodies: never
   headers: {
+    /** @description Always `true`. The `/v1/seller/content` routes are deprecated. */
+    SellerContentDeprecation: 'true'
+    /** @description The announced sunset date, `2026-09-01`. The routes still serve past it. */
+    SellerContentSunset: '2026-09-01'
+    /** @description `</v1/merchant/{store_id}/content>; rel="successor-version"` — the literal template, with `{store_id}` unfilled. */
+    SellerContentSuccessor: string
+    /** @description Seconds to wait before retrying, as an integer. 60 when a per-IP budget tripped (each is counted over a one-minute window). When a per-account backoff refused the request it is what remains of that account's block, which grows with repeated failures, up to 900. */
+    AuthRetryAfter: number
     /** @description Seconds to wait before polling again, sent only while a bulk step is still in progress — a quote being priced, a run in flight, a corpus queued or assembling — and equal to the body's `poll_after_seconds`. Absent once there is nothing left to wait for. Sized from the selection: at least 2 and at most 60. */
     PollRetryAfter: number
   }
@@ -10109,6 +11368,26 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  mcpGet: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Method not allowed. */
+      405: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+    }
+  }
   mcpCall: {
     parameters: {
       query?: never
@@ -10118,23 +11397,24 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json':
-          components['schemas']['McpJsonRpcRequest'] | components['schemas']['McpJsonRpcRequest'][]
+        'application/json': components['schemas']['McpJsonRpcRequest']
       }
     }
     responses: {
       /**
-       * @description All MCP responses — including errors — are returned as HTTP 200 with a JSON-RPC 2.0 envelope. Inspect `result` (success) or `error` (failure). A batch request is answered with an array of these envelopes.
+       * @description A JSON-RPC 2.0 envelope. Inspect `result` (success) or `error` (failure). In the legacy lifecycle every JSON-RPC error that reaches a method is answered at 200; in the 2026-07-28 lifecycle only errors raised by a tool are (see `400` and `404`).
        *
-       *     On `tools/call`, the tool's payload appears twice: as a JSON string inside `result.content[0].text` (parse it to access tool-specific fields), and as the already-parsed object in `result.structuredContent`. The text block is the older of the two and every existing client parses it, so it is not going away.
+       *     On a successful `tools/call`, the tool's payload appears twice: as a JSON string inside `result.content[0].text` (parse it to access tool-specific fields), and as the already-parsed object in `result.structuredContent`, which conforms to the tool's `outputSchema`. The text block is the older of the two and every existing client parses it, so it is not going away.
        *
-       *     The two carry the same payload for all sixteen tools, so either may be read.
+       *     The two carry the same payload for all nineteen tools, so either may be read.
+       *
+       *     A tool error (`result.isError: true`) carries its payload in `result.content[0].text` only, with no `structuredContent`: each `outputSchema` describes a success, and MCP holds `structuredContent` to it.
        *
        *     `get_content_sales` and `get_buyer_insights` were the exception until #603: their text block carried a bare array while `structuredContent` nested it under a collection key. Both now return a pagination envelope — `{ content_sales | buyer_insights, total_count, offset, limit }` — through both channels. A client reading either tool's text block as an array must read `.content_sales` / `.buyer_insights` instead.
        *
-       *     Exception: `get_content` on unpurchased content returns `result.isError: true` + `result.structuredContent` containing x402 payment requirements (this is x402-MCP spec compliant).
+       *     Exception: `get_content` on unpurchased content returns `result.isError: true` + `result.structuredContent` containing x402 payment requirements, as the x402 MCP transport requires. It is the one error `get_content`'s `outputSchema` describes. Its other refusals (insufficient funds, the daily spend cap) are text only, like any tool error.
        *
-       *     A tool called without the scope its tier requires also returns `result.isError: true` — with a payload carrying `required_scopes` and the OAuth URL to upgrade at — rather than a JSON-RPC error, so an agent can relay the upgrade path to its user as text.
+       *     A tool called without the scope its tier requires is not a 200: it is a `403` (see below). A `get_content` payment from a key without `can_purchase` is a tool result with `isError: true`.
        *
        *     Every tool's `inputSchema` sets `additionalProperties: false`, so an argument the tool does not declare is rejected with `result.isError: true` naming the offending property. Passing an undeclared argument is a caller error, never a server one — drop it and retry rather than treating the response as an outage.
        */
@@ -10143,66 +11423,119 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': {
-            /** @enum {string} */
-            jsonrpc: '2.0'
-            /** @description Echoed from the request. */
-            id: number | string
-            /** @description Present on success. */
-            result?: Record<string, never>
-            /** @description Present on failure. */
-            error?: {
-              /** @description JSON-RPC error codes: `-32700` malformed JSON, `-32600` invalid request envelope, `-32601` method not found, `-32602` invalid params (also an unknown `resources/read` URI, and a missing required `prompts/get` argument), `-32001` authorization failure (accompanies a `403`; unauthenticated calls get a `401` with a `WWW-Authenticate` challenge instead). */
-              code: number
-              message: string
-            }
-          }
+          'application/json': components['schemas']['McpJsonRpcResponse']
         }
       }
-      /** @description A notification was accepted. Notifications carry no `id`, so there is nothing to respond to and the body is empty. `notifications/initialized` is the only one this server expects. */
+      /** @description A notification, or a JSON-RPC response the client POSTed, was accepted. Neither has anything to answer, so the body is empty. `notifications/initialized` is the only notification this server expects; a body with no `id` naming any other method is acknowledged the same way and not run. */
       202: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Auth-required tool called without credentials, or with credentials that failed authentication (revoked, expired, or wrong secret). Always carries a `WWW-Authenticate` challenge so RFC 9728 clients know to re-run the OAuth flow. */
+      /** @description The request was refused. In either lifecycle: a body that is not JSON (`-32700`); an array body (`-32600`); a body carrying the 2026-07-28 `_meta` envelope without a matching `MCP-Protocol-Version` header (`-32020`); an `MCP-Protocol-Version` that names no version this server speaks, including one that is not a version at all (`-32022`, with `error.data.supported`). In the 2026-07-28 lifecycle also: an `Mcp-Method` or `Mcp-Name` header that is missing or does not match the body (`-32020`); a missing or malformed `_meta` envelope, and any other invalid params, such as an unknown `resources/read` URI or a missing `prompts/get` argument (`-32602`); any other invalid request, such as a `null` id (`-32600`). In the legacy lifecycle those last two are answered at 200. `id` is echoed when it could be read. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+      /** @description Either a Bearer credential that failed authentication (wrong secret, revoked, expired, or not `key:secret` at all), on any request; or no credential, on a `tools/call` naming a tool that is not open — or a name the server does not have, or none, so open and protected names cannot be told apart without authenticating. Always carries a `WWW-Authenticate` challenge so RFC 9728 clients know to run, or re-run, the OAuth flow. */
       401: {
         headers: {
-          /**
-           * @description RFC 9728 / RFC 6750 challenge naming the PRM document and required scope.
-           * @example Bearer error="invalid_token", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp", scope="mcp:search"
-           */
+          /** @description RFC 6750 Bearer challenge. `resource_metadata` always names the RFC 9728 protected-resource metadata document. `error="invalid_token"` when a credential was sent and failed; absent when none was sent (RFC 6750 §3.1). `scope` is the space-separated scopes every protected call in the request needs (`mcp:search` for an unknown name), and is absent when the request names no protected tool. */
           'WWW-Authenticate'?: string
           [name: string]: unknown
         }
         content: {
           'application/json': {
-            /** @example insufficient_scope */
-            error: string
-            /**
-             * @description Scope the calling key must hold to invoke the requested tool.
-             * @example mcp:search
-             */
-            scope: string
+            /** @enum {string} */
+            error: 'invalid_token'
           }
         }
       }
-      /** @description Authenticated but insufficient permissions (e.g. `can_purchase: false` attempting payment). */
+      /** @description An authenticated key that may not make a protected call in the request: it lacks the scope the tool's tier requires, or — for a seller tool — the key's store membership has been revoked. A client should step up by re-authorizing with the scopes in the challenge; a revoked membership names none, since re-authorizing does not restore it. */
       403: {
+        headers: {
+          /** @description RFC 6750 Bearer challenge with `error="insufficient_scope"` and `resource_metadata`. `scope` is the space-separated scopes every protected call in the request needs, and is absent when the only refusal is a revoked store membership. */
+          'WWW-Authenticate'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            error: 'insufficient_scope'
+          }
+        }
+      }
+      /** @description 2026-07-28 lifecycle only: the method does not exist (`-32601`). That includes `initialize`, `ping` and `logging/setLevel`, which the lifecycle removed, and methods of a capability this server does not declare. In the legacy lifecycle the same error is answered at 200. */
+      404: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['ErrorResponse']
+          'application/json': components['schemas']['McpJsonRpcResponse']
         }
       }
-      /** @description Rate limit exceeded (15/min unauthenticated, 60/min authenticated). */
-      429: {
+      /** @description `Accept` does not include `application/json` — and, on a 2026-07-28 request, `text/event-stream` as well. */
+      406: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+      /** @description The body is larger than 4 MiB. */
+      413: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+      /** @description `Content-Type` is not `application/json`. */
+      415: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+      /** @description Rate limit exceeded (15/min per IP for a request with no credential or one that failed, 60/min per key authenticated). Waiting `Retry-After` seconds is always enough. The body is a JSON-RPC error with the application-defined code `-31429` — MCP defines no rate-limit code — and no `id`, since the limit is enforced before the body is read. */
+      429: {
+        headers: {
+          /** @description Seconds to wait. Always the full window (60). */
+          'Retry-After'?: number
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
+      }
+    }
+  }
+  mcpDelete: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Method not allowed. */
+      405: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['McpJsonRpcResponse']
+        }
       }
     }
   }
@@ -10224,8 +11557,17 @@ export interface operations {
           'application/json': components['schemas']['McpApiKey'][]
         }
       }
-      /** @description Missing or invalid buyer JWT. */
+      /** @description Missing or invalid buyer JWT. A buyer token whose user no longer exists gets `User not found`. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
+      /** @description The token is not a buyer token (`Invalid Role`). */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -10257,6 +11599,15 @@ export interface operations {
           'application/json': components['schemas']['McpApiKeyCreateResponse']
         }
       }
+      /** @description The body failed the request contract — a missing or empty `label`, or a flag that is not a boolean. The message is the first failure only. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorResponse']
+        }
+      }
       /** @description Missing or invalid buyer JWT. */
       401: {
         headers: {
@@ -10266,7 +11617,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse']
         }
       }
-      /** @description The user is not an owner or author of `store_id`. Plain members cannot hold a store-scoped key, with or without `can_manage_content` or `can_read_analytics`. Also refused to a Machine user, whose keys its Company's admins manage. */
+      /** @description `Forbidden` when the user is not an owner or author of `store_id` (including a `store_id` that is not a store's id at all), or asks for a capability their store role does not permit. Plain members cannot hold a store-scoped key, with or without `can_manage_content` or `can_read_analytics`. Also refused to a Machine user, whose keys its Company's admins manage, and with `Invalid Role` to a token that is not a buyer token. */
       403: {
         headers: {
           [name: string]: unknown
@@ -10275,7 +11626,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse']
         }
       }
-      /** @description Validation error (e.g. missing label). */
+      /** @description The key failed model validation after passing the contract, e.g. a label that is only whitespace. */
       422: {
         headers: {
           [name: string]: unknown
@@ -10314,7 +11665,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse']
         }
       }
-      /** @description The caller is a Machine user, whose keys its Company's admins manage. */
+      /** @description The caller is a Machine user, whose keys its Company's admins manage, or the token is not a buyer token (`Invalid Role`). */
       403: {
         headers: {
           [name: string]: unknown

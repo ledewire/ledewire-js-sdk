@@ -92,9 +92,12 @@ export class WalletNamespace {
   /**
    * Polls the status of a personal wallet funding payment session.
    *
-   * `completed`, `failed` and `cancelled` are terminal. An ACH top-up can sit
-   * in `awaiting_verification` (bank microdeposits not yet confirmed) and then
-   * `processing` (the debit under way) for days before it completes.
+   * `completed` means the funds are in the wallet. An ACH top-up can sit in
+   * `awaiting_verification` (bank microdeposits not yet confirmed) and then
+   * `processing` (the debit under way) for days before it completes; neither is
+   * spendable yet. `cancelled` is usually a session superseded by a newer one,
+   * and can still return to `pending` and then `completed` if the provider
+   * charges it anyway. `status` can also be `reverted` or `failed`.
    * `balance_cents` is `null` for a Company member.
    *
    * @param sessionId - The session ID returned by `createPaymentSession`.

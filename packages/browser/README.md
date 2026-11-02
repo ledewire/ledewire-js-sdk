@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@ledewire/browser)](https://www.npmjs.com/package/@ledewire/browser)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — embed buyer authentication, wallet funding, content purchases, and seller content discovery on any website with a single script tag.
+Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — embed buyer authentication, wallet funding, and content purchases on any website with a single script tag.
 
 ## CDN — No Install Required
 
@@ -40,18 +40,17 @@ const lw = init({
 
 ## Client Namespaces
 
-| Namespace           | Description                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `lw.config`         | Platform public config (no auth required)                                       |
-| `lw.auth`           | Buyer signup, email/password login, Google OAuth, API key login, password reset |
-| `lw.wallet`         | Wallet balance, fund wallet via payment session                                 |
-| `lw.purchases`      | List and create content purchases                                               |
-| `lw.content`        | Fetch content with buyer access info                                            |
-| `lw.checkout`       | Checkout state — what action is required next                                   |
-| `lw.user.spendCap`  | Buyer's daily spend cap — read and update the ceiling                           |
-| `lw.user.mcpKeys`   | Manage buyer MCP API keys for the Ledewire MCP server                           |
-| `lw.company`        | Company wallets: membership, invitations, members, Machine users, top-ups       |
-| `lw.seller.content` | List, search, and get store content (API key auth)                              |
+| Namespace          | Description                                                                     |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `lw.config`        | Platform public config (no auth required)                                       |
+| `lw.auth`          | Buyer signup, email/password login, Google OAuth, API key login, password reset |
+| `lw.wallet`        | Wallet balance, fund wallet via payment session                                 |
+| `lw.purchases`     | List and create content purchases; download a purchase's licence document       |
+| `lw.content`       | Fetch content with buyer access info                                            |
+| `lw.checkout`      | Checkout state — what action is required next                                   |
+| `lw.user.spendCap` | Buyer's daily spend cap — read and update the ceiling                           |
+| `lw.user.mcpKeys`  | Manage buyer MCP API keys for the Ledewire MCP server                           |
+| `lw.company`       | Company wallets: membership, invitations, members, Machine users, top-ups       |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
 
@@ -74,7 +73,7 @@ only place `content_body` / `content_uri` ever appear for a purchase.
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
-const { checkout_state } = await lw.checkout.state('article-123')
+const { price_cents, checkout_state } = await lw.checkout.state('article-123')
 
 switch (checkout_state.next_required_action) {
   case 'authenticate':
@@ -88,7 +87,8 @@ switch (checkout_state.next_required_action) {
     // Buying is how the buyer receives the content — the delivery comes back
     // directly in this response, never from a later GET. Persist it now:
     // there is no route that serves the same delivery again.
-    const purchase = await lw.purchases.create({ content_id: 'article-123' })
+    // price_cents is the price the buyer was shown; a stale one is refused (422).
+    const purchase = await lw.purchases.create({ content_id: 'article-123', price_cents })
     await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
 
     if (purchase.content_body) {
@@ -114,6 +114,34 @@ switch (checkout_state.next_required_action) {
     }
     break
   }
+}
+```
+
+## Example: Purchase Licences
+
+Every purchase carries `license` (a `PurchaseLicense`, or `null` when none was recorded —
+every Store work, and older brokered purchases; `null` never means "no rights"), plus
+`content.publication` (the brokered work's Publication, or `null`) and `content.filing`
+(the SEC filing, or `null`). When `license.document_url` is set,
+`lw.purchases.licenseDocument()` downloads it as `{ body: ArrayBuffer, contentType }` —
+usually `application/pdf`, or `text/markdown` for an SEC filing's terms.
+
+```ts
+const purchase = await lw.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+  // The type is the source's choice: offer a download, never render it inline.
+  // Pass the type through only for the two expected ones, so a server-sent
+  // text/html can never run in this origin.
+  const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+    ? contentType
+    : 'application/octet-stream'
+  const url = URL.createObjectURL(new Blob([body], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'licence'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 ```
 
@@ -167,27 +195,12 @@ The full surface (`membership`, `invitations`, `members`, `machineUsers` with
 [`@ledewire/node`](../node/README.md#example-company-wallets). Admin-only
 methods throw `ForbiddenError` for a plain member.
 
-## Example: Seller Content Discovery
+## Store content management lives server-side
 
-Use `lw.seller.loginWithApiKey` with only the `key` to obtain a read-only token,
-then browse your store's content catalogue directly from the browser:
-
-```ts
-const lw = Ledewire.init({ apiKey: 'your_api_key' })
-
-// Obtain a view-only seller token (key only — no secret needed)
-await lw.seller.loginWithApiKey({ key: 'your_api_key' })
-
-// List all content
-const items = await lw.seller.content.list()
-
-// Search by title, URI, or metadata
-const results = await lw.seller.content.search({ title: 'intro' })
-const byMeta = await lw.seller.content.search({ metadata: { author: 'Alice' } })
-
-// Fetch a single item
-const item = await lw.seller.content.get('content-id')
-```
+`@ledewire/browser` is buyer-only. It has no `lw.seller` namespace and no store
+API-key login: a store API key must never be shipped to a browser. Manage store
+content from a server with `client.merchant.content.*` in
+[`@ledewire/node`](../node/README.md), passing the store's id explicitly.
 
 ## Token Storage
 
