@@ -1,4 +1,4 @@
-import type { StoredTokens, TokenStorage } from './types.js'
+import type { AuthTokenRefreshResponse, StoredTokens, TokenStorage } from './types.js'
 import { AuthError } from './errors.js'
 
 /** How many milliseconds before expiry to proactively refresh the token. */
@@ -193,15 +193,13 @@ export function createRefreshFn(baseUrl: string): TokenManagerOptions['refreshFn
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!res.ok) throw new Error('Token refresh failed')
-    const data = (await res.json()) as {
-      access_token: string
-      refresh_token: string
-      expires_at: string
-    }
+    const data = (await res.json()) as AuthTokenRefreshResponse
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresAt: parseExpiresAt(data.expires_at),
+      // A store API-key refresh carries its store; the token is never decoded for it.
+      ...('store_id' in data && { storeId: data.store_id }),
     }
   }
 }

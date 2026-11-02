@@ -18,13 +18,13 @@ import { createClient } from '@ledewire/node'
 
 // Store API key: key + secret grants read/write access to client.merchant.*
 const client = createClient()
-await client.auth.loginWithApiKey({
+// loginWithApiKey resolves with the key's store_id: pass it to client.merchant.*
+const { store_id } = await client.auth.loginWithApiKey({
   key: process.env.LEDEWIRE_API_KEY,
   secret: process.env.LEDEWIRE_API_SECRET,
 })
-const storeId = process.env.LEDEWIRE_STORE_ID
-if (!storeId) throw new Error('LEDEWIRE_STORE_ID is not set')
-const items = await client.merchant.content.list(storeId)
+const summary = await client.merchant.sales.summary(store_id)
+const items = await client.merchant.content.list(store_id)
 
 // Merchant email/password auth
 const client = createClient()

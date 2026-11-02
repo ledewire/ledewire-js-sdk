@@ -2946,7 +2946,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['AuthenticationResponse']
+            'application/json': components['schemas']['StoreAuthenticationResponse']
           }
         }
         /** @description `key` missing or empty, or `secret` sent but empty. */
@@ -2996,7 +2996,7 @@ export interface paths {
     put?: never
     /**
      * Refresh an access token
-     * @description Exchanges a refresh token for a new token pair; the refresh token is rotated. A refresh token issued by a merchant login answers in the merchant shape (with `stores`); every other refresh token answers in the plain shape.
+     * @description Exchanges a refresh token for a new token pair; the refresh token is rotated. A refresh token issued by a merchant login answers in the merchant shape (with `stores`), one issued by a store API-key login in the store shape (with `store_id`); every other refresh token answers in the plain shape.
      */
     post: {
       parameters: {
@@ -3020,6 +3020,7 @@ export interface paths {
             'application/json':
               | components['schemas']['AuthenticationResponse']
               | components['schemas']['MerchantAuthenticationResponse']
+              | components['schemas']['StoreAuthenticationResponse']
           }
         }
         /** @description `refresh_token` missing or empty. */
@@ -8846,6 +8847,23 @@ export interface components {
       reason: components['schemas']['InvitationRefusalReason']
       /** @enum {string} */
       invitation?: 'store' | 'company'
+    }
+    /** @description Token response for a store API key, from `POST /v1/auth/login/api-key` and from refreshing a token that login issued. Includes the authenticated store's id, which the `/v1/merchant/{store_id}/...` routes take. */
+    StoreAuthenticationResponse: {
+      /** @enum {string} */
+      token_type: 'Bearer'
+      access_token: string
+      refresh_token: string
+      /**
+       * Format: date-time
+       * @description When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
+       */
+      expires_at: string
+      /**
+       * Format: uuid
+       * @description The store the API key belongs to.
+       */
+      store_id: string
     }
     /** @description Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection. */
     MerchantAuthenticationResponse: {

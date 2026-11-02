@@ -241,6 +241,30 @@ components:
           type: string
           enum: [store, company]
 
+    StoreAuthenticationResponse:
+      type: object
+      description: >
+        Token response for a store API key, from `POST /v1/auth/login/api-key` and from refreshing
+        a token that login issued. Includes the authenticated store's id, which the
+        `/v1/merchant/{store_id}/...` routes take.
+      required: [token_type, access_token, refresh_token, expires_at, store_id]
+      properties:
+        token_type:
+          type: string
+          enum: [Bearer]
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+          description: When the access token expires, about 30 minutes after it was issued. Equal to the token's `exp` claim. Refresh before then.
+        store_id:
+          type: string
+          format: uuid
+          description: The store the API key belongs to.
+
     MerchantAuthenticationResponse:
       type: object
       description: Token response for merchant authentication. Includes stores the user has access to so the client can prompt for store selection.
@@ -7223,7 +7247,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationResponse'
+                $ref: '#/components/schemas/StoreAuthenticationResponse'
               examples:
                 success:
                   summary: Successful API key authentication
@@ -7232,6 +7256,7 @@ paths:
                     access_token: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI4NzY1NDMyMS1kY2JhLTRmZWQtYmE5OC03NjU0MzIxMGZlZGMiLCJyb2xlIjoic2VsbGVyIiwic2VsbGVyX2NsYWltcyI6eyJzZWxsZXJfaWQiOiI4NzY1NDMyMS1kY2JhLTRmZWQtYmE5OC03NjU0MzIxMGZlZGMifSwiaXNzIjoiTGVkZVdpcmUgQVBJIiwiYXVkIjoid2ViIiwiZXhwIjoxNzQ3NTU5OTczLCJpYXQiOjE3NDc1NTgxNzN9'
                     refresh_token: '3ef21098a76b5c4d32e1f0g9h8i7j6k5l4m3n2o1p0q9r8s7t6u5v4w3x2y1z'
                     expires_at: '2025-05-18T10:39:33Z'
+                    store_id: '87654321-dcba-4fed-ba98-76543210fedc'
         '400':
           description: '`key` missing or empty, or `secret` sent but empty.'
           content:
@@ -7272,8 +7297,9 @@ paths:
       summary: Refresh an access token
       description: >
         Exchanges a refresh token for a new token pair; the refresh token is rotated. A refresh
-        token issued by a merchant login answers in the merchant shape (with `stores`); every
-        other refresh token answers in the plain shape.
+        token issued by a merchant login answers in the merchant shape (with `stores`), one
+        issued by a store API-key login in the store shape (with `store_id`); every other
+        refresh token answers in the plain shape.
       tags:
         - Authentication
       security: []
@@ -7307,11 +7333,12 @@ paths:
           content:
             application/json:
               schema:
-                # anyOf, not oneOf: a merchant body also satisfies the looser
-                # AuthenticationResponse, so oneOf would reject every merchant refresh.
+                # anyOf, not oneOf: a merchant or store body also satisfies the looser
+                # AuthenticationResponse, so oneOf would reject every such refresh.
                 anyOf:
                   - $ref: '#/components/schemas/AuthenticationResponse'
                   - $ref: '#/components/schemas/MerchantAuthenticationResponse'
+                  - $ref: '#/components/schemas/StoreAuthenticationResponse'
         '400':
           description: '`refresh_token` missing or empty.'
           content:
