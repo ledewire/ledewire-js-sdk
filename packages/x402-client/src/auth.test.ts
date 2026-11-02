@@ -76,12 +76,16 @@ describe('LedewireAuthManager', () => {
     expect(fetchFn).toHaveBeenCalledTimes(2)
   })
 
-  it('allows apiBase to be updated', async () => {
+  it('logs in at the apiBase it was constructed with', async () => {
     const fetchFn = makeFetch(200, mockTokenResponse)
-    const mgr = new LedewireAuthManager('key', 'secret', 'https://api.ledewire.com', fetchFn)
-    mgr.apiBase = 'https://api-staging.ledewire.com'
+    const mgr = new LedewireAuthManager(
+      'key',
+      'secret',
+      'https://api-staging.ledewire.com',
+      fetchFn,
+    )
     await mgr.getAccessToken()
     const calls = (fetchFn as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls[0]?.[0] as string | undefined).toContain('api-staging')
+    expect(calls[0]?.[0]).toBe('https://api-staging.ledewire.com/v1/auth/login/buyer-api-key')
   })
 })

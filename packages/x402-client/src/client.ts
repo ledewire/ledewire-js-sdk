@@ -10,13 +10,16 @@ import type { LedewireFetchConfig } from './types.js'
  * {@link wrapFetchWithPayment}. For Axios or other HTTP clients, use those
  * building blocks directly.
  *
+ * Buyer credentials go only to the configured `apiBase`, and only requests to
+ * that origin are paid; a `402` from any other origin is returned unpaid.
+ *
  * @example
  * ```ts
  * import { createLedewireFetch } from '@ledewire/x402-client'
  *
  * const fetch = createLedewireFetch({ key: 'bktst_...', secret: '...' })
  *
- * const res = await fetch('https://blog.example.com/posts/article')
+ * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * const content = await res.json()
  * ```
  *

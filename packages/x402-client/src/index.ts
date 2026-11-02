@@ -11,7 +11,7 @@
  * import { createLedewireFetch } from '@ledewire/x402-client'
  *
  * const fetch = createLedewireFetch({ key: 'bktst_...', secret: '...' })
- * const res = await fetch('https://blog.example.com/posts/great-article')
+ * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
  *
  * ## Axios
@@ -23,7 +23,7 @@
  *
  * const client = new LedewirePaymentClient({ key: 'bktst_...', secret: '...' })
  * const api = wrapAxiosWithPayment(axios.create(), client)
- * const res = await api.get('https://blog.example.com/posts/great-article')
+ * const res = await api.get('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
  *
  * ## Custom transport (ky, got, undici, …)
@@ -32,7 +32,8 @@
  * import { LedewirePaymentClient } from '@ledewire/x402-client'
  *
  * const client = new LedewirePaymentClient({ key: 'bktst_...', secret: '...' })
- * // In your interceptor:
+ * // In your interceptor — pay only the configured Ledewire API:
+ * if (!client.allowsPaymentTo(request.url)) return response
  * const sig = await client.buildPaymentSignature(
  *   response.headers.get('payment-required'),
  *   request.url,
@@ -51,6 +52,7 @@ export {
   MalformedPaymentRequiredError,
   NonceExpiredError,
   InsufficientFundsError,
+  PaymentOriginNotAllowedError,
 } from './errors.js'
 /**
  * `AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError`
