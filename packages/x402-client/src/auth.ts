@@ -1,5 +1,6 @@
 import { AuthError, RateLimitError, parseRetryAfter } from '@ledewire/core'
 import type { AuthenticationResponse } from '@ledewire/core'
+import { extractApiErrorMessage } from './errors.js'
 
 const DEFAULT_API_BASE = 'https://api.ledewire.com'
 const AUTH_PATH = '/v1/auth/login/buyer-api-key'
@@ -21,17 +22,27 @@ export async function loginWithBuyerApiKey(
     body: JSON.stringify({ key, secret }),
   })
 
-  if (res.status === 429) {
-    throw new RateLimitError(
-      `Buyer API key authentication rate-limited (429)`,
-      undefined,
-      undefined,
-      undefined,
-      parseRetryAfter(res.headers.get('Retry-After')),
-    )
-  }
   if (!res.ok) {
-    throw new AuthError(`Buyer API key authentication failed (${String(res.status)})`)
+    // Surface the API's own message (ErrorResponse envelope or a bare-string
+    // `error`), as HttpClient does; a non-JSON body keeps the generic one.
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      // Non-JSON body - fall through to the generic message
+    }
+    if (res.status === 429) {
+      throw new RateLimitError(
+        extractApiErrorMessage(body, 'Buyer API key authentication rate-limited (429)'),
+        undefined,
+        undefined,
+        undefined,
+        parseRetryAfter(res.headers.get('Retry-After')),
+      )
+    }
+    throw new AuthError(
+      extractApiErrorMessage(body, `Buyer API key authentication failed (${String(res.status)})`),
+    )
   }
 
   return res.json() as Promise<AuthenticationResponse>

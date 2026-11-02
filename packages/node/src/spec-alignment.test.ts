@@ -11,6 +11,8 @@ import type {
   ContentWithAccessResponse,
   StoreAuthenticationResponse,
   WalletPaymentStatusResponse,
+  X402JwksResponse,
+  X402VerifyOriginResponse,
 } from '@ledewire/core'
 import type { OperationOk, Returns } from '@ledewire/core/test-utils'
 import type { NodeClient } from './client.js'
@@ -66,6 +68,15 @@ describe('return types match the spec operation responses', () => {
     expectTypeOf<AuthTokenRefreshResponse>().toEqualTypeOf<
       OperationOk<'/v1/auth/token/refresh', 'post'>
     >()
+  })
+
+  it('x402.verifyOrigin and x402.getJwks', () => {
+    type Verify = OperationOk<'/v1/x402/verify-origin', 'get'>
+    expectTypeOf<Returns<NodeClient['x402']['verifyOrigin']>>().toEqualTypeOf<Verify>()
+    expectTypeOf<X402VerifyOriginResponse>().toEqualTypeOf<Verify>()
+    type Jwks = OperationOk<'/.well-known/x402-jwks.json', 'get'>
+    expectTypeOf<Returns<NodeClient['x402']['getJwks']>>().toEqualTypeOf<Jwks>()
+    expectTypeOf<X402JwksResponse>().toEqualTypeOf<Jwks>()
   })
 
   it('company.members.update needs role or daily_spend_limit_cents', () => {

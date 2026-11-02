@@ -49,7 +49,7 @@ const stores = await client.merchant.auth.listStores()
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
 | `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
 | `client.acquisitions`          | Bulk licensing: quote, authorize, corpus download, signed manifest                            |
-| `client.x402`                  | Public x402 Bazaar resource discovery (no auth required)                                      |
+| `client.x402`                  | Public x402 Bazaar discovery, origin verification and the accessToken JWKS (no auth required) |
 | `client.merchant.auth`         | Merchant login (email / Google), store discovery, password reset, accept a store invitation   |
 | `client.merchant.users`        | Merchant user management (invite, list, update, remove)                                       |
 | `client.merchant.content`      | Content CRUD + search (merchant JWT or store API key)                                         |
@@ -529,6 +529,21 @@ for (const resource of resources) {
 Pay for a discovered resource via the x402 flow itself — see
 [`@ledewire/x402-client`](../x402-client/) — not through this namespace, which
 never carries delivered content.
+
+Confirm a page URL is a registered Ledewire resource before showing payment UI,
+and fetch the JWKS that verifies a settlement `accessToken` offline:
+
+```ts
+const origin = await client.x402.verifyOrigin({ url: 'https://theirsite.com/articles/slug' })
+if (origin.verified) console.log(origin.title, origin.amount)
+
+const { keys } = await client.x402.getJwks() // cache for 24h; match the token's kid
+```
+
+`verifyOrigin` answers `{ verified: false }` for an unknown URL rather than throwing,
+and throws `RateLimitError` (with `retryAfter`) past 60 requests a minute per IP.
+`getJwks` throws a `LedewireError` with `statusCode` 503 and message
+`'JWKS unavailable'` when the server has no signing key configured.
 
 ## Error Handling
 

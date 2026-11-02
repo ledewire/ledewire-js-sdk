@@ -2,6 +2,7 @@ import type {
   LedewirePaymentRefusal,
   LedewirePaymentRequired,
   LedewirePaymentRequirements,
+  LedewireSettlementResponse,
   LedewireWalletExtension,
 } from './types.js'
 import { MalformedPaymentRequiredError, UnsupportedSchemeError } from './errors.js'
@@ -59,12 +60,12 @@ export function parsePaymentRequired(headerValue: string): {
  * Decode the `PAYMENT-RESPONSE` header returned on a successful `200`.
  * Returns `null` for free content where the header is omitted.
  */
-export function parsePaymentResponse(headerValue: string | null): {
-  accessToken?: string
-} | null {
+export function parsePaymentResponse(
+  headerValue: string | null,
+): Pick<LedewireSettlementResponse, 'accessToken'> | null {
   if (!headerValue) return null
   try {
-    return JSON.parse(atob(headerValue)) as { accessToken?: string }
+    return JSON.parse(atob(headerValue)) as Pick<LedewireSettlementResponse, 'accessToken'>
   } catch {
     return null
   }

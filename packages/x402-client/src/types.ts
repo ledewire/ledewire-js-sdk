@@ -1,3 +1,20 @@
+import type { X402SettlementResponse } from '@ledewire/core'
+
+/*
+ * Wire types for the `ledewire-wallet` x402 scheme.
+ *
+ * Where `ledewire.yml` defines a shape as a schema, the type here is an alias of
+ * the generated one (`LedewireSettlementResponse` is `SettlementResponse`).
+ * The spec describes the rest only in prose, so they stay hand-typed until it
+ * gives them schemas (https://github.com/ledewire/api/issues/1700):
+ *
+ * - `LedewirePaymentRequired`: the `PAYMENT-REQUIRED` header
+ * - `LedewirePaymentRequirements`: one entry of its `accepts` array
+ * - `LedewireWalletExtra`: that entry's `extra`
+ * - `LedewireWalletExtension`: its `extensions['ledewire-wallet']` block
+ * - `LedewirePaymentPayload` and `LedewireWalletPayload`: the `PAYMENT-SIGNATURE` header
+ * - `LedewirePaymentRefusal`: the paid `402`'s `PAYMENT-RESPONSE` (api#1066)
+ */
 /**
  * Minimal interface required by the fetch and Axios adapters.
  * `LedewirePaymentClient` satisfies this structurally; you can also pass any
@@ -116,15 +133,12 @@ export interface LedewirePaymentPayload {
 }
 
 /**
- * Decoded `PAYMENT-RESPONSE` header returned on a successful payment.
+ * Decoded `PAYMENT-RESPONSE` header returned on a successful payment: the
+ * spec's `SettlementResponse`. `accessToken` is omitted (never `null`) when
+ * the server has no signing key; verify it against `client.x402.getJwks()`
+ * in `@ledewire/node`.
  */
-export interface LedewireSettlementResponse {
-  success: true
-  transaction: string
-  network: string
-  payer: string
-  accessToken?: string
-}
+export type LedewireSettlementResponse = X402SettlementResponse
 
 /**
  * Decoded `PAYMENT-RESPONSE` header on the PAID request's `402` refusal —

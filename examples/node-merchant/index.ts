@@ -9,6 +9,8 @@
  * 5. Listing top buyers by their opaque buyer_ref
  * 6. The same sales summary from a store API-key session, using the store_id
  *    that loginWithApiKey resolves with
+ * 6. Checking that one of the store's own pages is a registered x402 resource
+ *    (set LEDEWIRE_PAGE_URL to try it)
  *
  * Prerequisites:
  *   cp .env.example .env   # fill in LEDEWIRE_EMAIL, LEDEWIRE_PASSWORD,
@@ -112,6 +114,21 @@ async function main(): Promise<void> {
       })
       const keySummary = await keyClient.merchant.sales.summary(store_id)
       console.log(`✓ API-key session for store ${store_id}: ${keySummary.total_sales} sales`)
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. x402 origin verification for one of the store's pages (public, no auth)
+    // -------------------------------------------------------------------------
+    const pageUrl = process.env['LEDEWIRE_PAGE_URL']
+    if (pageUrl) {
+      // Passing store_id lets the API register the URL now if one of the store's
+      // pricing rules covers it. Unknown URLs answer verified: false, never an error.
+      const origin = await client.x402.verifyOrigin({ url: pageUrl, store_id: storeId })
+      console.log(
+        origin.verified
+          ? `✓ ${pageUrl} is "${origin.title}" at ${origin.amount} cents`
+          : `✗ ${pageUrl} is not a registered Ledewire resource`,
+      )
     }
   } catch (err) {
     if (err instanceof LedewireError) {
