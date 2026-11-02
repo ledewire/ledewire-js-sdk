@@ -24,7 +24,7 @@ export class BrowserContentNamespace {
    * Returns a content item together with access information for the
    * authenticated buyer (or a generic access response when unauthenticated).
    * The route is buyer-only: `access_info` is always the caller's own, and a
-   * store credential (such as a `lw.seller.loginWithApiKey` session) is refused
+   * store credential (such as a `@ledewire/node` store API-key session) is refused
    * with `403`, thrown as `ForbiddenError`.
    *
    * @param id - The content ID.
