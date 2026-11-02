@@ -252,8 +252,7 @@ export class NotFoundError extends LedewireError {
 /**
  * Thrown for any HTTP `429 Too Many Requests` refusal: the caller has sent
  * more requests than an endpoint allows in its window. `content.search`, for
- * example, allows 15 searches a minute per buyer, and every request to it
- * counts, including ones it refuses.
+ * example, allows 15 searches a minute per buyer.
  *
  * {@link LedewireError.retryAfter} carries the response's `Retry-After`
  * header as seconds to wait, or `undefined` when the response sent none (back
@@ -277,18 +276,12 @@ export class RateLimitError extends LedewireError {
 
   constructor(
     message: string,
-    options: {
-      /** Seconds to wait before retrying, from `Retry-After`. */
-      retryAfter?: number | undefined
-      /** Machine-readable error code from the API error body. */
-      code?: number | undefined
-      /** The API error body's `error.type`, if present. */
-      type?: ErrorTypeValue | undefined
-      /** Extra top-level fields from the API error body. */
-      details?: Record<string, unknown> | undefined
-    } = {},
+    code?: number,
+    type?: ErrorTypeValue,
+    details?: Record<string, unknown>,
+    retryAfter?: number,
   ) {
-    super(message, 429, options.code, options.type, options.details, options.retryAfter)
+    super(message, 429, code, type, details, retryAfter)
     this.name = 'RateLimitError'
   }
 }

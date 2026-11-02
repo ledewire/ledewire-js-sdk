@@ -110,7 +110,7 @@ describe('SpendCapReachedError', () => {
 
 describe('RateLimitError', () => {
   it('has statusCode 429 and the given retryAfter', () => {
-    const err = new RateLimitError('Too many searches', { retryAfter: 60 })
+    const err = new RateLimitError('Too many searches', undefined, undefined, undefined, 60)
     expect(err.name).toBe('RateLimitError')
     expect(err.statusCode).toBe(429)
     expect(err.retryAfter).toBe(60)
@@ -132,7 +132,13 @@ describe('RateLimitError', () => {
   it('is recognized across bundle copies', async () => {
     vi.resetModules()
     const otherCopy = await import('./errors.js')
-    const err = new otherCopy.RateLimitError('Too many searches', { retryAfter: 5 })
+    const err = new otherCopy.RateLimitError(
+      'Too many searches',
+      undefined,
+      undefined,
+      undefined,
+      5,
+    )
     expect(err).toBeInstanceOf(RateLimitError)
     expect(err).toBeInstanceOf(LedewireError)
     expect(new otherCopy.NotFoundError('nope')).not.toBeInstanceOf(RateLimitError)

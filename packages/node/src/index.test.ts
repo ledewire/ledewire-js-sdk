@@ -16,7 +16,7 @@ describe('@ledewire/node public exports', () => {
   })
 
   it('exports RateLimitError as a LedewireError subclass', () => {
-    const err = new sdk.RateLimitError('Too many searches', { retryAfter: 60 })
+    const err = new sdk.RateLimitError('Too many searches', undefined, undefined, undefined, 60)
 
     expect(err).toBeInstanceOf(sdk.LedewireError)
     expect(err.statusCode).toBe(429)

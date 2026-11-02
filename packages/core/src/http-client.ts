@@ -6,6 +6,7 @@ import {
   RateLimitError,
 } from './errors.js'
 import type { ErrorTypeValue } from './errors.js'
+import { parseRetryAfter } from './retry-after.js'
 import { spendCapErrorFromBody } from './spend-cap.js'
 
 /**
@@ -42,23 +43,6 @@ export interface RequestOptions {
 
 /** The default LedeWire API base URL used by all SDK packages. */
 export const DEFAULT_BASE_URL = 'https://api.ledewire.com'
-
-/**
- * Reads a `Retry-After` header as the number of seconds to wait. Accepts both forms
- * RFC 9110 allows: delta-seconds (`120`) and an HTTP-date. A date in the past means
- * no wait (`0`). Returns `undefined` when the header is absent or unparseable.
- *
- * @param value - The raw header value, or `null` when the header is absent.
- * @param now - The current time in milliseconds, injectable for tests.
- */
-function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
-  if (value === null) return undefined
-  const trimmed = value.trim()
-  if (/^\d+$/.test(trimmed)) return Number(trimmed)
-  const at = Date.parse(trimmed)
-  if (Number.isNaN(at)) return undefined
-  return Math.max(0, Math.ceil((at - now) / 1000))
-}
 
 /**
  * A query-string value. Booleans are sent as `true`/`false`. An array repeats its
@@ -308,7 +292,7 @@ export class HttpClient {
       case 404:
         throw new NotFoundError(message, code, type, details, retryAfter)
       case 429:
-        throw new RateLimitError(message, { retryAfter, code, type, details })
+        throw new RateLimitError(message, code, type, details, retryAfter)
       default:
         throw new LedewireError(message, response.status, code, type, details, retryAfter)
     }

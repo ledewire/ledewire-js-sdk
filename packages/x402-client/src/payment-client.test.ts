@@ -15,7 +15,13 @@ import {
   MalformedPaymentRequiredError,
   InsufficientFundsError,
 } from './errors.js'
-import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
+import {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  RateLimitError,
+  SpendCapReachedError,
+} from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
 const ORIGIN_URL = 'https://blog.example.com/posts/article'
@@ -259,6 +265,22 @@ describe('throwPaymentError', () => {
     expect(() => throwPaymentError(403, 'forbidden')).toThrow(ForbiddenError)
   })
 
+  it('throws RateLimitError on 429, carrying retryAfter when given', () => {
+    let error: unknown
+    try {
+      throwPaymentError(429, 'slow down', 20)
+    } catch (err) {
+      error = err
+    }
+    expect(error).toBeInstanceOf(RateLimitError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 429, retryAfter: 20, message: 'slow down' })
+  })
+
+  it('throws RateLimitError on 429 with retryAfter undefined when not given', () => {
+    expect(() => throwPaymentError(429, 'slow down')).toThrow(RateLimitError)
+  })
+
   it('throws LedewireError for any other status', () => {
     // Exercises the final `throw new LedewireError` — false branch of the known statuses
     expect(() => throwPaymentError(500, 'internal')).toThrow(LedewireError)
@@ -317,6 +339,12 @@ describe('throwLegacyPaymentError', () => {
   it('falls back to throwPaymentError when the body is not a spend-cap refusal', () => {
     expect(() => throwLegacyPaymentError(422, { error: 'Insufficient balance' })).toThrow(
       InsufficientFundsError,
+    )
+  })
+
+  it('passes retryAfter through to a RateLimitError on 429', () => {
+    expect(() => throwLegacyPaymentError(429, { error: 'slow down' }, 7)).toThrow(
+      expect.objectContaining({ statusCode: 429, retryAfter: 7 }) as Error,
     )
   })
 

@@ -53,8 +53,8 @@ export {
   InsufficientFundsError,
 } from './errors.js'
 /**
- * `AuthError`, `ForbiddenError`, `LedewireError`, and `SpendCapReachedError`
- * are re-exported here from `@ledewire/core` — LedeWire's private shared
+ * `AuthError`, `ForbiddenError`, `LedewireError`, `RateLimitError`, and
+ * `SpendCapReachedError` are re-exported here from `@ledewire/core` — LedeWire's private shared
  * internals, not published to npm. Import them from here (or from
  * `@ledewire/node`), never from `@ledewire/core` directly.
  *
@@ -63,6 +63,8 @@ export {
  * maps `invalid_ledewire_wallet_payload_role`, and `SpendCapReachedError`
  * maps `daily_spend_cap_reached`. The pre-api#1066 legacy mapping (kept
  * during the switch-over) instead reads a bare `401`/`403`/`402` status.
+ * A `429` from the paid retry or the buyer-key login is a `RateLimitError`,
+ * with `retryAfter` from the `Retry-After` header.
  *
  * `@ledewire/core` is bundled separately into every published package via
  * tsup, so each of `@ledewire/x402-client`, `@ledewire/node`, and
@@ -72,7 +74,13 @@ export {
  * falls back to checking it when the plain prototype check fails — so it
  * works whichever published package's copy of the class you check against.
  */
-export { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
+export {
+  AuthError,
+  ForbiddenError,
+  LedewireError,
+  RateLimitError,
+  SpendCapReachedError,
+} from '@ledewire/core'
 export type {
   PaymentSigner,
   LedewireFetchConfig,
