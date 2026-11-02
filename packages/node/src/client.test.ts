@@ -5,7 +5,7 @@ import {
   errorResponseFixture,
   storeAuthTokenFixture,
 } from '@ledewire/core/test-utils'
-import { MemoryTokenStorage } from '@ledewire/core'
+import { AuthError, MemoryTokenStorage } from '@ledewire/core'
 import { createClient } from './client.js'
 
 const BASE = 'https://api.ledewire.com'
@@ -226,6 +226,260 @@ describe('createClient refreshFn', () => {
     // which finds no tokens and calls onAuthExpired before returning null.
     await expect(client.wallet.balance()).rejects.toThrow()
     expect(onAuthExpired).toHaveBeenCalledOnce()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createClient — automatic store API-key login (apiKey / apiSecret)
+// ---------------------------------------------------------------------------
+
+describe('createClient with apiKey', () => {
+  const STORE = 'store-1'
+  const SUMMARY = `${BASE}/v1/merchant/${STORE}/sales/summary`
+  const LOGIN = `${BASE}/v1/auth/login/api-key`
+
+  /** Records every request as `METHOD path` in order, with login bodies and auth headers. */
+  function recordTraffic() {
+    const calls: string[] = []
+    const loginBodies: unknown[] = []
+    const summaryAuth: string[] = []
+    return {
+      calls,
+      loginBodies,
+      summaryAuth,
+      login: (response: () => Response) =>
+        http.post(LOGIN, async ({ request }) => {
+          calls.push('POST /v1/auth/login/api-key')
+          loginBodies.push(await request.json())
+          return response()
+        }),
+      summary: (response: (attempt: number) => Response = () => HttpResponse.json({})) =>
+        http.get(SUMMARY, ({ request }) => {
+          calls.push('GET summary')
+          summaryAuth.push(request.headers.get('Authorization') ?? '')
+          return response(summaryAuth.length)
+        }),
+      refresh: (response: () => Response) =>
+        http.post(`${BASE}/v1/auth/token/refresh`, () => {
+          calls.push('POST /v1/auth/token/refresh')
+          return response()
+        }),
+    }
+  }
+
+  it('logs in with apiKey and apiSecret before the first authenticated request', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() =>
+        HttpResponse.json(storeAuthTokenFixture({ access_token: 'auto-store', store_id: STORE })),
+      ),
+      t.summary(),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 'secret-1' })
+    await client.merchant.sales.summary(STORE)
+
+    expect(t.calls).toEqual(['POST /v1/auth/login/api-key', 'GET summary'])
+    expect(t.loginBodies).toEqual([{ key: 'key-1', secret: 'secret-1' }])
+    expect(t.summaryAuth).toEqual(['Bearer auto-store'])
+  })
+
+  it('stores the auto-login session with its storeId, as an explicit login does', async () => {
+    const storage = new MemoryTokenStorage()
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture({ store_id: STORE }))),
+      t.summary(),
+    )
+
+    await createClient({ apiKey: 'key-1', apiSecret: 'secret-1', storage }).merchant.sales.summary(
+      STORE,
+    )
+
+    expect(storage.getTokens()?.storeId).toBe(STORE)
+  })
+
+  it('sends no secret in the login body when only apiKey is set', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture())),
+      t.summary(),
+    )
+
+    await createClient({ apiKey: 'view-key' }).merchant.sales.summary(STORE)
+
+    expect(t.loginBodies).toEqual([{ key: 'view-key' }])
+  })
+
+  it('shares one login between two concurrent first requests', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture({ access_token: 'shared' }))),
+      t.summary(),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 'secret-1' })
+    await Promise.all([client.merchant.sales.summary(STORE), client.merchant.sales.summary(STORE)])
+
+    expect(t.loginBodies).toHaveLength(1)
+    expect(t.summaryAuth).toEqual(['Bearer shared', 'Bearer shared'])
+  })
+
+  it('logs in again after a failed refresh and retries the request once, without onAuthExpired', async () => {
+    const onAuthExpired = vi.fn()
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'stale',
+      refreshToken: 'dead-refresh',
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    })
+    const t = recordTraffic()
+    server.use(
+      t.summary((attempt) =>
+        attempt === 1
+          ? HttpResponse.json(errorResponseFixture(1001, 'Token expired'), { status: 401 })
+          : HttpResponse.json({}),
+      ),
+      t.refresh(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Bad refresh'), { status: 401 }),
+      ),
+      t.login(() => HttpResponse.json(storeAuthTokenFixture({ access_token: 'relogged' }))),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 'secret-1', storage, onAuthExpired })
+    await client.merchant.sales.summary(STORE)
+
+    expect(t.calls).toEqual([
+      'GET summary',
+      'POST /v1/auth/token/refresh',
+      'POST /v1/auth/login/api-key',
+      'GET summary',
+    ])
+    expect(t.summaryAuth).toEqual(['Bearer stale', 'Bearer relogged'])
+    expect(onAuthExpired).not.toHaveBeenCalled()
+  })
+
+  it('logs in again when a proactive refresh fails', async () => {
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({ accessToken: 'old', refreshToken: 'dead-refresh', expiresAt: 0 })
+    const t = recordTraffic()
+    server.use(
+      t.refresh(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Bad refresh'), { status: 401 }),
+      ),
+      t.login(() => HttpResponse.json(storeAuthTokenFixture({ access_token: 'relogged' }))),
+      t.summary(),
+    )
+
+    await createClient({ apiKey: 'key-1', apiSecret: 'secret-1', storage }).merchant.sales.summary(
+      STORE,
+    )
+
+    expect(t.calls).toEqual([
+      'POST /v1/auth/token/refresh',
+      'POST /v1/auth/login/api-key',
+      'GET summary',
+    ])
+    expect(t.summaryAuth).toEqual(['Bearer relogged'])
+  })
+
+  it('rejects with the login error and calls onAuthExpired once when the re-login fails', async () => {
+    const onAuthExpired = vi.fn()
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'stale',
+      refreshToken: 'dead-refresh',
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    })
+    const t = recordTraffic()
+    server.use(
+      t.summary(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Token expired'), { status: 401 }),
+      ),
+      t.refresh(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Bad refresh'), { status: 401 }),
+      ),
+      t.login(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'API key revoked'), { status: 401 }),
+      ),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 'secret-1', storage, onAuthExpired })
+    const err: unknown = await client.merchant.sales.summary(STORE).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(AuthError)
+    expect((err as AuthError).message).toBe('API key revoked')
+    expect(t.loginBodies).toHaveLength(1)
+    expect(t.calls.filter((c) => c === 'GET summary')).toHaveLength(1)
+    expect(onAuthExpired).toHaveBeenCalledOnce()
+  })
+
+  it('rejects the first request with the API message after exactly one login attempt for a wrong key', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() =>
+        HttpResponse.json(errorResponseFixture(1001, 'Invalid API key or secret'), {
+          status: 401,
+        }),
+      ),
+      t.summary(),
+    )
+
+    const client = createClient({ apiKey: 'wrong', apiSecret: 'very-secret-value' })
+    const err: unknown = await client.merchant.sales.summary(STORE).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(AuthError)
+    expect((err as AuthError).message).toBe('Invalid API key or secret')
+    expect((err as AuthError).message).not.toContain('very-secret-value')
+    expect(t.calls).toEqual(['POST /v1/auth/login/api-key'])
+  })
+
+  it('sends no login request when a token is already stored', async () => {
+    const storage = new MemoryTokenStorage()
+    storage.setTokens({
+      accessToken: 'from-storage',
+      refreshToken: 'r',
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    })
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture())),
+      t.summary(),
+    )
+
+    await createClient({ apiKey: 'key-1', apiSecret: 'secret-1', storage }).merchant.sales.summary(
+      STORE,
+    )
+
+    expect(t.calls).toEqual(['GET summary'])
+    expect(t.summaryAuth).toEqual(['Bearer from-storage'])
+  })
+
+  it('does not log in again after an explicit loginWithApiKey', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture({ store_id: STORE }))),
+      t.summary(),
+    )
+
+    const client = createClient({ apiKey: 'key-1', apiSecret: 'secret-1' })
+    const { store_id } = await client.auth.loginWithApiKey({ key: 'key-1', secret: 'secret-1' })
+    await client.merchant.sales.summary(store_id)
+
+    expect(t.calls).toEqual(['POST /v1/auth/login/api-key', 'GET summary'])
+  })
+
+  it('sends no login request when created without apiKey', async () => {
+    const t = recordTraffic()
+    server.use(
+      t.login(() => HttpResponse.json(storeAuthTokenFixture())),
+      t.summary(),
+    )
+
+    await createClient().merchant.sales.summary(STORE)
+
+    expect(t.calls).toEqual(['GET summary'])
+    expect(t.summaryAuth).toEqual([''])
   })
 })
 
