@@ -22,7 +22,9 @@ await client.auth.loginWithApiKey({
   key: process.env.LEDEWIRE_API_KEY,
   secret: process.env.LEDEWIRE_API_SECRET,
 })
-const items = await client.merchant.content.list(process.env.LEDEWIRE_STORE_ID)
+const storeId = process.env.LEDEWIRE_STORE_ID
+if (!storeId) throw new Error('LEDEWIRE_STORE_ID is not set')
+const items = await client.merchant.content.list(storeId)
 
 // Merchant email/password auth
 const client = createClient()

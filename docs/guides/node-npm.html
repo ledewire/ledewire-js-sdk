@@ -196,6 +196,7 @@ await client.auth.loginWithApiKey({
 
 // Pass the store's id explicitly
 const storeId = process.env.LEDEWIRE_STORE_ID
+if (!storeId) throw new Error('LEDEWIRE_STORE_ID is not set')
 const { data } = await client.merchant.content.list(storeId)
 console.log(data)</code></pre>
 
