@@ -291,6 +291,8 @@ export function createMockClient(
     },
     x402: {
       discoverResources: stub(),
+      verifyOrigin: stub(),
+      getJwks: stub(),
     },
     config: {
       getPublic: stub(),

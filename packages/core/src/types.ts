@@ -681,6 +681,46 @@ export interface X402DiscoveryParams {
 }
 
 /**
+ * Query parameters accepted by `GET /v1/x402/verify-origin`.
+ */
+export interface X402VerifyOriginParams {
+  /**
+   * Absolute URL of the page to verify (e.g. `https://theirsite.com/articles/slug`).
+   * A missing or invalid URL is not an error: the API answers `verified: false`.
+   */
+  url: string
+  /**
+   * The store whose pricing rules may cover the URL. When the URL is not yet
+   * registered, the store has verified its domain, and one of its pricing rules
+   * matches, the API registers the URL on this request and answers
+   * `verified: true`.
+   */
+  store_id?: string
+  [key: string]: string | undefined
+}
+
+/**
+ * Response from `GET /v1/x402/verify-origin`: either `{ verified: true, content_id,
+ * store_id, amount, title }` for a registered URL, or `{ verified: false }`.
+ * Branch on `verified`.
+ */
+export type X402VerifyOriginResponse =
+  components['schemas']['VerifyOriginVerified'] | components['schemas']['VerifyOriginUnverified']
+
+/**
+ * JSON Web Key Set (RFC 7517) served from `GET /.well-known/x402-jwks.json`: the
+ * RS256 public key that signs the `accessToken` in an x402 `PAYMENT-RESPONSE`.
+ */
+export type X402JwksResponse = components['schemas']['JwksResponse']
+
+/**
+ * The x402 v2 settlement result, carried base64-encoded in the `PAYMENT-RESPONSE`
+ * header of a successful paid `200`. `accessToken` is omitted (never `null`) when
+ * the server has no signing key configured.
+ */
+export type X402SettlementResponse = components['schemas']['SettlementResponse']
+
+/**
  * The REST and x402 web-gate form of a daily-spend-cap refusal, returned with HTTP
  * `402 Payment Required` by `POST /v1/purchases`, `GET /v1/x402/contents/{id}`, and
  * acquisition authorization. This is the raw wire shape; the SDK throws it as

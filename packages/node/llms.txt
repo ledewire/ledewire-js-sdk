@@ -756,8 +756,8 @@ const keyHistory = await client.acquisitions.signingKeyHistory()
 
 ### client.x402
 
-Public x402 Bazaar resource discovery — no authentication, no credentials
-sent. Never carries delivered content (`content_body`/`content_uri`), only the
+Public x402 endpoints — no authentication, no credentials sent. Bazaar resource
+discovery Never carries delivered content (`content_body`/`content_uri`), only the
 `teaser` preview. Pay for a resource via the x402 flow itself
 (`@ledewire/x402-client`), not through this namespace.
 
@@ -769,6 +769,18 @@ const { total, resources } = await client.x402.discoverResources({ limit: 20 })
 for (const resource of resources) {
   console.log(resource.metadata.title ?? '(untitled)', resource.metadata.teaser)
 }
+
+client.x402.verifyOrigin({ url: string, store_id?: string }) → Promise<X402VerifyOriginResponse>
+// { verified: true, content_id, store_id, amount, title } | { verified: false }.
+// Unknown or invalid URLs answer verified: false, never an error. With store_id, a URL that
+// one of that store's pricing rules covers (on a verified domain) is registered on this call.
+// 429 (60/min per IP) → RateLimitError, err.retryAfter = Retry-After seconds.
+
+client.x402.getJwks() → Promise<X402JwksResponse>
+// { keys: [{ kty: 'RSA', use: 'sig', alg: 'RS256', kid, n, e }] } — verifies the RS256
+// accessToken in an x402 PAYMENT-RESPONSE offline (match its kid). Cache it for 24h.
+// 503 → LedewireError, statusCode 503, message 'JWKS unavailable' (no key configured;
+// the body is a bare string, so err.code/err.type are undefined).
 ```
 
 ## createAgentClient()

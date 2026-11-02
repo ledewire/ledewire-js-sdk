@@ -112,6 +112,8 @@ const client = createClient({
 - `client.acquisitions.getManifest(id)` → `CorpusManifestResponse` — signed audit manifest (409 until first assembly)
 - `client.acquisitions.signingKeyHistory()` → `SigningKeyHistoryResponse` — public, verifies `manifest.signing_kid`
 - `client.x402.discoverResources({ limit?, offset? })` → `X402BazaarDiscoveryResponse` — public x402 Bazaar catalog
+- `client.x402.verifyOrigin({ url, store_id? })` → `X402VerifyOriginResponse` — public; `{ verified: true, content_id, store_id, amount, title }` or `{ verified: false }`; 429 → `RateLimitError` with `retryAfter`
+- `client.x402.getJwks()` → `X402JwksResponse` — public JWKS that verifies an x402 settlement `accessToken`; 503 → `LedewireError` with message `'JWKS unavailable'`
 - `createAgentClient({ key, secret })` → buyer-scoped client also exposing `company`, `publications`, `acquisitions`, `x402` (plus `auth`, `wallet`, `purchases`, `content`, `checkout`, `user`); a Company Machine user's Buyer key works here
 
 ## Key types (packages/core)
