@@ -13,9 +13,10 @@ export class UnsupportedSchemeError extends LedewireError {
 }
 
 /**
- * Thrown when a `402 Payment Required` response contains a `ledewire-wallet`
- * entry but the `extensions.ledewire-wallet` discovery block is missing or
- * incomplete. This indicates a server misconfiguration.
+ * Thrown when a `PAYMENT-REQUIRED` header cannot be paid as sent: it is not
+ * base64 JSON, its `resource.url` is not a Ledewire `/v1/x402/contents/{id}`
+ * URL, or its `ledewire-wallet` entry's `extra` lacks a `nonce` or
+ * `expiresAt`. This indicates a server misconfiguration.
  */
 export class MalformedPaymentRequiredError extends LedewireError {
   constructor(message: string) {

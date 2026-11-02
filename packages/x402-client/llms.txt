@@ -32,21 +32,21 @@ const article = await res.json()
 const fetch = createLedewireFetch({
   key: string,       // Buyer API key (e.g. bktst_abc123)
   secret: string,    // 64-char hex secret, shown once at creation
-  apiBase?: string,  // defaults to https://api.ledewire.com; overridden by server extension block
+  apiBase?: string,  // defaults to https://api.ledewire.com; set it for staging
   fetch?: typeof globalThis.fetch,  // custom fetch for proxies or testing
 })
 ```
 
-The apiBase is self-configuring: the server's PAYMENT-REQUIRED response includes
-extensions.ledewire-wallet.apiBase which takes precedence — same client works for
-staging and production without configuration changes.
+apiBase is where the buyer key logs in. The Ledewire API's PAYMENT-REQUIRED does not
+name one (extensions is {}), so pass apiBase for staging. A server that sends
+extensions.ledewire-wallet.apiBase overrides it.
 
 ## x402 payment flow (transparent to caller)
 
 1. First request → 402 + PAYMENT-REQUIRED header (base64 JSON)
 2. Client authenticates with buyer API key → buyer JWT (cached, auto-refreshed)
-3. Client reads extensions.ledewire-wallet.contentId and accepts[0].extra.nonce
-4. Constructs PAYMENT-SIGNATURE: base64(JSON({ x402Version:2, resource:{url}, accepted, payload:{token,contentId} }))
+3. Client reads the content id from resource.url (/v1/x402/contents/{id}) and accepts[0].extra.nonce
+4. Constructs PAYMENT-SIGNATURE: base64(JSON({ x402Version:2, resource:{url}, accepted, payload:{token,contentId,nonce} }))
 5. Retries original request with PAYMENT-SIGNATURE header → 200 + content
 
 ## Error types
@@ -171,7 +171,7 @@ const client = new LedewirePaymentClient({
 const sig = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
 // Internal auth manager — also exported separately
-client.auth.apiBase  // mutable, updated from server extension block
+client.auth.apiBase  // mutable; overridden by an extensions.ledewire-wallet.apiBase, if a server sends one
 ```
 
 ## PaymentSigner interface
@@ -192,21 +192,18 @@ PAYMENT-REQUIRED header (base64 JSON emitted by server on 402):
 ```json
 {
   "x402Version": 2,
-  "resource": { "url": "https://origin/post" },
+  "error": "PAYMENT-SIGNATURE header is required",
+  "resource": {
+    "url": "https://api.ledewire.com/v1/x402/contents/<content-uuid>",
+    "description": "<title>", "mimeType": "application/json"
+  },
   "accepts": [{
     "scheme": "ledewire-wallet", "network": "ledewire:v1",
     "amount": "100", "asset": "USD", "payTo": "store:<uuid>",
-    "maxTimeoutSeconds": 60,
-    "extra": { "nonce": "<single-use>", "expiresAt": 1234567890, "contentId": "<uuid>" }
+    "maxTimeoutSeconds": 300,
+    "extra": { "nonce": "<single-use>", "expiresAt": 1234567890 }
   }],
-  "extensions": {
-    "ledewire-wallet": {
-      "apiBase": "https://api.ledewire.com",
-      "authEndpoint": "/v1/auth/login/buyer-api-key",
-      "schemeVersion": "ledewire:v1",
-      "contentId": "<uuid>"
-    }
-  }
+  "extensions": {}
 }
 ```
 
@@ -214,9 +211,9 @@ PAYMENT-SIGNATURE header (base64 JSON sent by client on retry):
 ```json
 {
   "x402Version": 2,
-  "resource": { "url": "https://origin/post" },
+  "resource": { "url": "<requested url>" },
   "accepted": { "scheme": "ledewire-wallet", "network": "ledewire:v1", "..." },
-  "payload": { "token": "<buyer-JWT>", "contentId": "<uuid>" }
+  "payload": { "token": "<buyer-JWT>", "contentId": "<content-uuid>", "nonce": "<extra.nonce>" }
 }
 ```
 

@@ -165,19 +165,22 @@ export class LedewirePaymentClient {
    * @param url - Full URL of the resource being purchased.
    *
    * @throws {UnsupportedSchemeError} No `ledewire-wallet` entry in the `accepts` array.
-   * @throws {MalformedPaymentRequiredError} Extension block is absent or malformed.
+   * @throws {MalformedPaymentRequiredError} The header is not base64 JSON, its
+   *   `resource.url` is not a `/v1/x402/contents/{id}` URL, or `extra` lacks
+   *   a nonce or expiry.
    * @throws {NonceExpiredError} Nonce `expiresAt` is in the past.
    * @throws {AuthError} Buyer API key credentials are invalid.
    */
   async buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string> {
-    const { paymentRequired, accepted, extension } = parsePaymentRequired(paymentRequiredHeader)
+    const { paymentRequired, accepted, contentId, apiBase } =
+      parsePaymentRequired(paymentRequiredHeader)
 
     if (Date.now() / 1000 > accepted.extra.expiresAt) {
       throw new NonceExpiredError()
     }
 
-    if (extension.apiBase) {
-      this.auth.apiBase = extension.apiBase
+    if (apiBase) {
+      this.auth.apiBase = apiBase
     }
 
     const token = await this.auth.getAccessToken()
@@ -188,7 +191,9 @@ export class LedewirePaymentClient {
       x402Version: 2,
       resource: { url },
       accepted,
-      payload: { token, contentId: extension.contentId },
+      // The API settles only when contentId is the challenged content's id and
+      // nonce is the one it issued; without a nonce it answers a fresh 402.
+      payload: { token, contentId, nonce: accepted.extra.nonce },
       ...(supportsPaymentIdentifier
         ? { extensions: { 'payment-identifier': crypto.randomUUID() } }
         : undefined),

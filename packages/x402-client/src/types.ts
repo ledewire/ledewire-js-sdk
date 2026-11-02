@@ -42,9 +42,10 @@ export interface LedewireFetchConfig {
    */
   secret: string
   /**
-   * Override the Ledewire API base URL. Defaults to `https://api.ledewire.com`.
-   * Can also be discovered from the `extensions.ledewire-wallet.apiBase` field
-   * in a PAYMENT-REQUIRED response, which takes precedence when present.
+   * Override the Ledewire API base URL used to log in with the buyer key.
+   * Defaults to `https://api.ledewire.com`; set it for staging. The Ledewire
+   * API's challenge does not name one; a server that sends an
+   * `extensions.ledewire-wallet.apiBase` field overrides this.
    */
   apiBase?: string
   /**
@@ -61,8 +62,16 @@ export interface LedewireFetchConfig {
  */
 export interface LedewirePaymentRequired {
   x402Version: number
+  /** Why payment is required, e.g. `PAYMENT-SIGNATURE header is required`. */
+  error?: string
+  /**
+   * The content being sold. For the Ledewire API, `url` is
+   * `<api base>/v1/x402/contents/<content id>` — the only place the
+   * challenge carries the content id.
+   */
   resource: { url: string; description?: string; mimeType?: string }
   accepts: LedewirePaymentRequirements[]
+  /** The Ledewire API sends `{}`. */
   extensions?: Record<string, unknown>
 }
 
@@ -89,13 +98,12 @@ export interface LedewireWalletExtra {
   nonce: string
   /** Unix timestamp (seconds) after which the nonce expires. */
   expiresAt: number
-  /** UUID of the Ledewire content record being purchased. */
-  contentId: string
 }
 
 /**
- * The `extensions.ledewire-wallet` discovery block present in a
- * `PAYMENT-REQUIRED` response.
+ * An optional `extensions.ledewire-wallet` discovery block. The Ledewire API
+ * does not send one (its `extensions` is `{}`); when a server does, only its
+ * `apiBase` is read.
  */
 export interface LedewireWalletExtension {
   /** Ledewire API base URL (environment-aware, derived from the request). */
@@ -106,7 +114,7 @@ export interface LedewireWalletExtension {
   signupUrl?: string
   /** Scheme version string. Always `ledewire:v1`. */
   schemeVersion: string
-  /** UUID of the Ledewire content record. Identical to `accepts[0].extra.contentId`. */
+  /** UUID of the Ledewire content record. */
   contentId: string
 }
 
@@ -117,8 +125,13 @@ export interface LedewireWalletExtension {
 export interface LedewireWalletPayload {
   /** Buyer JWT obtained by authenticating with the buyer API key. */
   token: string
-  /** UUID of the Ledewire content record being purchased. */
+  /**
+   * UUID of the Ledewire content record being purchased: the `{id}` in the
+   * challenge's `resource.url`.
+   */
   contentId: string
+  /** The challenge's `accepts[].extra.nonce`, consumed by the API on settlement. */
+  nonce: string
 }
 
 /**

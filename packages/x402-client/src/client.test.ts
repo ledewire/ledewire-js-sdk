@@ -10,36 +10,17 @@ import {
   MalformedPaymentRequiredError,
 } from './errors.js'
 import { AuthError, LedewireError } from '@ledewire/core'
+import { API_CONTENT_ID, apiChallenge } from './api-challenge.fixture.js'
 
 const API_BASE = 'http://api.test'
-const ORIGIN_URL = 'https://blog.example.com/posts/article'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
-const CONTENT_ID = 'content-uuid-1'
+const CONTENT_ID = API_CONTENT_ID
+const NONCE = 'test-nonce'
+// The API's own challenge (`api-challenge.fixture.ts`, mirroring ledewire/api
+// `app/services/x402/wallet_service.rb`), fetched from the URL it names.
+const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
 
-const PAYMENT_REQUIRED_PAYLOAD = {
-  x402Version: 2,
-  resource: { url: ORIGIN_URL },
-  accepts: [
-    {
-      scheme: 'ledewire-wallet',
-      network: 'ledewire:v1',
-      amount: '100',
-      asset: 'USD',
-      payTo: 'store:uuid-1',
-      maxTimeoutSeconds: 60,
-      extra: { nonce: 'test-nonce', expiresAt: NOW_SECONDS + 120, contentId: CONTENT_ID },
-    },
-  ],
-  extensions: {
-    'ledewire-wallet': {
-      apiBase: API_BASE,
-      authEndpoint: '/v1/auth/login/buyer-api-key',
-      signupUrl: 'https://ledewire.com/signup',
-      schemeVersion: 'ledewire:v1',
-      contentId: CONTENT_ID,
-    },
-  },
-}
+const PAYMENT_REQUIRED_PAYLOAD = apiChallenge({ baseUrl: API_BASE, nonce: NONCE })
 
 const AUTH_RESPONSE = {
   token_type: 'Bearer',
@@ -137,15 +118,14 @@ describe('createLedewireFetch', () => {
     expect(res.status).toBe(200)
     expect(settledSignatures).toHaveLength(1)
 
-    // Verify PAYMENT-SIGNATURE contains correct contentId and token
+    // The API settles only when payload.contentId is the content's id and
+    // payload.nonce is the challenge's extra.nonce (wallet_service.rb
+    // `verify_payment`); a missing nonce gets a fresh 402 instead.
     const sig = settledSignatures[0]
     expect(sig).toBeDefined()
-    const decoded = JSON.parse(atob(sig!)) as {
-      payload: { contentId: string; token: string }
-      x402Version: number
-    }
-    expect(decoded.payload.contentId).toBe(CONTENT_ID)
-    expect(decoded.payload.token).toBe('buyer-jwt')
+    const decoded = JSON.parse(atob(sig!)) as LedewirePaymentPayload
+    expect(decoded.payload).toEqual({ token: 'buyer-jwt', contentId: CONTENT_ID, nonce: NONCE })
+    expect(decoded.accepted).toMatchObject({ scheme: 'ledewire-wallet', network: 'ledewire:v1' })
     expect(decoded.x402Version).toBe(2)
   })
 
@@ -216,7 +196,7 @@ describe('createLedewireFetch', () => {
     await expect(fetchFn(ORIGIN_URL)).rejects.toThrow(UnsupportedSchemeError)
   })
 
-  it('throws MalformedPaymentRequiredError for missing extension block', async () => {
+  it('throws MalformedPaymentRequiredError when resource.url names no content', async () => {
     server.use(
       http.get(
         ORIGIN_URL,
@@ -226,10 +206,8 @@ describe('createLedewireFetch', () => {
             headers: {
               'PAYMENT-REQUIRED': btoa(
                 JSON.stringify({
-                  x402Version: 2,
-                  resource: { url: ORIGIN_URL },
-                  accepts: [PAYMENT_REQUIRED_PAYLOAD.accepts[0]],
-                  extensions: {},
+                  ...PAYMENT_REQUIRED_PAYLOAD,
+                  resource: { url: 'https://blog.example.com/posts/article' },
                 }),
               ),
             },
@@ -380,12 +358,7 @@ describe('createLedewireFetch', () => {
               'PAYMENT-REQUIRED': btoa(
                 JSON.stringify({
                   ...PAYMENT_REQUIRED_PAYLOAD,
-                  extensions: {
-                    'ledewire-wallet': {
-                      ...PAYMENT_REQUIRED_PAYLOAD.extensions['ledewire-wallet'],
-                      apiBase: stagingBase,
-                    },
-                  },
+                  extensions: { 'ledewire-wallet': { apiBase: stagingBase } },
                 }),
               ),
             },

@@ -33,7 +33,9 @@ The full x402 handshake happens invisibly:
 
 1. First request hits the origin → `402 Payment Required` with `PAYMENT-REQUIRED` header
 2. Client authenticates with buyer API key → gets buyer JWT
-3. Client constructs `PAYMENT-SIGNATURE` with JWT + `contentId` from the server's extension block
+3. Client constructs `PAYMENT-SIGNATURE` with the JWT, the `contentId` (the `{id}` in the
+   challenge's `resource.url`, `/v1/x402/contents/{id}`) and the `nonce` from
+   `accepts[0].extra`
 4. Retries original request → `200` + content
 
 ## What happens under the hood
@@ -60,8 +62,7 @@ const fetch = createLedewireFetch({
   key: string,      // Buyer API key (e.g. bktst_abc123)
   secret: string,   // 64-char hex secret, shown once at creation
 
-  // Optional — defaults to https://api.ledewire.com
-  // Overridden automatically by the server's PAYMENT-REQUIRED extension block
+  // Optional — defaults to https://api.ledewire.com; set it for staging
   apiBase?: string,
 
   // Optional — provide a custom fetch (e.g. for proxies or testing)
@@ -69,10 +70,10 @@ const fetch = createLedewireFetch({
 })
 ```
 
-The `apiBase` is self-configuring: when the `PAYMENT-REQUIRED` response includes an
-`extensions.ledewire-wallet.apiBase` field (standard for Ledewire-gated content), that
-value takes precedence over any configured `apiBase`. This means the same client works
-for staging and production content without any configuration changes.
+`apiBase` is where the buyer key logs in. The Ledewire API's `PAYMENT-REQUIRED` challenge
+does not name one (its `extensions` is `{}`), so for staging content pass
+`apiBase: 'https://api-staging.ledewire.com'`. A server that does send an
+`extensions.ledewire-wallet.apiBase` field overrides the configured value.
 
 ## Transport adapters
 

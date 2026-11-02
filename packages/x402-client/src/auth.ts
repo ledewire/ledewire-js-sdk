@@ -64,7 +64,7 @@ export class LedewireAuthManager {
   private accessToken: string | null = null
   private expiresAt = 0
 
-  /** @internal resolved apiBase — set on first use from PAYMENT-REQUIRED extension */
+  /** @internal resolved apiBase — overridden by a PAYMENT-REQUIRED `ledewire-wallet` extension, when sent */
   apiBase: string
 
   constructor(

@@ -5,6 +5,7 @@ import { wrapFetchWithPayment } from './fetch.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
 import { InsufficientFundsError } from '../errors.js'
+import { API_CONTENT_ID, apiChallenge, encodeChallenge } from '../api-challenge.fixture.js'
 import {
   AuthError,
   ForbiddenError,
@@ -36,35 +37,11 @@ const CAP_BODY = {
 }
 
 const API_BASE = 'http://api.test'
-const ORIGIN_URL = 'https://blog.example.com/posts/article'
-const NOW_SECONDS = Math.floor(Date.now() / 1000)
-const CONTENT_ID = 'content-uuid-1'
+// The API's own challenge (`api-challenge.fixture.ts`, mirroring ledewire/api
+// `app/services/x402/wallet_service.rb`), for the URL it names.
+const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${API_CONTENT_ID}`
 
-const PAYMENT_REQUIRED_HEADER = btoa(
-  JSON.stringify({
-    x402Version: 2,
-    resource: { url: ORIGIN_URL },
-    accepts: [
-      {
-        scheme: 'ledewire-wallet',
-        network: 'ledewire:v1',
-        amount: '100',
-        asset: 'USD',
-        payTo: 'store:uuid-1',
-        maxTimeoutSeconds: 60,
-        extra: { nonce: 'n', expiresAt: NOW_SECONDS + 120, contentId: CONTENT_ID },
-      },
-    ],
-    extensions: {
-      'ledewire-wallet': {
-        apiBase: API_BASE,
-        authEndpoint: '/v1/auth/login/buyer-api-key',
-        schemeVersion: 'ledewire:v1',
-        contentId: CONTENT_ID,
-      },
-    },
-  }),
-)
+const PAYMENT_REQUIRED_HEADER = encodeChallenge(apiChallenge({ baseUrl: API_BASE }))
 
 const server = setupServer(
   http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
