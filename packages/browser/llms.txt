@@ -191,6 +191,8 @@ lw.purchases.get(purchaseId: string)                  → Promise<PurchaseRespon
 
 ```ts
 lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessResponse>
+// Sends the buyer token (or none, for generic access info); access_info is the
+// caller's own. A store credential gets 403 (ForbiddenError).
 // Returns the work's public description + access info; never the deliverable
 // (that comes only from lw.purchases.create()).
 // { id, content_type, title: string | null, teaser (plain text, SDK decodes base64),

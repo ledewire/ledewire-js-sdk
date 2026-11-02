@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { NotFoundError, decodeContentFields } from '@ledewire/core'
+import { ForbiddenError, NotFoundError, decodeContentFields } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
@@ -46,6 +46,30 @@ describe('content.getWithAccess', () => {
     )
 
     await expect(makeClient().content.getWithAccess('missing')).rejects.toThrow(NotFoundError)
+  })
+
+  it('throws ForbiddenError when a store credential calls it (403)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/content/content-id-1/with-access`, () =>
+        HttpResponse.json(errorResponseFixture(1002, 'Invalid Role'), { status: 403 }),
+      ),
+    )
+
+    await expect(makeClient().content.getWithAccess('content-id-1')).rejects.toThrow(ForbiddenError)
+  })
+
+  it('URL-encodes the content id, so an id containing / stays one path segment', async () => {
+    let capturedPath = ''
+    server.use(
+      http.get(`${BASE}/v1/content/:id/with-access`, ({ request }) => {
+        capturedPath = new URL(request.url).pathname
+        return HttpResponse.json(contentWithAccessFixture())
+      }),
+    )
+
+    await makeClient().content.getWithAccess('pub/article-1')
+
+    expect(capturedPath).toBe('/v1/content/pub%2Farticle-1/with-access')
   })
 
   it('returns an external_ref item with its resource_url and no deliverable', async () => {

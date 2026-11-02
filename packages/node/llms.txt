@@ -314,8 +314,11 @@ if (purchase.content_body && purchase.content.content_type === 'markdown') {
 ### client.content
 
 ```ts
-client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessResponse>
-// userId: optional buyer ID for merchant server-side proxy lookups
+client.content.getWithAccess(contentId) → Promise<ContentWithAccessResponse>
+// Buyer-only: needs a buyer token (or none, for generic access info). A store
+// credential (merchant login, loginWithApiKey, createClient({ apiKey, apiSecret }))
+// gets 403, thrown as ForbiddenError. access_info is always the caller's own.
+// contentId is URL-encoded; teaser comes back as plain text (SDK decodes base64).
 // Returns { id, content_type, title: string | null, teaser, price_cents,
 //   visibility: 'public', resource_url: string | null, access_info } — never the
 //   deliverable, which comes only from purchases.create().
