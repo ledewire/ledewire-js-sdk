@@ -162,21 +162,21 @@ export {
 } from '@ledewire/core'
 
 // Namespace-specific request/response types
-export type { MerchantUserUpdateRequest } from './resources/merchant/users.js'
 export type {
+  AcquisitionCreateRequest,
   MerchantDomainAddRequest,
   MerchantDomainVerifyRequest,
   MerchantDomainVerifyResponse,
-} from './resources/merchant/domains.js'
+  MerchantPasswordResetRequestBody,
+  MerchantPasswordResetBody,
+  MerchantPasswordResetResponse,
+  MerchantPricingRuleCreateRequest,
+  MerchantUserUpdateRequest,
+} from '@ledewire/core'
 export type { MerchantContentSearchRequest } from './resources/merchant/content.js'
-export type { AcquisitionCreateRequest, CorpusDownloadResult } from './resources/acquisitions.js'
+export type { CorpusDownloadResult } from './resources/acquisitions.js'
 
 // Package exports (implementations added in build step 4)
 export { createClient, createAgentClient } from './client.js'
 export type { NodeClientConfig, AgentClientConfig, AgentClient } from './client.js'
 export type { MerchantLoginResult } from './resources/merchant/auth.js'
-export type {
-  MerchantPasswordResetRequestBody,
-  MerchantPasswordResetBody,
-  MerchantPasswordResetResponse,
-} from './resources/merchant/auth.js'

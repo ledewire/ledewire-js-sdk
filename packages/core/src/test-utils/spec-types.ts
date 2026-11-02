@@ -47,6 +47,24 @@ export type OperationBody<
   ? Body
   : never
 
+/**
+ * The query parameters an operation declares. `never` when it declares none, so a
+ * pin against a missing query fails rather than passing vacuously.
+ *
+ * @example
+ * ```ts
+ * type Discovery = OperationQuery<'/v1/x402/discovery/resources', 'get'>
+ * ```
+ */
+export type OperationQuery<
+  P extends keyof paths,
+  M extends 'get' | 'post' | 'put' | 'patch' | 'delete',
+> = paths[P][M] extends { parameters: { query?: infer Query } }
+  ? [NonNullable<Query>] extends [never]
+    ? never
+    : NonNullable<Query>
+  : never
+
 /** The resolved value of an async method's returned promise. */
 export type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never
 

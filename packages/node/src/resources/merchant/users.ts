@@ -8,20 +8,10 @@ import type {
   MerchantUser,
   MerchantInviteRequest,
   MerchantInviteResponse,
+  MerchantUserUpdateRequest,
   PaginatedUsersList,
   PaginationParams,
 } from '@ledewire/core'
-
-/** Request body for updating a store member's permissions. */
-export interface MerchantUserUpdateRequest {
-  /** Grant or revoke author permissions. */
-  is_author?: boolean
-  /**
-   * Per-author fee override in basis points (0–10000).
-   * Set to `null` to revert to the store default.
-   */
-  author_fee_bps?: number | null
-}
 
 /**
  * Manage team members for a merchant store.

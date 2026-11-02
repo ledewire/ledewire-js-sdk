@@ -4,35 +4,12 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantDomainVerification } from '@ledewire/core'
-
-/** Request body for adding a domain for verification. */
-export interface MerchantDomainAddRequest {
-  /**
-   * Domain to verify. The `www.` prefix is stripped automatically by the server.
-   * @example 'example.com'
-   */
-  domain: string
-}
-
-/** Request body for triggering DNS verification check. */
-export interface MerchantDomainVerifyRequest {
-  /**
-   * Domain to verify. The `www.` prefix is stripped automatically by the server.
-   * @example 'example.com'
-   */
-  domain: string
-}
-
-/** Response from triggering domain verification. */
-export interface MerchantDomainVerifyResponse {
-  /** Whether the verification job was enqueued. */
-  queued: boolean
-  /** The domain being verified. */
-  domain: string
-  /** Current status at time of enqueueing (not the final result). */
-  status: 'pending' | 'verified' | 'failed'
-}
+import type {
+  MerchantDomainAddRequest,
+  MerchantDomainVerification,
+  MerchantDomainVerifyRequest,
+  MerchantDomainVerifyResponse,
+} from '@ledewire/core'
 
 /**
  * Merchant domains namespace — manage verified domains required by x402 pricing rules.

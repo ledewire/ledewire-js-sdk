@@ -201,7 +201,8 @@ Call `listStores()` only when you need the full `ManageableStore` detail
 2. Run `pnpm generate:types` — regenerates `packages/core/src/api.gen.ts` (never edit that file manually)
 3. Add/update types as needed:
    - **Shared** (used by both `browser` and `node`): add to `packages/core/src/types.ts`
-   - **Node-only** (e.g. merchant-specific request/response shapes): define in the relevant resource file (`packages/node/src/resources/…`) and re-export from `packages/node/src/index.ts` — TypeDoc cannot resolve `@ledewire/core` re-exports in the node entry point so node-only types must live in source files TypeDoc can reach directly
+   - **An alias of a spec schema** (`components['schemas'][…]` or a `paths` operation type), shared or node-only: add to `packages/core/src/types.ts` and re-export from the package index. Core does not export `paths`/`components`, so a resource file outside core can't alias them; TypeDoc renders these re-exports (e.g. `docs/api/types/node_src.MerchantDomainAddRequest.html`).
+   - **Node-only and not a spec schema** (an SDK-specific shape): define in the relevant resource file (`packages/node/src/resources/…`) and re-export from `packages/node/src/index.ts`
 4. Add the method to the correct namespace in `packages/node/src/resources/` or
    `packages/browser/src/resources/`
 5. Write a Vitest test using MSW — see existing tests for patterns

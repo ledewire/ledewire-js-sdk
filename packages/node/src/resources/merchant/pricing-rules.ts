@@ -4,35 +4,7 @@
  * @module
  */
 import type { HttpClient } from '@ledewire/core'
-import type { MerchantPricingRule } from '@ledewire/core'
-
-/** Request body for creating a pricing rule. */
-export interface MerchantPricingRuleCreateRequest {
-  /**
-   * Glob URL pattern to gate. Must begin with `http://` or `https://`.
-   * Supports `*` (single segment) and `**` (cross-separator) wildcards.
-   *
-   * @remarks
-   * **Use `https://` patterns.** An `http://` pattern means the merchant's page
-   * loads without TLS — browsers flag it as "Not Secure" and the buyer's session
-   * is visible in plaintext. The Ledewire payment API itself always uses HTTPS,
-   * but the merchant page context matters for user trust.
-   *
-   * @example 'https://example.com/articles/*'
-   */
-  url_pattern: string
-  /**
-   * Price in cents charged for access to matching URLs.
-   *
-   * @remarks
-   * Setting `price_cents` to `0` makes all matching URLs freely accessible —
-   * the x402 server short-circuits directly to `200` without a payment round-trip.
-   * Verify the intended price before creating a rule.
-   *
-   * @minimum 0
-   */
-  price_cents: number
-}
+import type { MerchantPricingRule, MerchantPricingRuleCreateRequest } from '@ledewire/core'
 
 /**
  * Merchant pricing rules namespace — create and manage x402 URL-based pricing rules.
