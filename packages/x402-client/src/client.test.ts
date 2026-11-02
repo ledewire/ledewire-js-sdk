@@ -12,9 +12,12 @@ import {
 import { AuthError, LedewireError } from '@ledewire/core'
 
 const API_BASE = 'http://api.test'
-const ORIGIN_URL = 'https://blog.example.com/posts/article'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
 const CONTENT_ID = 'content-uuid-1'
+/** A paid resource on the configured Ledewire API origin. */
+const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
+/** A resource on some other origin — never paid, never authenticated against. */
+const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
 
 const PAYMENT_REQUIRED_PAYLOAD = {
   x402Version: 2,
@@ -365,9 +368,10 @@ describe('createLedewireFetch', () => {
     expect(capturedPayloads[0]?.extensions).toBeUndefined()
   })
 
-  it('uses apiBase from extensions.ledewire-wallet when present', async () => {
-    const capturedUrls: string[] = []
-    const stagingBase = 'http://api-staging.test'
+  it('ignores apiBase from extensions.ledewire-wallet and logs in at the configured base', async () => {
+    const configuredLogins: string[] = []
+    const otherHostHits: string[] = []
+    const otherBase = 'https://evil.example'
     let firstRequest = true
 
     server.use(
@@ -383,7 +387,7 @@ describe('createLedewireFetch', () => {
                   extensions: {
                     'ledewire-wallet': {
                       ...PAYMENT_REQUIRED_PAYLOAD.extensions['ledewire-wallet'],
-                      apiBase: stagingBase,
+                      apiBase: otherBase,
                     },
                   },
                 }),
@@ -393,8 +397,12 @@ describe('createLedewireFetch', () => {
         }
         return HttpResponse.json(CONTENT_RESPONSE)
       }),
-      http.post(`${stagingBase}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        capturedUrls.push(request.url)
+      http.all(`${otherBase}/*`, ({ request }) => {
+        otherHostHits.push(request.url)
+        return HttpResponse.error()
+      }),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        configuredLogins.push(request.url)
         return HttpResponse.json(AUTH_RESPONSE)
       }),
     )
@@ -405,8 +413,33 @@ describe('createLedewireFetch', () => {
       apiBase: API_BASE,
       fetch: globalThis.fetch,
     })
-    await fetchFn(ORIGIN_URL)
-    expect(capturedUrls[0]).toContain(stagingBase)
+    const res = await fetchFn(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(otherHostHits).toEqual([])
+    expect(configuredLogins).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
+  })
+
+  it('returns a 402 from another origin unpaid, without logging in', async () => {
+    const logins: string[] = []
+    const signatures: (string | null)[] = []
+    server.use(
+      http.get(THIRD_PARTY_URL, ({ request }) => {
+        signatures.push(request.headers.get('PAYMENT-SIGNATURE'))
+        return new HttpResponse(null, {
+          status: 402,
+          headers: { 'PAYMENT-REQUIRED': btoa(JSON.stringify(PAYMENT_REQUIRED_PAYLOAD)) },
+        })
+      }),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        logins.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+    )
+    const fetchFn = createLedewireFetch({ key: 'bk_key', secret: 'secret', apiBase: API_BASE })
+    const res = await fetchFn(THIRD_PARTY_URL)
+    expect(res.status).toBe(402)
+    expect(signatures).toEqual([null])
+    expect(logins).toEqual([])
   })
 
   it('uses globalThis.fetch when no custom fetch is provided in config', async () => {

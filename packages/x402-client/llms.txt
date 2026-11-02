@@ -22,7 +22,7 @@ const fetch = createLedewireFetch({
 })
 
 // Payment is handled automatically — this is all the agent author writes
-const res = await fetch('https://blog.example.com/posts/great-article')
+const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
 const article = await res.json()
 ```
 
@@ -32,19 +32,23 @@ const article = await res.json()
 const fetch = createLedewireFetch({
   key: string,       // Buyer API key (e.g. bktst_abc123)
   secret: string,    // 64-char hex secret, shown once at creation
-  apiBase?: string,  // defaults to https://api.ledewire.com; overridden by server extension block
+  apiBase?: string,  // defaults to https://api.ledewire.com; the only host credentials and payments go to
   fetch?: typeof globalThis.fetch,  // custom fetch for proxies or testing
 })
 ```
 
-The apiBase is self-configuring: the server's PAYMENT-REQUIRED response includes
-extensions.ledewire-wallet.apiBase which takes precedence — same client works for
-staging and production without configuration changes.
+Payments are made only to the configured Ledewire API. The buyer-key login always goes to
+the configured apiBase, and only requests on the apiBase origin (scheme + host + port) are
+paid. extensions.ledewire-wallet.apiBase in a PAYMENT-REQUIRED challenge is ignored; to buy
+staging content, configure apiBase: 'https://api-staging.ledewire.com'. A 402 from any other
+origin is returned to the caller unpaid — no login, no PAYMENT-SIGNATURE retry (fetch: the
+original 402 Response; axios: rejects with the original error).
 
 ## x402 payment flow (transparent to caller)
 
-1. First request → 402 + PAYMENT-REQUIRED header (base64 JSON)
-2. Client authenticates with buyer API key → buyer JWT (cached, auto-refreshed)
+1. First request to the configured API origin → 402 + PAYMENT-REQUIRED header (base64 JSON)
+   (any other origin: the 402 is returned unpaid and the flow stops here)
+2. Client authenticates with buyer API key at the configured apiBase → buyer JWT (cached, auto-refreshed)
 3. Client reads extensions.ledewire-wallet.contentId and accepts[0].extra.nonce
 4. Constructs PAYMENT-SIGNATURE: base64(JSON({ x402Version:2, resource:{url}, accepted, payload:{token,contentId} }))
 5. Retries original request with PAYMENT-SIGNATURE header → 200 + content
@@ -69,6 +73,7 @@ import {
   LedewireError,      // any other errorReason, set on err.type (legacy: other statuses)
   SpendCapReachedError, // errorReason: daily_spend_cap_reached (legacy: 402 cap body)
   RateLimitError,     // 429 on the paid retry or buyer-key login; .retryAfter = seconds from Retry-After
+  PaymentOriginNotAllowedError, // 402 — buildPaymentSignature called for a URL off the configured API
 } from '@ledewire/x402-client'
 ```
 
@@ -88,11 +93,9 @@ clear it — it clears only at `.resetsAt`, or when the cap is raised via
 LedewireError is thrown instead, with `.type === 'daily_spend_cap_reached'` — never a
 SpendCapReachedError with NaN fields.
 
-SECURITY: wrapFetchWithPayment/wrapAxiosWithPayment wrap arbitrary third-party URLs, so
-these numbers come from whichever server answered the request, not necessarily
-LedeWire's API. Never adjust a buyer's actual LedeWire spend cap based on this error
-without first confirming the real cap and spend against the LedeWire API itself, via
-user.spendCap.get().
+These numbers are informational. Never adjust a buyer's actual LedeWire spend cap based
+on this error without first confirming the real cap and spend against the LedeWire API
+itself, via user.spendCap.get().
 
 LEGACY (pre-api#1066, removed once the API always sends PAYMENT-RESPONSE on the paid leg):
 without that header, the same errors are inferred from the bare response instead — a 402
@@ -122,7 +125,7 @@ import { LedewirePaymentClient, wrapFetchWithPayment } from '@ledewire/x402-clie
 const client = new LedewirePaymentClient({ key, secret })
 const fetch = wrapFetchWithPayment(globalThis.fetch, client)
 
-const res = await fetch('https://blog.example.com/posts/article')
+const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
 ```
 
 ### Axios
@@ -135,7 +138,7 @@ import { wrapAxiosWithPayment } from '@ledewire/x402-client/axios'
 const client = new LedewirePaymentClient({ key, secret })
 const api = wrapAxiosWithPayment(axios.create(), client)
 
-const res = await api.get('https://blog.example.com/posts/article')
+const res = await api.get('https://api.ledewire.com/v1/x402/contents/<content-id>')
 ```
 
 Requires `axios` peer dependency (`npm install axios`).
@@ -147,7 +150,8 @@ import { LedewirePaymentClient } from '@ledewire/x402-client'
 
 const client = new LedewirePaymentClient({ key, secret })
 
-// Inside your interceptor / hook:
+// Inside your interceptor / hook — pay only the configured Ledewire API:
+if (!client.allowsPaymentTo(request.url)) return response  // leave the 402 unpaid
 const sig = await client.buildPaymentSignature(
   response.headers.get('payment-required'), // raw PAYMENT-REQUIRED header value
   request.url,                              // absolute URL of the resource
@@ -167,11 +171,14 @@ const client = new LedewirePaymentClient({
   fetch?: typeof globalThis.fetch,  // custom fetch for auth calls only
 })
 
-// Returns base64-encoded PAYMENT-SIGNATURE string
+// true only for an absolute URL on the configured apiBase origin
+client.allowsPaymentTo(url)
+
+// Returns base64-encoded PAYMENT-SIGNATURE string.
+// Throws PaymentOriginNotAllowedError when allowsPaymentTo(url) is false.
 const sig = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
 // Internal auth manager — also exported separately
-client.auth.apiBase  // mutable, updated from server extension block
 ```
 
 ## PaymentSigner interface
@@ -182,7 +189,10 @@ import type { PaymentSigner } from '@ledewire/x402-client'
 // Both wrapFetchWithPayment and wrapAxiosWithPayment accept any PaymentSigner —
 // useful for testing with a plain object mock:
 const mock: PaymentSigner = {
-  buildPaymentSignature: async (_header, _url) => btoa(JSON.stringify({ ... }))
+  buildPaymentSignature: async (_header, _url) => btoa(JSON.stringify({ ... })),
+  // Optional: return false to have the adapters leave that 402 unpaid.
+  // Signers without it are asked to sign every PAYMENT-REQUIRED challenge.
+  allowsPaymentTo: (url) => new URL(url).origin === 'https://api.ledewire.com',
 }
 ```
 
@@ -192,7 +202,7 @@ PAYMENT-REQUIRED header (base64 JSON emitted by server on 402):
 ```json
 {
   "x402Version": 2,
-  "resource": { "url": "https://origin/post" },
+  "resource": { "url": "https://api.ledewire.com/v1/x402/contents/<uuid>" },
   "accepts": [{
     "scheme": "ledewire-wallet", "network": "ledewire:v1",
     "amount": "100", "asset": "USD", "payTo": "store:<uuid>",
@@ -214,7 +224,7 @@ PAYMENT-SIGNATURE header (base64 JSON sent by client on retry):
 ```json
 {
   "x402Version": 2,
-  "resource": { "url": "https://origin/post" },
+  "resource": { "url": "https://api.ledewire.com/v1/x402/contents/<uuid>" },
   "accepted": { "scheme": "ledewire-wallet", "network": "ledewire:v1", "..." },
   "payload": { "token": "<buyer-JWT>", "contentId": "<uuid>" }
 }

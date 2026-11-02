@@ -37,6 +37,24 @@ export class NonceExpiredError extends LedewireError {
 }
 
 /**
+ * Thrown by {@link LedewirePaymentClient.buildPaymentSignature} when asked to
+ * pay for a URL whose origin is not the configured Ledewire API origin
+ * (`apiBase`). The client authenticates and pays only against the API it was
+ * configured with; a `402` from any other origin is never paid.
+ *
+ * The built-in fetch and Axios adapters check
+ * {@link LedewirePaymentClient.allowsPaymentTo} first and return such a `402`
+ * to the caller unpaid, so this error reaches only code that calls
+ * `buildPaymentSignature` directly.
+ */
+export class PaymentOriginNotAllowedError extends LedewireError {
+  constructor(origin: string, apiOrigin: string) {
+    super(`Refusing to pay: ${origin} is not the configured Ledewire API (${apiOrigin})`, 402)
+    this.name = 'PaymentOriginNotAllowedError'
+  }
+}
+
+/**
  * Thrown when the buyer wallet has insufficient funds to complete the payment.
  */
 export class InsufficientFundsError extends LedewireError {
