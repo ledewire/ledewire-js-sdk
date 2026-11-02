@@ -60,11 +60,11 @@ export function parsePaymentRequired(headerValue: string): {
  * Returns `null` for free content where the header is omitted.
  */
 export function parsePaymentResponse(headerValue: string | null): {
-  accessToken?: string | null
+  accessToken?: string
 } | null {
   if (!headerValue) return null
   try {
-    return JSON.parse(atob(headerValue)) as { accessToken?: string | null }
+    return JSON.parse(atob(headerValue)) as { accessToken?: string }
   } catch {
     return null
   }

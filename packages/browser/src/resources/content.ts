@@ -25,9 +25,9 @@ export class BrowserContentNamespace {
    * authenticated buyer (or a generic access response when unauthenticated).
    *
    * @param id - The content ID.
-   * @returns The content item with access information. `content_body` and
-   * `teaser` are returned as plain UTF-8 text — the SDK decodes base64
-   * transparently so you can render them directly.
+   * @returns The content item with access information. `teaser` is returned
+   * as plain UTF-8 text — the SDK decodes base64 transparently so you can
+   * render it directly. The response never carries the deliverable.
    *
    * @example
    * ```ts

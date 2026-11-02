@@ -430,7 +430,7 @@ Public, unauthenticated browsing of resources gated by the x402
 ```ts
 const { total, resources } = await client.x402.discoverResources({ limit: 20 })
 for (const resource of resources) {
-  console.log(resource.metadata.title, resource.metadata.teaser)
+  console.log(resource.metadata.title ?? '(untitled)', resource.metadata.teaser)
 }
 ```
 

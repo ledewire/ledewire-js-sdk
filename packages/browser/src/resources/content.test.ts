@@ -4,7 +4,6 @@ import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
   contentWithAccessFixture,
-  externalRefContentResponseFixture,
   contentAccessInfoFixture,
 } from '@ledewire/core/test-utils'
 import { init } from '../client.js'
@@ -49,9 +48,10 @@ describe('content.getWithAccess', () => {
     await expect(makeClient().content.getWithAccess('missing')).rejects.toThrow(NotFoundError)
   })
 
-  it('returns external_ref content with content_uri when buyer has purchased', async () => {
+  it('returns an external_ref item with its resource_url and no deliverable', async () => {
     const fixture = contentWithAccessFixture({
-      ...externalRefContentResponseFixture(),
+      content_type: 'external_ref',
+      resource_url: 'https://vimeo.com/987654321',
       access_info: contentAccessInfoFixture({
         has_purchased: true,
         next_required_action: 'purchase',
@@ -64,26 +64,9 @@ describe('content.getWithAccess', () => {
     const result = await makeClient().content.getWithAccess('content-id-ext-1')
 
     expect(result.content_type).toBe('external_ref')
-    expect(result.content_uri).toBe('https://vimeo.com/987654321')
+    expect(result.resource_url).toBe('https://vimeo.com/987654321')
+    expect(result).not.toHaveProperty('content_uri')
+    expect(result).not.toHaveProperty('content_body')
     expect(result.access_info.has_purchased).toBe(true)
-  })
-
-  it('returns external_ref content without content_uri when buyer has not purchased', async () => {
-    const fixture = contentWithAccessFixture({
-      ...externalRefContentResponseFixture({ content_uri: null }),
-      access_info: contentAccessInfoFixture({
-        has_purchased: false,
-        next_required_action: 'purchase',
-      }),
-    })
-    server.use(
-      http.get(`${BASE}/v1/content/content-id-ext-1/with-access`, () => HttpResponse.json(fixture)),
-    )
-
-    const result = await makeClient().content.getWithAccess('content-id-ext-1')
-
-    expect(result.content_type).toBe('external_ref')
-    expect(result.content_uri).toBeNull()
-    expect(result.access_info.has_purchased).toBe(false)
   })
 })

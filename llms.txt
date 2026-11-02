@@ -116,7 +116,7 @@ const client = createClient({
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean

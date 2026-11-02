@@ -123,7 +123,7 @@ export interface LedewireSettlementResponse {
   transaction: string
   network: string
   payer: string
-  accessToken?: string | null
+  accessToken?: string
 }
 
 /**

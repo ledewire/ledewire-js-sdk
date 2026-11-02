@@ -98,8 +98,8 @@ client.auth.loginWithEmail({ email, password })                      → Promise
 client.auth.loginWithGoogle({ id_token })                            → Promise<AuthenticationResponse>
 client.auth.loginWithBuyerApiKey({ key, secret })                    → Promise<AuthenticationResponse>
 client.auth.loginWithApiKey({ key, secret? })                        → Promise<AuthenticationResponse>
-client.auth.requestPasswordReset({ email })                          → Promise<void>
-client.auth.resetPassword({ email, reset_code, password })           → Promise<void>
+client.auth.requestPasswordReset({ email })                          → Promise<AuthPasswordResetResponse>  // { message }
+client.auth.resetPassword({ email, reset_code, password })           → Promise<AuthPasswordResetResponse>  // { message }
 ```
 
 `loginWithBuyerApiKey` is intended for agents and buyer-facing dashboards that
@@ -260,9 +260,11 @@ client.wallet.balance()                            → Promise<WalletBalanceResp
 client.wallet.transactions(params?)                → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
 client.wallet.createPaymentSession(body)           → Promise<WalletPaymentSessionResponse>
 client.wallet.getPaymentStatus(sessionId)          → Promise<WalletPaymentStatusResponse>
-// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
-// completed/failed/cancelled are terminal; an ACH top-up can sit in
-// awaiting_verification/processing for days. Personal top-ups only.
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'cancelled' | 'failed' | 'reverted'
+// completed means the funds are in the wallet. ACH can sit in awaiting_verification
+// (microdeposits) then processing for days. cancelled is usually a superseded
+// session and can still return to pending, then completed. Personal top-ups only.
+// balance_cents: number | null (null for a Company member)
 ```
 
 **Company members see no balance.** For a buyer with an open Company
@@ -310,6 +312,9 @@ if (purchase.content_body && purchase.content.content_type === 'markdown') {
 ```ts
 client.content.getWithAccess(contentId, userId?) → Promise<ContentWithAccessResponse>
 // userId: optional buyer ID for merchant server-side proxy lookups
+// Returns { id, content_type, title: string | null, teaser, price_cents,
+//   visibility: 'public', resource_url: string | null, access_info } — never the
+//   deliverable, which comes only from purchases.create().
 
 client.content.search(body)                                             → Promise<ContentSearchResponse>
 // Buyer search across every Store and brokered Publication (Buyer or Machine user credentials).
@@ -468,7 +473,7 @@ client.company.invitations.revoke(id)                   → Promise<void>       
 client.company.invitations.accept({ token })            → Promise<CompanyMembership>   // 409 already in a Company, 410 expired; details.reason says why
 
 client.company.members.list()                           → Promise<CompanyMemberList>
-client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>
+client.company.members.update(membershipId, { role?, daily_spend_limit_cents? }) → Promise<CompanyMember>  // at least one of the two
 client.company.members.remove(membershipId)             → Promise<void>                // 422 if it would leave no admin
 
 client.company.machineUsers.list()                      → Promise<CompanyMachineUserList>
@@ -684,7 +689,7 @@ client.x402.discoverResources(params?: { limit?: number, offset?: number }) → 
 
 const { total, resources } = await client.x402.discoverResources({ limit: 20 })
 for (const resource of resources) {
-  console.log(resource.metadata.title, resource.metadata.teaser)
+  console.log(resource.metadata.title ?? '(untitled)', resource.metadata.teaser)
 }
 ```
 
@@ -769,7 +774,7 @@ interface ContentListItem {
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean

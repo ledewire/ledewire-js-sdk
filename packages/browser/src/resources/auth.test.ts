@@ -62,7 +62,9 @@ describe('auth.signup', () => {
 
   it('returns the token response', async () => {
     const fixture = authTokenFixture()
-    server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
+    server.use(
+      http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture, { status: 201 })),
+    )
 
     const result = await makeClient().auth.signup({
       email: 'user@example.com',
@@ -75,7 +77,9 @@ describe('auth.signup', () => {
 
   it('stores tokens automatically after successful signup', async () => {
     const fixture = authTokenFixture({ access_token: 'signup-stored-token' })
-    server.use(http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture)))
+    server.use(
+      http.post(`${BASE}/v1/auth/signup`, () => HttpResponse.json(fixture, { status: 201 })),
+    )
 
     const storage = new MemoryTokenStorage()
     const client = init({ apiKey: 'test-api-key', storage })
@@ -218,7 +222,7 @@ describe('auth.loginWithGoogle', () => {
 
 describe('auth.requestPasswordReset', () => {
   const successBody = {
-    data: { message: 'If an account with this email exists, a reset code has been sent.' },
+    message: 'If an account with this email exists, a reset code has been sent.',
   }
 
   it('returns the confirmation message', async () => {
@@ -277,7 +281,7 @@ describe('auth.requestPasswordReset', () => {
 // ---------------------------------------------------------------------------
 
 describe('auth.resetPassword', () => {
-  const successBody = { data: { message: 'Password has been successfully reset.' } }
+  const successBody = { message: 'Password has been successfully reset.' }
   const validBody = { email: 'buyer@example.com', reset_code: '123456', password: 'new-pass-word' }
 
   it('returns the confirmation message', async () => {

@@ -35,7 +35,7 @@ export class AuthNamespace {
 
   /**
    * Register a new buyer account with email and password.
-   * Tokens are stored automatically after successful signup.
+   * Tokens are stored automatically after successful signup (`201 Created`).
    *
    * Pass `company_invitation_token` (from a Company invitation email) to sign
    * up and join the Company in one step, or `invitation_token` (from a store
@@ -172,7 +172,7 @@ export class AuthNamespace {
    * @example
    * ```ts
    * await client.auth.requestPasswordReset({ email: 'buyer@example.com' })
-   * // → { data: { message: 'If an account with this email exists, a reset code has been sent.' } }
+   * // → { message: 'If an account with this email exists, a reset code has been sent.' }
    * ```
    */
   async requestPasswordReset(
