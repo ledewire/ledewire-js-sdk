@@ -87,8 +87,8 @@ export class MerchantAuthNamespace {
    *   `"This account does not have merchant access. Use a merchant or owner account."`
    *   This is a `403`, **not** a `401` — the credentials are correct; the account
    *   role is wrong. Use a different account or have a store owner add you.
-   * @throws {NotFoundError} When the email or password is incorrect (404).
-   * @throws {AuthError} When the session is expired or tokens are invalid (401).
+   * @throws {AuthError} When the email or password is incorrect (401). `err.message`
+   *   is the API's message. A rejected login never refreshes or clears a stored session.
    *
    * @example
    * ```ts
@@ -112,6 +112,8 @@ export class MerchantAuthNamespace {
     const res = await this.http.post<MerchantAuthenticationResponse>(
       '/v1/auth/merchant/login/email',
       body,
+      undefined,
+      { auth: false },
     )
     await this.storeTokens(res)
     return res
@@ -151,6 +153,8 @@ export class MerchantAuthNamespace {
     const res = await this.http.post<MerchantAuthenticationResponse>(
       '/v1/auth/merchant/login/google',
       body,
+      undefined,
+      { auth: false },
     )
     await this.storeTokens(res)
     return res
@@ -182,7 +186,7 @@ export class MerchantAuthNamespace {
    *
    * @throws {ForbiddenError} When the credentials are valid but the account has no
    *   merchant store associations. See {@link loginWithEmail} for details.
-   * @throws {NotFoundError} When the email or password is incorrect.
+   * @throws {AuthError} When the email or password is incorrect (401).
    *
    * @example
    * ```ts
@@ -243,6 +247,8 @@ export class MerchantAuthNamespace {
     return this.http.post<MerchantPasswordResetResponse>(
       '/v1/auth/merchant/password/reset-request',
       body,
+      undefined,
+      { auth: false },
     )
   }
 
@@ -264,7 +270,12 @@ export class MerchantAuthNamespace {
    * ```
    */
   async resetPassword(body: MerchantPasswordResetBody): Promise<MerchantPasswordResetResponse> {
-    return this.http.post<MerchantPasswordResetResponse>('/v1/auth/merchant/password/reset', body)
+    return this.http.post<MerchantPasswordResetResponse>(
+      '/v1/auth/merchant/password/reset',
+      body,
+      undefined,
+      { auth: false },
+    )
   }
 
   private normalizeTokens(res: MerchantAuthenticationResponse): StoredTokens {

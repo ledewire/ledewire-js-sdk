@@ -55,7 +55,12 @@ export class BrowserSellerNamespace {
    * ```
    */
   async loginWithApiKey(body: AuthLoginApiKeyRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/api-key', body)
+    const res = await this.http.post<AuthenticationResponse>(
+      '/v1/auth/login/api-key',
+      body,
+      undefined,
+      { auth: false },
+    )
     await this.tokenManager.setTokens({
       accessToken: res.access_token,
       refreshToken: res.refresh_token,
