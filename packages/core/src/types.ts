@@ -25,10 +25,33 @@ export type InvitationOutcome = components['schemas']['InvitationOutcome']
 
 /**
  * Why a store or Company invitation was not accepted. Carried by an
- * {@link InvitationOutcome}, and by a refused signup or Google sign-in as
- * `LedewireError.details.reason` (with `type === 'invitation_not_accepted'`).
+ * {@link InvitationOutcome}, and by a refused signup, Google sign-in or
+ * invitation accept (`company.invitations.accept`,
+ * `merchant.auth.acceptInvitation`) as `LedewireError.details.reason` (with
+ * `type === 'invitation_not_accepted'`).
  */
 export type InvitationRefusalReason = components['schemas']['InvitationRefusalReason']
+
+/**
+ * A pending store invitation, as `GET /v1/auth/invite-info/{token}` describes it
+ * so a signup page can show it before the invitee has an account.
+ * `invited_email` is `null` when the invitation names no address; `role` is
+ * `'owner'` for an owner invitation and `null` otherwise.
+ */
+export type InviteInfoResponse = components['schemas']['InviteInfoResponse']
+
+/** Request body for accepting a store invitation as a signed-in merchant. */
+export type MerchantAcceptInvitationRequest = NonNullable<
+  paths['/v1/auth/merchant/accept-invitation']['post']['requestBody']
+>['content']['application/json']
+
+/**
+ * The store membership an accepted store invitation created. `role` is
+ * `'owner'` (owners are authors too), `'author'`, or `null` for a membership
+ * that is neither.
+ */
+export type MerchantInvitationAcceptedResponse =
+  components['schemas']['MerchantInvitationAcceptedResponse']
 
 /** Token response for merchant (store owner) authentication. */
 export type MerchantAuthenticationResponse = components['schemas']['MerchantAuthenticationResponse']

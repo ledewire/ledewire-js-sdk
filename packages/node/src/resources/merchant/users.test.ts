@@ -88,6 +88,20 @@ describe('merchant.users.list', () => {
 // ---------------------------------------------------------------------------
 
 describe('merchant.users.invite', () => {
+  it('percent-encodes the storeId so a "/" cannot change the route', async () => {
+    let capturedPath = ''
+    server.use(
+      http.post(`${BASE}/v1/merchant/:storeId/users`, ({ request }) => {
+        capturedPath = new URL(request.url).pathname
+        return HttpResponse.json(merchantUserFixture(), { status: 201 })
+      }),
+    )
+
+    await makeClient().merchant.users.invite('a/b', { email: 'author@example.com' })
+
+    expect(capturedPath).toBe('/v1/merchant/a%2Fb/users')
+  })
+
   it('compiles and sends without is_author (defaults to true on server)', async () => {
     const fixture = merchantUserFixture({ email: 'author@example.com' })
     server.use(http.post(`${BASE}/v1/merchant/${STORE_ID}/users`, () => HttpResponse.json(fixture)))

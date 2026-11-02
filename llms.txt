@@ -66,12 +66,15 @@ const client = createClient({
 - `client.merchant.auth.listStores()` → `ManageableStore[]` — stores the merchant can manage
 - `client.merchant.auth.requestPasswordReset({ email })` → `MerchantPasswordResetResponse` — send password reset code to merchant email
 - `client.merchant.auth.resetPassword({ email, reset_code, password })` → `MerchantPasswordResetResponse` — complete merchant password reset with code
-- `client.merchant.users.list(storeId)` → team members
-- `client.merchant.users.invite(storeId, body)` → invite team member
-- `client.merchant.users.remove(storeId, userId)` → remove team member
+- `client.auth.getInviteInfo(token)` → `InviteInfoResponse` — the pending store invitation behind an emailed token, **no auth required** (404 unknown, 409 accepted, 410 expired)
+- `client.merchant.auth.acceptInvitation({ invitation_token })` → `MerchantInvitationAcceptedResponse` — join the store as the signed-in merchant; refusals carry `type: 'invitation_not_accepted'` and `details.reason`
+- Content writes, member admin, pricing rules and domains need a **full** key (key+secret) or an owner's merchant login; a `view` key gets `403 ForbiddenError`
+- `client.merchant.users.list(storeId)` → team members (full key)
+- `client.merchant.users.invite(storeId, body)` → invite team member (full key)
+- `client.merchant.users.remove(storeId, userId)` → remove team member (full key)
 - `client.merchant.sales.summary(storeId)` → `SalesSummaryResponse`
-- `client.merchant.sales.list(storeId)` → `SalesStatisticsItem[]`
-- `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse`
+- `client.merchant.sales.list(storeId)` → `PaginatedSalesList` (one `SalesStatisticsItem` per title)
+- `client.merchant.sales.get(storeId, saleId)` → `MerchantSaleResponse` — the buyer appears only as an opaque `buyer_ref` (`bref_v1_…`, matches `merchant.buyers.list()`); `fees.*_cents` are `null` until the sale completes
 - `client.merchant.buyers.list(storeId)` → `BuyerStatisticsItem[]`
 - `client.merchant.config.get(storeId)` → `StoreConfig` (store-level config; accepts a merchant session or a store API-key token)
 - `client.merchant.content.*` — content CRUD + search: list, get, create, update, delete, search (all take `storeId`)

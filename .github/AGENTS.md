@@ -41,7 +41,7 @@ See `OVERVIEW.md` for the full design rationale and build order.
 
 ```
 client.config.*                 platform public config (no auth required)
-client.auth.*                   buyer auth (email, google, api-key, password reset)
+client.auth.*                   buyer auth (email, google, api-key, password reset) + public store-invitation lookup
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
 client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
 client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
@@ -52,7 +52,7 @@ client.company.machineUsers.*   Machine users (list, create, deactivate) + .buye
 client.company.wallet.*         Company top-up payment session, pending top-ups (admin)
 client.company.purchases.*      everything the Company paid for, per member (admin, paginated)
 client.company.spend.*          spend per membership over a date range (admin)
-client.merchant.auth.*          merchant auth (email, google) + store listing + password reset
+client.merchant.auth.*          merchant auth (email, google) + store listing + password reset + accept store invitation
 client.merchant.users.*         team management (invite, list, remove, update)
 client.merchant.content.*       content CRUD + search (merchant JWT or store API key)
 client.merchant.sales.*         sales list, summary, sale detail

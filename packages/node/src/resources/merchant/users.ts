@@ -34,10 +34,13 @@ export class MerchantUsersNamespace {
 
   /**
    * List all members of a store (paginated).
-   * Requires `owner` role (merchant JWT) or API key with `full` permission.
+   *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key and a non-owner member are refused.
    *
    * @param storeId - The store ID whose members to retrieve.
    * @param params - Optional pagination parameters.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
    *
    * @example
    * ```ts
@@ -54,10 +57,18 @@ export class MerchantUsersNamespace {
   /**
    * Invite a user to the store.
    * If the user already has an account they are added immediately (`MerchantUser`);
-   * otherwise an invitation email is sent (`MerchantInviteResponse`).
+   * otherwise an invitation email is sent (`MerchantInviteResponse`), whose
+   * `invitation_token` the invitee redeems through `auth.signup()`,
+   * `auth.loginWithGoogle()` or `merchant.auth.acceptInvitation()`.
+   *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key and a non-owner member are refused.
    *
    * @param storeId - The store ID to invite the user to.
    * @param body - Invite request body. Only `email` is required; `is_author` defaults to `true` on the server when omitted.
+   * @throws {ForbiddenError} For a `view` API key or a non-owner member (403).
+   * @throws {LedewireError} With `statusCode === 409` when the address already
+   *   belongs to the store.
    *
    * @example
    * ```ts
@@ -79,7 +90,7 @@ export class MerchantUsersNamespace {
     body: MerchantInviteRequest,
   ): Promise<MerchantUser | MerchantInviteResponse> {
     return this.http.post<MerchantUser | MerchantInviteResponse>(
-      `/v1/merchant/${storeId}/users`,
+      `/v1/merchant/${encodeURIComponent(storeId)}/users`,
       body,
     )
   }
@@ -89,9 +100,14 @@ export class MerchantUsersNamespace {
    * Supports toggling `is_author` and setting a per-author fee override.
    * At least one field must be provided. Owners cannot update their own record.
    *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key and a non-owner member are refused.
+   *
    * @param storeId - The store ID.
    * @param userId - The StoreUser `id` to update.
    * @param body - Fields to update.
+   * @throws {ForbiddenError} For a `view` API key, a non-owner member, or an
+   *   owner updating their own record (403).
    *
    * @example
    * ```ts
@@ -115,10 +131,14 @@ export class MerchantUsersNamespace {
   /**
    * Remove a member from the store.
    * Owners cannot remove themselves.
-   * Requires `owner` role (merchant JWT) or API key with `full` permission.
+   *
+   * **Requires a full key:** `owner` role (merchant JWT) or a store API key
+   * with `full` permission. A `view` key and a non-owner member are refused.
    *
    * @param storeId - The store ID.
    * @param userId - The StoreUser `id` to remove.
+   * @throws {ForbiddenError} For a `view` API key, a non-owner member, or an
+   *   owner removing themselves (403).
    *
    * @example
    * ```ts
