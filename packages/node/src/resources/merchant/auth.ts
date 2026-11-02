@@ -16,38 +16,10 @@ import type {
   ManageableStore,
   MerchantAcceptInvitationRequest,
   MerchantInvitationAcceptedResponse,
+  MerchantPasswordResetRequestBody,
+  MerchantPasswordResetBody,
+  MerchantPasswordResetResponse,
 } from '@ledewire/core'
-
-/**
- * Request body for initiating a merchant password reset.
- * Sent to `POST /v1/auth/merchant/password/reset-request`.
- */
-export interface MerchantPasswordResetRequestBody {
-  /** The merchant's registered email address. */
-  email: string
-}
-
-/**
- * Request body for completing a merchant password reset.
- * Sent to `POST /v1/auth/merchant/password/reset`.
- */
-export interface MerchantPasswordResetBody {
-  /** The merchant's registered email address. */
-  email: string
-  /** 6-digit numeric code delivered to the merchant's email. */
-  reset_code: string
-  /** New password (minimum 6 characters). */
-  password: string
-}
-
-/**
- * Response returned by both merchant password reset endpoints.
- * Contains a human-readable confirmation message.
- */
-export interface MerchantPasswordResetResponse {
-  /** Human-readable result message from the API. */
-  message: string
-}
 
 /**
  * Result returned by the one-step login-and-discover helpers.

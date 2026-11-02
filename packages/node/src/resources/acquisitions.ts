@@ -1,6 +1,7 @@
 import type { HttpClient } from '@ledewire/core'
 import { LedewireError } from '@ledewire/core'
 import type {
+  AcquisitionCreateRequest,
   AcquisitionResponse,
   AcquisitionWorksParams,
   CorpusManifestResponse,
@@ -38,21 +39,6 @@ function isArchiveContentType(contentType: string): boolean {
 function isJsonContentType(contentType: string): boolean {
   const type = mediaType(contentType)
   return type === 'application/json' || type === 'application/problem+json' || type === 'text/json'
-}
-
-/**
- * Request body for `client.acquisitions.create()`.
- */
-export interface AcquisitionCreateRequest {
-  /**
-   * The works to license, in the order they should be recorded (a Selection).
-   * Every row gets a disposition, refused ones included — a row that vanished
-   * silently between upload and quote is exactly the failure the
-   * `client.acquisitions.acknowledgeExclusions()` step exists to prevent.
-   * Typically the `url`s from one or more pages of
-   * `client.publications.listWorks()`.
-   */
-  urls: string[]
 }
 
 /**
