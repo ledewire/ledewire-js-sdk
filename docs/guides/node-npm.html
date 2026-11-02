@@ -353,8 +353,8 @@ try {
           <tr>
             <td><code>client.auth.*</code></td>
             <td>
-              signup, loginWithEmail, loginWithGoogle, logout, requestPasswordReset, resetPassword,
-              getInviteInfo
+              signup, loginWithEmail, loginWithGoogle, loginWithBuyerApiKey, loginWithApiKey,
+              requestPasswordReset, resetPassword, getInviteInfo
             </td>
           </tr>
           <tr>
@@ -370,7 +370,7 @@ try {
           </tr>
           <tr>
             <td><code>client.merchant.sales.*</code></td>
-            <td>summary, list, get, statistics</td>
+            <td>summary, list, get</td>
           </tr>
           <tr>
             <td><code>client.merchant.config.*</code></td>
@@ -386,11 +386,11 @@ try {
           </tr>
           <tr>
             <td><code>client.purchases.*</code></td>
-            <td>create, list, get (single-use delivery — see below)</td>
+            <td>create, list, get, verify (single-use delivery — see below)</td>
           </tr>
           <tr>
             <td><code>client.content.*</code></td>
-            <td>getWithAccess (buyer token only; a store credential gets 403)</td>
+            <td>getWithAccess (buyer token only; a store credential gets 403), search</td>
           </tr>
           <tr>
             <td><code>client.checkout.*</code></td>
@@ -413,7 +413,7 @@ try {
           </tr>
           <tr>
             <td><code>client.publications.*</code></td>
-            <td>list, listWorks</td>
+            <td>list, get, listWorks</td>
           </tr>
           <tr>
             <td><code>client.acquisitions.*</code></td>
