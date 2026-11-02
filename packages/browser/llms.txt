@@ -165,7 +165,7 @@ lw.wallet.balance()                                    → Promise<WalletBalance
 // spend today. content.getWithAccess().access_info.wallet_balance_cents is null
 // for them too. Handle null before rendering or doing arithmetic.
 
-lw.wallet.transactions(params?: PaginationParams)      → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+lw.wallet.transactions()                               → Promise<WalletTransactionItem[]>
 
 lw.wallet.createPaymentSession({ amount_cents: number }) → Promise<WalletPaymentSessionResponse>
 // { payment_url: string, session_id: string, ... } — redirect user to payment_url

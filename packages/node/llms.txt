@@ -290,7 +290,7 @@ seller.content.*(storeId, …)  → merchant.content.*(storeId, …)
 
 ```ts
 client.wallet.balance()                            → Promise<WalletBalanceResponse>
-client.wallet.transactions(params?)                → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+client.wallet.transactions()                       → Promise<WalletTransactionItem[]>
 client.wallet.createPaymentSession(body)           → Promise<WalletPaymentSessionResponse>
 client.wallet.getPaymentStatus(sessionId)          → Promise<WalletPaymentStatusResponse>
 // status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'cancelled' | 'failed' | 'reverted'
@@ -830,7 +830,7 @@ const { data, pagination } = await client.merchant.content.list(storeId, {
 // pagination: { total, per_page, current_page, total_pages, next_page, prev_page }
 
 // Affected methods: merchant.users.list, merchant.sales.list, merchant.buyers.list,
-// merchant.content.list, merchant.content.search, wallet.transactions,
+// merchant.content.list, merchant.content.search,
 // acquisitions.listWorks, company.purchases.list
 // (Other company.*.list methods return { data } with no pagination.)
 ```
