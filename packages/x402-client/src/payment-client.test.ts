@@ -4,12 +4,12 @@ import { setupServer } from 'msw/node'
 import {
   LedewirePaymentClient,
   throwPaymentError,
-  extractPaymentErrorMessage,
   throwLegacyPaymentError,
   throwPaymentRefusal,
 } from './payment-client.js'
 import type { LedewirePaymentPayload, LedewirePaymentRefusal } from './types.js'
 import {
+  extractApiErrorMessage,
   NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
@@ -287,16 +287,16 @@ describe('throwPaymentError', () => {
   })
 })
 
-describe('extractPaymentErrorMessage', () => {
+describe('extractApiErrorMessage', () => {
   it('reads error as a plain string', () => {
-    expect(extractPaymentErrorMessage({ error: 'Insufficient balance' }, 'fallback')).toBe(
+    expect(extractApiErrorMessage({ error: 'Insufficient balance' }, 'fallback')).toBe(
       'Insufficient balance',
     )
   })
 
   it('reads error.message from an object-shaped error', () => {
     expect(
-      extractPaymentErrorMessage(
+      extractApiErrorMessage(
         {
           error: {
             code: 402,
@@ -310,16 +310,16 @@ describe('extractPaymentErrorMessage', () => {
   })
 
   it('falls back when error is missing', () => {
-    expect(extractPaymentErrorMessage({ code: 42 }, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage({ code: 42 }, 'fallback')).toBe('fallback')
   })
 
   it('falls back when body is not an object', () => {
-    expect(extractPaymentErrorMessage(undefined, 'fallback')).toBe('fallback')
-    expect(extractPaymentErrorMessage(null, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage(undefined, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage(null, 'fallback')).toBe('fallback')
   })
 
   it('falls back when error.message is not a string', () => {
-    expect(extractPaymentErrorMessage({ error: { code: 42 } }, 'fallback')).toBe('fallback')
+    expect(extractApiErrorMessage({ error: { code: 42 } }, 'fallback')).toBe('fallback')
   })
 })
 

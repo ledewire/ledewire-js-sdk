@@ -6,15 +6,13 @@ import {
   spendCapErrorFromBody,
 } from '@ledewire/core'
 import { LedewireAuthManager } from './auth.js'
-import { InsufficientFundsError, NonceExpiredError, extractPaymentErrorMessage } from './errors.js'
+import { InsufficientFundsError, NonceExpiredError, extractApiErrorMessage } from './errors.js'
 import { parsePaymentRequired } from './parse.js'
 import type {
   LedewireFetchConfig,
   LedewirePaymentPayload,
   LedewirePaymentRefusal,
 } from './types.js'
-
-export { extractPaymentErrorMessage } from './errors.js'
 
 /**
  * Maps an HTTP status code from a paid-request retry to a typed SDK error.
@@ -66,7 +64,7 @@ export function throwLegacyPaymentError(status: number, body: unknown, retryAfte
   const spendCapError = spendCapErrorFromBody(body)
   if (spendCapError) throw spendCapError
 
-  const message = extractPaymentErrorMessage(body, `Payment failed (${String(status)})`)
+  const message = extractApiErrorMessage(body, `Payment failed (${String(status)})`)
   throwPaymentError(status, message, retryAfter)
 }
 
@@ -90,7 +88,7 @@ export function throwLegacyPaymentError(status: number, body: unknown, retryAfte
  */
 export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unknown): never {
   const { errorReason } = refusal
-  const message = extractPaymentErrorMessage(body, `Payment failed: ${errorReason}`)
+  const message = extractApiErrorMessage(body, `Payment failed: ${errorReason}`)
 
   switch (errorReason) {
     case 'insufficient_funds':

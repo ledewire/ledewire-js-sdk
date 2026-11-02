@@ -757,7 +757,7 @@ const keyHistory = await client.acquisitions.signingKeyHistory()
 ### client.x402
 
 Public x402 endpoints — no authentication, no credentials sent. Bazaar resource
-discovery Never carries delivered content (`content_body`/`content_uri`), only the
+discovery never carries delivered content (`content_body`/`content_uri`), only the
 `teaser` preview. Pay for a resource via the x402 flow itself
 (`@ledewire/x402-client`), not through this namespace.
 

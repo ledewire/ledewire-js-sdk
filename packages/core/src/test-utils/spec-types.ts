@@ -6,7 +6,7 @@
  * can disagree when the spec defines a component and an operation inlines a
  * different shape. Tests compare against {@link OperationOk} to catch that.
  */
-import type { paths } from '../api.gen.js'
+import type { components, paths } from '../api.gen.js'
 
 /**
  * The `application/json` body of an operation's success response (`200` unless
@@ -31,3 +31,14 @@ export type OperationOk<
 
 /** The resolved value of an async method's returned promise. */
 export type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never
+
+/**
+ * A component schema from `ledewire.yml` by name, for pinning a hand-named SDK
+ * type to the schema it aliases.
+ *
+ * @example
+ * ```ts
+ * expectTypeOf<LedewireSettlementResponse>().toEqualTypeOf<SpecSchema<'SettlementResponse'>>()
+ * ```
+ */
+export type SpecSchema<N extends keyof components['schemas']> = components['schemas'][N]

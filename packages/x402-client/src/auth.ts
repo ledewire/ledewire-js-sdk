@@ -1,6 +1,6 @@
 import { AuthError, RateLimitError, parseRetryAfter } from '@ledewire/core'
 import type { AuthenticationResponse } from '@ledewire/core'
-import { extractPaymentErrorMessage } from './errors.js'
+import { extractApiErrorMessage } from './errors.js'
 
 const DEFAULT_API_BASE = 'https://api.ledewire.com'
 const AUTH_PATH = '/v1/auth/login/buyer-api-key'
@@ -33,7 +33,7 @@ export async function loginWithBuyerApiKey(
     }
     if (res.status === 429) {
       throw new RateLimitError(
-        extractPaymentErrorMessage(body, 'Buyer API key authentication rate-limited (429)'),
+        extractApiErrorMessage(body, 'Buyer API key authentication rate-limited (429)'),
         undefined,
         undefined,
         undefined,
@@ -41,10 +41,7 @@ export async function loginWithBuyerApiKey(
       )
     }
     throw new AuthError(
-      extractPaymentErrorMessage(
-        body,
-        `Buyer API key authentication failed (${String(res.status)})`,
-      ),
+      extractApiErrorMessage(body, `Buyer API key authentication failed (${String(res.status)})`),
     )
   }
 

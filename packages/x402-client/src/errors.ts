@@ -55,7 +55,7 @@ export class InsufficientFundsError extends LedewireError {
  * @param body - Parsed JSON body of an error response, or `undefined`/`null`.
  * @param fallback - Message to use when the body carries no usable string.
  */
-export function extractPaymentErrorMessage(body: unknown, fallback: string): string {
+export function extractApiErrorMessage(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback
   const raw = (body as Record<string, unknown>)['error']
   if (typeof raw === 'string') return raw
