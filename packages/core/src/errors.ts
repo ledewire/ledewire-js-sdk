@@ -37,7 +37,7 @@ const ERROR_BRAND = Symbol.for('@ledewire/error-brands')
  * @example
  * ```ts
  * try {
- *   await client.purchases.create({ contentId: '...' })
+ *   await client.purchases.create({ content_id: 'content-id', price_cents: 250 })
  * } catch (err) {
  *   if (err instanceof LedewireError) {
  *     console.error(err.statusCode, err.message)
@@ -321,7 +321,7 @@ export class PurchaseError extends LedewireError {
  * @example
  * ```ts
  * try {
- *   await client.purchases.create({ content_id })
+ *   await client.purchases.create({ content_id, price_cents })
  * } catch (err) {
  *   if (err instanceof SpendCapReachedError) {
  *     // Do NOT prompt the buyer to fund their wallet — that won't help.

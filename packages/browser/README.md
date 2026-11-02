@@ -73,7 +73,7 @@ only place `content_body` / `content_uri` ever appear for a purchase.
 ```ts
 const lw = Ledewire.init({ apiKey: 'your_api_key' })
 
-const { checkout_state } = await lw.checkout.state('article-123')
+const { price_cents, checkout_state } = await lw.checkout.state('article-123')
 
 switch (checkout_state.next_required_action) {
   case 'authenticate':
@@ -87,7 +87,8 @@ switch (checkout_state.next_required_action) {
     // Buying is how the buyer receives the content — the delivery comes back
     // directly in this response, never from a later GET. Persist it now:
     // there is no route that serves the same delivery again.
-    const purchase = await lw.purchases.create({ content_id: 'article-123' })
+    // price_cents is the price the buyer was shown; a stale one is refused (422).
+    const purchase = await lw.purchases.create({ content_id: 'article-123', price_cents })
     await saveDeliveredContent(purchase) // your own persistence, e.g. IndexedDB
 
     if (purchase.content_body) {
