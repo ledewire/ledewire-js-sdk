@@ -29,7 +29,7 @@ export interface RequestOptions {
    * Whether to attach authentication to this request. Defaults to `true`.
    * Pass `false` for public endpoints: skips `getAccessToken`, sends no
    * `Authorization` header, and maps a `401` straight to an {@link AuthError}
-   * without invoking `onUnauthorized`.
+   * carrying the server's message, without invoking `onUnauthorized` or retrying.
    */
   auth?: boolean
 }
@@ -145,9 +145,17 @@ export class HttpClient {
    * @param path - API path
    * @param body - Request body (JSON-serialized)
    * @param params - Optional query string parameters. `undefined` values are omitted; numbers are coerced to strings.
+   * @param options - Per-request overrides. Pass `{ auth: false }` for public endpoints and
+   *   credential exchanges (login, signup, password reset), where a `401` means the
+   *   credentials were rejected rather than that the session expired.
    */
-  async post<T>(path: string, body?: unknown, params?: QueryParams): Promise<T> {
-    return this.request<T>('POST', this.buildUrl(path, params), body)
+  async post<T>(
+    path: string,
+    body?: unknown,
+    params?: QueryParams,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return this.request<T>('POST', this.buildUrl(path, params), body, options)
   }
 
   /**
@@ -261,12 +269,13 @@ export class HttpClient {
       ...(body !== undefined && { body: JSON.stringify(body) }),
     })
 
-    if (response.status === 401 && !isRetry) {
-      if (useAuth) {
-        const newToken = await this.onUnauthorized()
-        if (newToken) {
-          return this.performRequest(method, url, headers, body, true, options)
-        }
+    // Only an authenticated request's 401 means the session expired. With auth
+    // off (public endpoints, credential exchanges) it falls through to
+    // throwApiError, which keeps the server's message.
+    if (response.status === 401 && useAuth && !isRetry) {
+      const newToken = await this.onUnauthorized()
+      if (newToken) {
+        return this.performRequest(method, url, headers, body, true, options)
       }
       throw new AuthError('Session expired. Please re-authenticate.')
     }

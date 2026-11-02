@@ -61,7 +61,9 @@ export class BrowserAuthNamespace {
    * @returns The authentication token response.
    */
   async signup(body: AuthSignupRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/signup', body)
+    const res = await this.http.post<AuthenticationResponse>('/v1/auth/signup', body, undefined, {
+      auth: false,
+    })
     await this.storeTokens(res)
     return res
   }
@@ -74,7 +76,12 @@ export class BrowserAuthNamespace {
    * @returns The authentication token response.
    */
   async loginWithEmail(body: AuthLoginEmailRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/email', body)
+    const res = await this.http.post<AuthenticationResponse>(
+      '/v1/auth/login/email',
+      body,
+      undefined,
+      { auth: false },
+    )
     await this.storeTokens(res)
     return res
   }
@@ -95,7 +102,12 @@ export class BrowserAuthNamespace {
    * @returns The authentication token response.
    */
   async loginWithGoogle(body: AuthLoginOAuthRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/google', body)
+    const res = await this.http.post<AuthenticationResponse>(
+      '/v1/auth/login/google',
+      body,
+      undefined,
+      { auth: false },
+    )
     await this.storeTokens(res)
     return res
   }
@@ -120,7 +132,12 @@ export class BrowserAuthNamespace {
    * ```
    */
   async loginWithBuyerApiKey(body: AuthLoginBuyerApiKeyRequest): Promise<AuthenticationResponse> {
-    const res = await this.http.post<AuthenticationResponse>('/v1/auth/login/buyer-api-key', body)
+    const res = await this.http.post<AuthenticationResponse>(
+      '/v1/auth/login/buyer-api-key',
+      body,
+      undefined,
+      { auth: false },
+    )
     await this.storeTokens(res)
     return res
   }
@@ -143,7 +160,12 @@ export class BrowserAuthNamespace {
   async requestPasswordReset(
     body: AuthPasswordResetRequestBody,
   ): Promise<AuthPasswordResetResponse> {
-    return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset-request', body)
+    return this.http.post<AuthPasswordResetResponse>(
+      '/v1/auth/password/reset-request',
+      body,
+      undefined,
+      { auth: false },
+    )
   }
 
   /**
@@ -164,7 +186,9 @@ export class BrowserAuthNamespace {
    * ```
    */
   async resetPassword(body: AuthPasswordResetBody): Promise<AuthPasswordResetResponse> {
-    return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset', body)
+    return this.http.post<AuthPasswordResetResponse>('/v1/auth/password/reset', body, undefined, {
+      auth: false,
+    })
   }
 
   private async storeTokens(res: AuthenticationResponse): Promise<void> {
