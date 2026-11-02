@@ -554,7 +554,7 @@ and throws `RateLimitError` (with `retryAfter`) past 60 requests a minute per IP
 All SDK errors extend `LedewireError` — use `instanceof` checks on named subclasses:
 
 ```ts
-import { createClient, ForbiddenError, AuthError, NotFoundError } from '@ledewire/node'
+import { createClient, ForbiddenError, AuthError } from '@ledewire/node'
 
 try {
   await client.merchant.auth.loginWithGoogle({ id_token })
@@ -567,20 +567,19 @@ try {
     // Fix: use a dedicated merchant/owner account, or have a store owner add your account.
     console.error('Wrong account role:', err.message)
   } else if (err instanceof AuthError) {
-    // 401 — bad credentials or expired token. Re-authenticate.
+    // 401 — wrong email/password, API key or Google token. err.message is the
+    // API's message (e.g. "Invalid email or password"). A rejected login never
+    // refreshes, retries, or clears a session the client already holds.
     console.error('Authentication failed:', err.message)
-  } else if (err instanceof NotFoundError) {
-    // 404 — resource not found (e.g. wrong email/password on email login).
-    console.error('Not found:', err.message)
   }
 }
 ```
 
 | Subclass               | Status  | When thrown                                                                                                   |
 | ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `AuthError`            | 401     | Invalid credentials, expired token, failed token refresh                                                      |
+| `AuthError`            | 401     | Invalid credentials on any login, expired token, failed token refresh                                         |
 | `ForbiddenError`       | 403     | Valid credentials, wrong account role (e.g. buyer on merchant endpoint)                                       |
-| `NotFoundError`        | 404     | Resource not found, wrong email/password on email login                                                       |
+| `NotFoundError`        | 404     | Resource not found                                                                                            |
 | `PurchaseError`        | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)                                                 |
 | `SpendCapReachedError` | 402     | Buyer's daily spend cap reached — `purchases.create()`, the x402 content gate, and `acquisitions.authorize()` |
 | `RateLimitError`       | 429     | Too many requests, from any endpoint (`content.search`: 15/min per buyer); `retryAfter` is seconds to wait    |

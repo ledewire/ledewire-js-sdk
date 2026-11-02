@@ -149,6 +149,72 @@ describe('HttpClient.get with { auth: false }', () => {
     await client.get('/v1/test', undefined, { auth: true })
     expect(receivedAuth).toBe('Bearer my-token')
   })
+
+  it("surfaces the server's message, code and Retry-After on a 401", async () => {
+    server.use(
+      http.get(`${BASE}/v1/test`, () =>
+        HttpResponse.json(errorResponseFixture(401, 'Invalid email or password'), {
+          status: 401,
+          headers: { 'Retry-After': '5' },
+        }),
+      ),
+    )
+    const err = await makeClient()
+      .get('/v1/test', undefined, { auth: false })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(AuthError)
+    expect(err).toMatchObject({
+      message: 'Invalid email or password',
+      code: 401,
+      statusCode: 401,
+      retryAfter: 5,
+    })
+  })
+})
+
+describe('HttpClient.post with { auth: false }', () => {
+  it('sends no Authorization header and passes body and params through', async () => {
+    let receivedAuth: string | null = 'initial'
+    let receivedBody: unknown
+    let receivedUrl = ''
+    server.use(
+      http.post(`${BASE}/v1/test`, async ({ request }) => {
+        receivedAuth = request.headers.get('Authorization')
+        receivedBody = await request.json()
+        receivedUrl = request.url
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    const getAccessToken = vi.fn(() => 'my-token')
+    const client = makeClient({ getAccessToken })
+    const result = await client.post('/v1/test', { a: 1 }, { page: 2 }, { auth: false })
+    expect(result).toEqual({ ok: true })
+    expect(receivedAuth).toBeNull()
+    expect(receivedBody).toEqual({ a: 1 })
+    expect(new URL(receivedUrl).searchParams.get('page')).toBe('2')
+    expect(getAccessToken).not.toHaveBeenCalled()
+  })
+
+  it("makes one request on a 401 and rejects with the server's message", async () => {
+    let calls = 0
+    server.use(
+      http.post(`${BASE}/v1/test`, () => {
+        calls++
+        return HttpResponse.json(errorResponseFixture(401, 'Invalid key or secret'), {
+          status: 401,
+        })
+      }),
+    )
+    const onUnauthorized = vi.fn(() => 'new-token')
+    const client = makeClient({ getAccessToken: () => 'my-token', onUnauthorized })
+    const err = await client
+      .post('/v1/test', { key: 'k' }, undefined, { auth: false })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(AuthError)
+    expect((err as AuthError).message).toBe('Invalid key or secret')
+    expect(calls).toBe(1)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
 })
 
 describe('HttpClient error mapping', () => {
