@@ -1,5 +1,24 @@
 # example-node-merchant
 
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [739adaf]
+- Updated dependencies [2a8270b]
+- Updated dependencies [139015f]
+- Updated dependencies [7b7991f]
+- Updated dependencies [d6290bc]
+- Updated dependencies [afcfb66]
+- Updated dependencies [1ad8d22]
+- Updated dependencies [ba39f03]
+- Updated dependencies [ff5f513]
+- Updated dependencies [f59fe79]
+- Updated dependencies [0338e5f]
+- Updated dependencies [ce474c3]
+- Updated dependencies [c64b260]
+  - @ledewire/node@0.16.0
+
 ## 0.1.16
 
 ### Patch Changes

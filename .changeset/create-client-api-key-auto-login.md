@@ -1,5 +1,0 @@
----
-'@ledewire/node': minor
----
-
-`createClient({ apiKey, apiSecret })` now logs in with the store API key, as documented. The options were previously accepted and ignored, so a client built that way sent its first `client.merchant.*` request unauthenticated and got a `401`. The client now logs in through `POST /v1/auth/login/api-key` (the same login as `client.auth.loginWithApiKey()`, secret omitted for a `view` key) before its first authenticated request when no token is stored; construction itself sends nothing, and concurrent first requests share one login. When a token refresh fails, it logs in with the key again and retries the request once. `onAuthExpired` fires only when an automatic login fails, once per failed attempt however many requests shared it. A refused key rejects the request with an `AuthError` carrying the API's message, after one attempt. A client that already holds a token (from `storage` or an explicit `loginWithApiKey()`) doesn't log in, and a client created without `apiKey` behaves as before. To read the key's `store_id`, keep calling `client.auth.loginWithApiKey()` once yourself.
