@@ -5276,13 +5276,13 @@ export interface paths {
             'application/json': components['schemas']['ErrorResponse']
           }
         }
-        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata`, `publication` or `limit`. Nothing was searched. Start again without one. */
+        /** @description The `cursor` is invalid, expired (24 hours), in an older format, or issued for a different `query`, `tags`, `max_price_cents`, `metadata`, `publication` or `limit`. Nothing was searched. Start again without one. `error.type` is `invalid_cursor` for every one of these reasons; branch on it rather than on `error.message`. The same sentence is also repeated as a top-level `message`. This is the route's only 422: a body it cannot read is a 400. */
         422: {
           headers: {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ErrorResponse']
+            'application/json': components['schemas']['InvalidCursorError']
           }
         }
         /** @description Too many searches from this Buyer — 15 a minute per authenticated user, because a search with a `query` is a live search of brokered works. Counted per Buyer, not per address, and apart from the `GET /v1/publications/{id}/works` budget. Nothing was searched. Waiting `Retry-After` seconds is always enough. */
@@ -8696,7 +8696,7 @@ export interface paths {
      *
      *     A credential that fails is never served as anonymous: send no `Authorization` header to call open tools without one. A tool name the server does not have, or no name, is challenged like a buyer tool (`mcp:search`) when sent without credentials, so an anonymous caller cannot probe which names exist. The challenge is checked before anything else about the request, so an array body containing a protected call gets the 401 or 403 rather than the batch refusal, and its `scope` names every scope the calls in it need.
      *
-     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata`, `publication` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
+     *     **`search_content` pagination:** results come one page at a time, at most `limit` per page. Each response carries `next_cursor`: call again with the same arguments and `cursor` set to it to get the next page, until `next_cursor` is null, which means the search is exhausted. A page can be empty while `next_cursor` is not null; keep going. A cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata`, `publication` and `limit` it was issued for and expires after 24 hours; one that does not fit is refused as a tool error (`isError: true`, its text an `McpInvalidCursorError`) before anything is searched, and the remedy is to search again without one. There is no `total_count`: the search reports no number it cannot know. Results from different catalogs are interleaved in turn, and a work LedeWire's stores list appears once, as the store's work.
      *
      *     **`search_content` completeness:** `partial_results` is true when part of the catalog could not be searched for this page, and false when everything answered. A part that is down contributes no rows, which looks exactly like one that answered and held no match — so a short or empty `results` with `partial_results: true` is an incomplete search, not a finding. Carry on with `next_cursor`: it moves on what was found and asks the part that was missing again from where it left off.
      *
@@ -8904,6 +8904,8 @@ export interface components {
          *     `invitation_not_accepted` means a store or Company invitation was refused; `reason` alongside says why (see `InvitationNotAcceptedError`).
          *
          *     `email_not_verified` is a Google sign-in refused because Google has not verified the account's email address; signing in again will not help until the address is verified with Google.
+         *
+         *     `invalid_cursor` is a search `cursor` that cannot be used: invalid, expired, in an older format, or issued for a different search. Drop it and start again from the first page, without a cursor; the same cursor never succeeds on retry.
          * @enum {string}
          */
         type?:
@@ -8926,6 +8928,7 @@ export interface components {
           | 'selection_value_too_large'
           | 'invitation_not_accepted'
           | 'email_not_verified'
+          | 'invalid_cursor'
       }
     }
     AuthSignupRequest: {
@@ -9657,6 +9660,24 @@ export interface components {
        * @enum {string}
        */
       funded_by?: 'company'
+    }
+    /** @description Returned as the JSON text in `content[0].text` when a search_content call is refused because its `cursor` cannot be used: invalid, expired, in an older format, or issued for a different search. Always accompanied by isError: true, and never in structuredContent. Nothing was searched. The remedy is the same for every reason: search again without a cursor; the same cursor never succeeds on retry. */
+    McpInvalidCursorError: {
+      /** @enum {string} */
+      error: 'invalid_cursor'
+      /** @description Which reason, as prose. Branch on `error`, not on this. */
+      message: string
+    }
+    /** @description The REST form of McpInvalidCursorError, returned with HTTP 422 by POST /v1/content/search. `error.type` is the machine-readable discriminator; the top-level `message` repeats `error.message`, as the MCP form carries it. */
+    InvalidCursorError: {
+      error: {
+        /** @enum {integer} */
+        code: 422
+        message: string
+        /** @enum {string} */
+        type: 'invalid_cursor'
+      }
+      message: string
     }
     /** @description Returned as the JSON text in `content[0].text` when a get_content call is refused because the buyer's daily spend cap would be exceeded. Always accompanied by isError: true, and never in structuredContent. Deliberately carries no funding_url — adding money to the wallet cannot raise a cap, and a payload resembling McpInsufficientFundsError would send agents to the wrong remedy. The cap resets at resets_at; until then the only remedies are raising the cap or waiting. */
     McpDailySpendCapReachedError: {

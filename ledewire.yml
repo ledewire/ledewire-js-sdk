@@ -359,6 +359,12 @@ components:
                 `email_not_verified` is a Google sign-in refused because Google has not
                 verified the account's email address; signing in again will not help until
                 the address is verified with Google.
+
+
+                `invalid_cursor` is a search `cursor` that cannot be used: invalid, expired,
+                in an older format, or issued for a different search. Drop it and start
+                again from the first page, without a cursor; the same cursor never succeeds
+                on retry.
               enum:
                 - retrieval_failed
                 - not_licensable
@@ -379,6 +385,7 @@ components:
                 - selection_value_too_large
                 - invitation_not_accepted
                 - email_not_verified
+                - invalid_cursor
 
     AuthSignupRequest:
       type: object
@@ -1780,6 +1787,46 @@ components:
           type: string
           enum: [company]
           description: Who must add money to clear this refusal. Always `company` here.
+
+    McpInvalidCursorError:
+      type: object
+      description: >
+        Returned as the JSON text in `content[0].text` when a search_content call is refused
+        because its `cursor` cannot be used: invalid, expired, in an older format, or issued for
+        a different search. Always accompanied by isError: true, and never in structuredContent.
+        Nothing was searched. The remedy is the same for every reason: search again without a
+        cursor; the same cursor never succeeds on retry.
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum: [invalid_cursor]
+        message:
+          type: string
+          description: Which reason, as prose. Branch on `error`, not on this.
+
+    InvalidCursorError:
+      type: object
+      description: >
+        The REST form of McpInvalidCursorError, returned with HTTP 422 by
+        POST /v1/content/search. `error.type` is the machine-readable discriminator; the
+        top-level `message` repeats `error.message`, as the MCP form carries it.
+      required: [error, message]
+      properties:
+        error:
+          type: object
+          required: [code, message, type]
+          properties:
+            code:
+              type: integer
+              enum: [422]
+            message:
+              type: string
+            type:
+              type: string
+              enum: [invalid_cursor]
+        message:
+          type: string
 
     McpDailySpendCapReachedError:
       type: object
@@ -9589,11 +9636,14 @@ paths:
             The `cursor` is invalid, expired (24 hours), in an older format, or issued for a
             different `query`, `tags`, `max_price_cents`, `metadata`, `publication` or `limit`.
             Nothing was
-            searched. Start again without one.
+            searched. Start again without one. `error.type` is `invalid_cursor` for every one of
+            these reasons; branch on it rather than on `error.message`. The same sentence is
+            also repeated as a top-level `message`.
+            This is the route's only 422: a body it cannot read is a 400.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/InvalidCursorError'
         '429':
           description: >
             Too many searches from this Buyer — 15 a minute per authenticated user, because a search
@@ -13319,8 +13369,9 @@ paths:
         cursor is bound to the `query`, `tags`, `max_price_cents`, `metadata`, `publication` and
         `limit` it was
         issued for and expires after 24 hours; one that does not fit is refused as a tool error
-        (`isError: true`) before anything is searched, and the remedy is to search again without
-        one. There is no `total_count`: the search reports no number it cannot know. Results
+        (`isError: true`, its text an `McpInvalidCursorError`) before anything
+        is searched, and the remedy is to search again without one. There is no `total_count`:
+        the search reports no number it cannot know. Results
         from different catalogs are interleaved in turn, and a work LedeWire's stores list
         appears once, as the store's work.
 

@@ -11,11 +11,13 @@ import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   authTokenFixture,
   errorResponseFixture,
+  invalidCursorErrorFixture,
   contentWithAccessFixture,
   contentSearchResultFixture,
   brokeredContentSearchResultFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../client.js'
+import { InvalidCursorError } from '../index.js'
 
 const BASE = 'https://api.ledewire.com'
 
@@ -198,21 +200,45 @@ describe('content.search', () => {
     expect(receivedBody).toEqual({ query: 'quantum', cursor: 'cursor-2' })
   })
 
-  it('throws LedewireError with code 422 on a stale cursor', async () => {
+  it.each([
+    ['an expired cursor', 'The cursor has expired. Start again without one.'],
+    [
+      'a cursor issued for different filters',
+      'The cursor was issued for a different search. Start again without one.',
+    ],
+  ])('throws InvalidCursorError for %s', async (_case, message) => {
+    server.use(
+      http.post(`${BASE}/v1/content/search`, () =>
+        HttpResponse.json(invalidCursorErrorFixture(message), { status: 422 }),
+      ),
+    )
+
+    const error = await makeClient()
+      .content.search({ query: 'quantum', cursor: 'refused' })
+      .catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(InvalidCursorError)
+    expect(error).toBeInstanceOf(LedewireError)
+    expect(error).toMatchObject({ statusCode: 422, type: 'invalid_cursor', message })
+  })
+
+  it('throws a 422 with another error.type as a plain LedewireError', async () => {
     server.use(
       http.post(`${BASE}/v1/content/search`, () =>
         HttpResponse.json(
-          { error: { code: 422, message: 'Cursor expired', type: 'client_error' } },
-          { status: 422 },
+          errorResponseFixture(422, 'max_price_cents must be positive', 'client_error'),
+          {
+            status: 422,
+          },
         ),
       ),
     )
 
     const error = await makeClient()
-      .content.search({ cursor: 'stale' })
+      .content.search({ max_price_cents: -1 })
       .catch((err: unknown) => err)
+    expect(error).not.toBeInstanceOf(InvalidCursorError)
     expect(error).toBeInstanceOf(LedewireError)
-    expect(error).toMatchObject({ code: 422, statusCode: 422 })
+    expect(error).toMatchObject({ name: 'LedewireError', statusCode: 422, type: 'client_error' })
   })
 
   it('refreshes a stored session once on 401 and retries with the new token', async () => {

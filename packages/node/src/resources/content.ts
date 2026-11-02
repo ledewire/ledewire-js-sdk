@@ -79,6 +79,10 @@ export class ContentNamespace {
    * @returns One page of results.
    * @throws {RateLimitError} `429` — the buyer's search rate limit is exhausted. The SDK
    *   does not retry automatically; wait `err.retryAfter` seconds, when it is set.
+   * @throws {InvalidCursorError} `422` with `error.type` `'invalid_cursor'` — the `cursor`
+   *   is invalid, expired, in an older format, or was issued for different filters. Nothing
+   *   was searched. Drop the cursor and restart the search from the first page; the same
+   *   cursor never succeeds on retry.
    * @example
    * ```ts
    * let cursor: string | null | undefined

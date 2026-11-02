@@ -494,7 +494,23 @@ do {
 ```
 
 Searches with a `query` are rate-limited to 15 a minute per Buyer. A 429 throws a
-`LedewireError` with `statusCode` 429.
+`RateLimitError` (a `LedewireError` with `statusCode` 429).
+
+A cursor lasts 24 hours and fits only the search it came from. One that is expired, invalid,
+or sent with different filters throws `InvalidCursorError` (`statusCode` 422,
+`type: 'invalid_cursor'`) and nothing is searched. Drop the cursor and restart from the first
+page; the same cursor never succeeds on retry:
+
+```ts
+import { InvalidCursorError } from '@ledewire/node'
+
+try {
+  page = await client.content.search({ query: 'quantum computing', cursor })
+} catch (err) {
+  if (!(err instanceof InvalidCursorError)) throw err
+  page = await client.content.search({ query: 'quantum computing' }) // restart
+}
+```
 
 Narrow to one Publication with `publication` (its id, or its exact name in any case).
 To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings come back,
@@ -606,6 +622,7 @@ try {
 | `PurchaseError`        | 409/422 | Purchase validation failure (price mismatch, duplicate, etc.)                                                 |
 | `SpendCapReachedError` | 402     | Buyer's daily spend cap reached — `purchases.create()`, the x402 content gate, and `acquisitions.authorize()` |
 | `RateLimitError`       | 429     | Too many requests, from any endpoint (`content.search`: 15/min per buyer); `retryAfter` is seconds to wait    |
+| `InvalidCursorError`   | 422     | `content.search` refused its `cursor` (`type: 'invalid_cursor'`): drop the cursor and restart the search      |
 | `LedewireError`        | any     | Catch-all base class for all other API errors                                                                 |
 
 Every `LedewireError` also carries `type` (the API error body's machine-readable

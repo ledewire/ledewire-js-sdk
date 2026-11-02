@@ -1,6 +1,7 @@
 import {
   AuthError,
   ForbiddenError,
+  InvalidCursorError,
   LedewireError,
   NotFoundError,
   RateLimitError,
@@ -292,6 +293,11 @@ export class HttpClient {
 
     const { message, code, type, details } = extractErrorInfo(body, response.statusText)
     const retryAfter = parseRetryAfter(response.headers.get('Retry-After'))
+
+    // Matched on the API's error.type alone, never the status or the message.
+    if (type === 'invalid_cursor') {
+      throw new InvalidCursorError(message, code, details)
+    }
 
     switch (response.status) {
       case 401:

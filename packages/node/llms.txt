@@ -412,7 +412,10 @@ client.content.search(body: ContentSearchRequest)                       → Prom
 // Each result's filing is a ContentSearchFiling for an SEC filing, null otherwise.
 // Page with next_cursor until it is null. partial_results: true means part of the search was missed.
 // unavailable_providers is deprecated and always empty.
-// Searches with a query are rate-limited to 15/minute per buyer: a 429 throws LedewireError with statusCode 429.
+// Searches with a query are rate-limited to 15/minute per buyer: a 429 throws RateLimitError (statusCode 429).
+// A cursor lasts 24h and fits only the search it came from. An expired, invalid or
+// mismatched-filters cursor throws InvalidCursorError (422, type 'invalid_cursor'),
+// nothing searched: drop the cursor and restart from page one. Never retry the same cursor.
 
 // SEC EDGAR: Apple's annual reports, newest first, no query needed.
 // Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results.
@@ -941,6 +944,7 @@ import {
   NotFoundError,
   PurchaseError,
   RateLimitError,
+  InvalidCursorError,
   SpendCapReachedError,
 } from '@ledewire/node'
 
@@ -960,6 +964,11 @@ class PurchaseError extends LedewireError {}   // 409/422 — purchase validatio
 // 429 from any endpoint — e.g. content.search allows 15 searches/min per buyer.
 // retryAfter: seconds from the Retry-After header, undefined when absent.
 class RateLimitError extends LedewireError {}
+// 422 with error.type 'invalid_cursor' — content.search refused its cursor
+// (expired, invalid, older format, or issued for different filters). Matched on
+// error.type only; any other 422 is a plain LedewireError. Drop the cursor and
+// restart the search from the first page.
+class InvalidCursorError extends LedewireError {}
 
 // 402 — daily_spend_cap_reached. Thrown by purchases.create(), the x402
 // content gate, and acquisitions.authorize(). Funding the wallet does NOT
