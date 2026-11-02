@@ -196,7 +196,6 @@ lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessRespons
 // { id, content_type, title: string | null, teaser (plain text, SDK decodes base64),
 //   price_cents, visibility: 'public', resource_url: string | null, access_info }
 // content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-
 ```
 
 ### lw.user

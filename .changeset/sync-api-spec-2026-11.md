@@ -18,6 +18,7 @@ Sync `ledewire.yml` from the API (ledewire/api `8d0afc18e7a21132b5b99003d2b6ff8f
 - **Breaking:** `PurchaseCreateRequest` requires `content_id` and `price_cents`.
 - **Breaking:** `PublicConfigResponse.google_client_id` is `string | null`.
 - **Breaking:** `PurchaseResponse.license`, `PurchaseResponse.content.filing`, `ContentSearchResult.filing` and `Publication.homepage` are required (nullable) fields. Reading code is unaffected; code that builds these objects, such as test mocks, must set them.
+- `AuthTokenRefreshRequest.refresh_token` is now required in the spec, but that type is not exported by the SDK, so it needs no migration.
 - `auth.signup` documents the API's `201 Created`.
 - New `AuthTokenRefreshResponse` (`@ledewire/node`): `POST /v1/auth/token/refresh` answers an `AuthenticationResponse` or a `MerchantAuthenticationResponse`.
 - Additive from the regeneration: `ContentSearchRequest` gains `cik`, `ticker`, `form_type` and `publication` filters; `ErrorType` gains `not_subscribed`, `selection_too_large` and `selection_value_too_large`; `CorpusResponse.state` gains `not_ready` and `nothing_purchased`; acquisition exclusion reasons gain `excluded_not_sold_in_bulk`; `AuthSignupRequest.name` is optional.

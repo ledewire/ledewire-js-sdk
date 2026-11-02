@@ -8,9 +8,6 @@
  */
 import type { paths } from '../api.gen.js'
 
-/** Every documented path, as generated from `ledewire.yml`. */
-export type SpecPaths = paths
-
 /**
  * The `application/json` body of an operation's success response (`200` unless
  * another status is named). `never` when the operation does not declare one, so
@@ -31,3 +28,6 @@ export type OperationOk<
 }
   ? Body
   : never
+
+/** The resolved value of an async method's returned promise. */
+export type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never

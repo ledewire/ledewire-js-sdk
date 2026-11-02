@@ -4,28 +4,31 @@
  * compile error, so `pnpm typecheck` fails before any test runs.
  */
 import { describe, it, expectTypeOf } from 'vitest'
-import type { OperationOk } from '@ledewire/core/test-utils'
+import type {
+  CheckoutStateResponse,
+  ContentWithAccessResponse,
+  WalletPaymentStatusResponse,
+} from '@ledewire/core'
+import type { OperationOk, Returns } from '@ledewire/core/test-utils'
 import type { BrowserClient } from './client.js'
-
-type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never
 
 describe('return types match the spec operation responses', () => {
   it('content.getWithAccess', () => {
-    expectTypeOf<Returns<BrowserClient['content']['getWithAccess']>>().toEqualTypeOf<
-      OperationOk<'/v1/content/{id}/with-access', 'get'>
-    >()
+    type Op = OperationOk<'/v1/content/{id}/with-access', 'get'>
+    expectTypeOf<Returns<BrowserClient['content']['getWithAccess']>>().toEqualTypeOf<Op>()
+    expectTypeOf<ContentWithAccessResponse>().toEqualTypeOf<Op>()
   })
 
   it('checkout.state', () => {
-    expectTypeOf<Returns<BrowserClient['checkout']['state']>>().toEqualTypeOf<
-      OperationOk<'/v1/checkout/state/{content_id}', 'get'>
-    >()
+    type Op = OperationOk<'/v1/checkout/state/{content_id}', 'get'>
+    expectTypeOf<Returns<BrowserClient['checkout']['state']>>().toEqualTypeOf<Op>()
+    expectTypeOf<CheckoutStateResponse>().toEqualTypeOf<Op>()
   })
 
   it('wallet.getPaymentStatus', () => {
-    expectTypeOf<Returns<BrowserClient['wallet']['getPaymentStatus']>>().toEqualTypeOf<
-      OperationOk<'/v1/wallet/payment-status/{session_id}', 'get'>
-    >()
+    type Op = OperationOk<'/v1/wallet/payment-status/{session_id}', 'get'>
+    expectTypeOf<Returns<BrowserClient['wallet']['getPaymentStatus']>>().toEqualTypeOf<Op>()
+    expectTypeOf<WalletPaymentStatusResponse>().toEqualTypeOf<Op>()
   })
 
   it('auth.signup answers 201', () => {

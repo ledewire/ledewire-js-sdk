@@ -7,7 +7,7 @@
  *
  * @module
  */
-import type { components } from './api.gen.js'
+import type { components, paths } from './api.gen.js'
 
 // ---------------------------------------------------------------------------
 // Generated API schema type aliases
@@ -39,7 +39,8 @@ export type MerchantAuthenticationResponse = components['schemas']['MerchantAuth
  * {@link MerchantAuthenticationResponse}. The SDK refreshes tokens itself, so
  * application code rarely needs this.
  */
-export type AuthTokenRefreshResponse = AuthenticationResponse | MerchantAuthenticationResponse
+export type AuthTokenRefreshResponse =
+  paths['/v1/auth/token/refresh']['post']['responses'][200]['content']['application/json']
 
 /** Request body for buyer email/password signup. */
 export type AuthSignupRequest = components['schemas']['AuthSignupRequest']
@@ -854,10 +855,7 @@ export interface AuthPasswordResetBody {
  * Response returned by both password reset endpoints.
  * Contains a human-readable confirmation message.
  */
-export interface AuthPasswordResetResponse {
-  /** Human-readable result message from the API. */
-  message: string
-}
+export type AuthPasswordResetResponse = components['schemas']['MessageResponse']
 
 // ---------------------------------------------------------------------------
 // SDK-internal types (not in the OpenAPI spec)

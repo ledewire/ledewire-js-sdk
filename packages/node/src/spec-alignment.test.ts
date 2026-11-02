@@ -11,10 +11,8 @@ import type {
   ContentWithAccessResponse,
   WalletPaymentStatusResponse,
 } from '@ledewire/core'
-import type { OperationOk } from '@ledewire/core/test-utils'
+import type { OperationOk, Returns } from '@ledewire/core/test-utils'
 import type { NodeClient } from './client.js'
-
-type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never
 
 describe('return types match the spec operation responses', () => {
   it('content.getWithAccess', () => {
