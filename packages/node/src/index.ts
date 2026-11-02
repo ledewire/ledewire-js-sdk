@@ -9,11 +9,18 @@
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
- * // Full access with API key + secret (write operations)
+ * // Full access with API key + secret (write operations). The client logs in
+ * // with the key before its first authenticated request; no login call needed.
  * const client = createClient({
  *   apiKey: process.env.LEDEWIRE_API_KEY,
  *   apiSecret: process.env.LEDEWIRE_API_SECRET,
  * })
+ * // To read the key's store_id, log in explicitly once (it is not repeated)
+ * const { store_id } = await client.auth.loginWithApiKey({
+ *   key: process.env.LEDEWIRE_API_KEY,
+ *   secret: process.env.LEDEWIRE_API_SECRET,
+ * })
+ * const summary = await client.merchant.sales.summary(store_id)
  *
  * // View-only with API key only (read operations)
  * const viewClient = createClient({ apiKey: process.env.LEDEWIRE_API_KEY })

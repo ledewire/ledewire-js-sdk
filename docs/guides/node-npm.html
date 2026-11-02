@@ -170,7 +170,10 @@ pnpm add @ledewire/node</code></pre>
             <td>
               Automated content publishing, sales dashboards via <code>client.merchant.*</code>
             </td>
-            <td>Call <code>client.auth.loginWithApiKey()</code></td>
+            <td>
+              Pass <code>apiKey</code> / <code>apiSecret</code> to <code>createClient()</code>, or
+              call <code>client.auth.loginWithApiKey()</code>
+            </td>
           </tr>
           <tr>
             <td><strong>Email / password</strong></td>
@@ -200,6 +203,36 @@ const { store_id } = await client.auth.loginWithApiKey({
 const summary = await client.merchant.sales.summary(store_id)
 const { data } = await client.merchant.content.list(store_id)
 console.log(summary, data)</code></pre>
+      <p>
+        Passing <code>apiKey</code> and <code>apiSecret</code> (omit the secret for a
+        <code>view</code> key) to <code>createClient()</code> logs in automatically. Construction
+        sends nothing; the client logs in with the key before its first authenticated request when
+        no token is stored, and concurrent first requests share one login. When a refresh fails
+        later, it logs in with the key again and retries the request once.
+        <code>onAuthExpired</code> fires only when an automatic login fails, once per failed
+        attempt. A refused key rejects the request with an <code>AuthError</code> carrying the
+        API's message.
+      </p>
+      <p>
+        On a client created with <code>apiKey</code>, clearing the stored tokens doesn't drop the
+        credentials: the next request logs in again. To stop for good, create a client without
+        <code>apiKey</code>. Don't mix another login (email, Google, merchant) on an
+        <code>apiKey</code> client: if that session's refresh fails, the client falls back to the
+        store key.
+      </p>
+      <p>
+        To get the key's <code>store_id</code>, call <code>loginWithApiKey()</code> once yourself,
+        as above. The client then holds a token, so it doesn't log in again.
+      </p>
+      <pre><code>const client = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
+}) // the only login: the client already holds a token for its requests
+const summary = await client.merchant.sales.summary(store_id)</code></pre>
 
       <h3 id="full-and-view-keys">Full and view keys</h3>
       <p>

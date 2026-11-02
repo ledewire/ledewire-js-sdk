@@ -26,9 +26,16 @@
 
 ```ts
 import { createClient } from '@ledewire/node'
+// Logs in with the store API key before its first authenticated request
+// (not at construction), and again when a refresh fails.
 const client = createClient({
   apiKey: process.env.LEDEWIRE_API_KEY,
   apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+// For the key's store_id, log in explicitly once (the client won't repeat it):
+const { store_id } = await client.auth.loginWithApiKey({
+  key: process.env.LEDEWIRE_API_KEY,
+  secret: process.env.LEDEWIRE_API_SECRET,
 })
 ```
 

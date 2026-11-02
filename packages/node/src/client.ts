@@ -25,13 +25,32 @@ import { X402Namespace } from './resources/x402.js'
  */
 export interface NodeClientConfig {
   /**
-   * LedeWire API key.
-   * Required for store API-key and buyer API-key operations.
-   * Omit when using merchant email/password auth exclusively.
+   * Store API key. When set, the client logs in with it automatically
+   * (`POST /v1/auth/login/api-key`), the same login as
+   * `client.auth.loginWithApiKey()`:
+   *
+   * - before its first authenticated request, when no token is stored
+   *   (construction itself sends nothing; concurrent first requests share one login)
+   * - again when a token refresh fails, retrying the request once
+   *
+   * A client that already holds a token (from `storage`, or an explicit login)
+   * does not log in. A refused key rejects the request with an `AuthError`
+   * carrying the API's message, and `onAuthExpired` fires once per failed login.
+   *
+   * On a client created with `apiKey`, clearing the stored tokens doesn't drop
+   * the credentials: the next request logs in again. To stop for good, create a
+   * client without `apiKey`. Don't mix another login (email, Google, merchant)
+   * on an `apiKey` client: if that session's refresh fails, the client falls
+   * back to the store key.
+   *
+   * To read the key's `store_id`, call `client.auth.loginWithApiKey()` once
+   * yourself; the client then holds a token and doesn't log in again.
+   *
+   * Omit when using merchant email/password or buyer auth.
    */
   apiKey?: string
   /**
-   * LedeWire API secret.
+   * Secret paired with `apiKey`, sent with the automatic login.
    * When combined with `apiKey`, grants `full` (read/write) store permission.
    * When omitted, `apiKey` alone grants `view` (read-only) store permission.
    */
@@ -91,6 +110,8 @@ export interface NodeClientConfig {
   /**
    * Called when the session fully expires and cannot be refreshed.
    * Handle this by prompting the user to re-authenticate.
+   * With `apiKey` set, the client logs in again with the key instead, and this
+   * fires only when an automatic login fails (once per failed attempt).
    */
   onAuthExpired?: () => void | Promise<void>
 }
@@ -98,13 +119,20 @@ export interface NodeClientConfig {
 /**
  * Creates a fully configured LedeWire Node.js client.
  *
- * @example API key + secret (store / buyer access):
+ * @example Store API key + secret (logs in automatically on the first request):
  * ```ts
  * import { createClient } from '@ledewire/node'
  *
  * const client = createClient({
  *   apiKey: process.env.LEDEWIRE_API_KEY,
  *   apiSecret: process.env.LEDEWIRE_API_SECRET,
+ * })
+ * const sales = await client.merchant.sales.list(storeId)
+ *
+ * // Need the key's store_id? Log in explicitly once; the client won't repeat it.
+ * const { store_id } = await client.auth.loginWithApiKey({
+ *   key: process.env.LEDEWIRE_API_KEY,
+ *   secret: process.env.LEDEWIRE_API_SECRET,
  * })
  * ```
  *
@@ -154,11 +182,28 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
     )
   }
 
+  // A store API key logs in by itself, through the same `loginWithApiKey` an
+  // explicit login uses (a credential exchange, so it never re-enters the
+  // token manager). `client` is read only when a request needs a token, by
+  // which point it is constructed below.
+  const { apiKey, apiSecret } = config
+  const login =
+    apiKey === undefined
+      ? undefined
+      : async (): Promise<string> => {
+          const res = await client.auth.loginWithApiKey({
+            key: apiKey,
+            ...(apiSecret !== undefined && { secret: apiSecret }),
+          })
+          return res.access_token
+        }
+
   const tokenManager = new TokenManager({
     storage,
     refreshFn: createRefreshFn(baseUrl),
     ...(config.onTokenRefreshed !== undefined && { onTokenRefreshed: config.onTokenRefreshed }),
     ...(config.onAuthExpired !== undefined && { onAuthExpired: config.onAuthExpired }),
+    ...(login !== undefined && { login }),
   })
 
   const http = new HttpClient({
@@ -167,7 +212,8 @@ export function createClient(config: NodeClientConfig = {}): NodeClient {
     onUnauthorized: () => tokenManager.handleUnauthorized(),
   })
 
-  return new NodeClient(http, tokenManager, config)
+  const client = new NodeClient(http, tokenManager, config)
+  return client
 }
 
 /**

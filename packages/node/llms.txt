@@ -24,6 +24,13 @@ const { store_id } = await client.auth.loginWithApiKey({
 })
 const summary = await client.merchant.sales.summary(store_id)
 
+// Or pass the key to createClient: it logs in by itself before the first
+// authenticated request (no login call needed) and again if a refresh fails
+const keyClient = createClient({
+  apiKey: process.env.LEDEWIRE_API_KEY,
+  apiSecret: process.env.LEDEWIRE_API_SECRET,
+})
+
 // Merchant JWT auth (no API key needed)
 const client = createClient()
 const { stores } = await client.merchant.auth.loginWithEmailAndListStores({
@@ -40,7 +47,9 @@ import { createClient } from '@ledewire/node'
 import type { NodeClientConfig } from '@ledewire/node'
 
 const client = createClient({
-  // Optional — omit for merchant JWT-only flows
+  // Optional — omit for merchant JWT-only flows. A store API key logs in
+  // automatically before the first authenticated request (not at construction)
+  // when no token is stored, and again when a refresh fails (retrying once).
   apiKey: string,
   apiSecret: string,          // omit for read-only store API-key access
 
@@ -59,10 +68,19 @@ const client = createClient({
   // Providing both storage and onTokenRefreshed will double-write on refresh.
   onTokenRefreshed: (tokens: StoredTokens) => Promise<void> | void,
   onAuthExpired: () => void,  // called when refresh fails — re-authenticate
+                              // (with apiKey: when an automatic login fails, once per attempt)
 })
 ```
 
 Token refresh is automatic — never call a refresh method manually.
+
+With `apiKey`, concurrent first requests share one login; a refused key rejects
+the request with `AuthError` (the API's message); a stored token means no login.
+To get the key's `store_id`, call `client.auth.loginWithApiKey()` once yourself
+(it resolves with `store_id`; the client then holds a token and won't log in again).
+
+On a client created with `apiKey`, clearing the stored tokens doesn't drop the credentials: the next request logs in again. To stop for good, create a client without `apiKey`.
+Don't mix another login (email, Google, merchant) on an `apiKey` client: if that session's refresh fails, the client falls back to the store key.
 
 > **Serverless / edge:** MemoryTokenStorage (default) resets on every cold start.
 > Always provide a custom `storage` adapter (Redis, database, encrypted cookie).

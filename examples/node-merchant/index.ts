@@ -21,11 +21,9 @@
  */
 import { createClient, LedewireError } from '@ledewire/node'
 
-// client.merchant.* accepts either a merchant session (email/password, steps 1-4)
-// or a store API-key token from client.auth.loginWithApiKey({ key, secret }) (step 5).
+// client.merchant.* accepts either a merchant session (email/password, steps 1-5)
+// or a store API-key session (step 6).
 const client = createClient({
-  apiKey: process.env['LEDEWIRE_API_KEY'],
-  apiSecret: process.env['LEDEWIRE_API_SECRET'],
   baseUrl: process.env['LEDEWIRE_BASE_URL'] ?? 'https://api.ledewire.com',
   onAuthExpired: () => {
     console.error('Session expired — please re-authenticate')
@@ -104,10 +102,15 @@ async function main(): Promise<void> {
     // -------------------------------------------------------------------------
     const key = process.env['LEDEWIRE_API_KEY']
     if (key) {
+      const secret = process.env['LEDEWIRE_API_SECRET']
+      // With apiKey set, the client logs in by itself before its first request,
+      // and again whenever the session can't be refreshed. Logging in explicitly
+      // once is how to read the key's store_id; the client then doesn't repeat it.
       const keyClient = createClient({
+        apiKey: key,
+        ...(secret !== undefined && { apiSecret: secret }),
         baseUrl: process.env['LEDEWIRE_BASE_URL'] ?? 'https://api.ledewire.com',
       })
-      const secret = process.env['LEDEWIRE_API_SECRET']
       const { store_id } = await keyClient.auth.loginWithApiKey({
         key,
         ...(secret !== undefined && { secret }),
