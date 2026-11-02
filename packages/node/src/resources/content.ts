@@ -10,8 +10,8 @@ import type {
  *
  * @example
  * ```ts
- * const { content, access } = await client.content.getWithAccess('content-id')
- * if (access.has_access) console.log(content.title)
+ * const result = await client.content.getWithAccess('content-id')
+ * console.log(result.title, result.access_info.next_required_action)
  * ```
  */
 export class ContentNamespace {

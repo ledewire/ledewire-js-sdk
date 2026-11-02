@@ -103,10 +103,10 @@
         //      // On form submit:
         //      await stripe.confirmPayment({ elements, confirmParams: { return_url: '...' } })
         //
-        // After Stripe confirms payment, poll getPaymentStatus until it's 'succeeded':
+        // After Stripe confirms payment, poll getPaymentStatus until it's 'completed':
         const status = await lw.wallet.getPaymentStatus(session.session_id)
-        console.log('Payment status:', status.payment_status)
-        // Once status.payment_status === 'succeeded', the wallet is funded.
+        console.log('Payment status:', status.status)
+        // Once status.status === 'completed', the wallet is funded.
         await checkAccess()
       }
 

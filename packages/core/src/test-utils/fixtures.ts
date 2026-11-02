@@ -271,8 +271,15 @@ export function contentAccessInfoFixture(
 export function contentWithAccessFixture(
   overrides?: Partial<ContentWithAccessSchema>,
 ): ContentWithAccessSchema {
+  const { id, content_type, title, teaser, price_cents } = contentResponseFixture()
   return {
-    ...contentResponseFixture(),
+    id,
+    content_type,
+    title,
+    teaser,
+    price_cents,
+    visibility: 'public',
+    resource_url: null,
     access_info: contentAccessInfoFixture(),
     ...overrides,
   }
@@ -358,12 +365,14 @@ export function purchaseResponseFixture(
       title: 'Test Article',
       resource_url: null,
       publication: null,
+      filing: null,
     },
     buyer_id: 'user-id-1',
     buyer: { id: 'user-id-1', name: 'Test Buyer' },
     seller_id: 'seller-id-1',
     seller: { id: 'seller-id-1', name: 'Test Seller' },
     amount_cents: 500,
+    license: null,
     timestamp: '2099-01-01T00:00:00Z',
     status: 'completed',
     ...overrides,
@@ -425,8 +434,7 @@ export function merchantSaleFixture(overrides?: Partial<MerchantSaleSchema>): Me
     id: 'sale-id-1',
     content_id: 'content-id-1',
     content: { id: 'content-id-1', content_type: 'markdown', title: 'Test Article' },
-    buyer_id: 'user-id-1',
-    buyer: { id: 'user-id-1', name: 'Test Buyer' },
+    buyer_ref: 'bref_v1_3f9a2c1d8e7b6a5f4e3d2c',
     seller_id: 'seller-id-1',
     seller: { id: 'seller-id-1', name: 'Test Seller' },
     amount_cents: 500,
@@ -599,6 +607,7 @@ export function publicationFixture(overrides?: Partial<PublicationSchema>): Publ
     bulk_licensable: true,
     topics: [],
     coverage_horizon: null,
+    homepage: null,
     ...overrides,
   }
 }
@@ -626,6 +635,7 @@ export function contentSearchResultFixture(
     last_modified_date: null,
     citation_count: 0,
     publication: null,
+    filing: null,
     ...overrides,
   }
 }

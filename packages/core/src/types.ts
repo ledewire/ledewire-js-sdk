@@ -33,6 +33,14 @@ export type InvitationRefusalReason = components['schemas']['InvitationRefusalRe
 /** Token response for merchant (store owner) authentication. */
 export type MerchantAuthenticationResponse = components['schemas']['MerchantAuthenticationResponse']
 
+/**
+ * Response from `POST /v1/auth/token/refresh`: a buyer refresh token answers with
+ * an {@link AuthenticationResponse}, a merchant one with a
+ * {@link MerchantAuthenticationResponse}. The SDK refreshes tokens itself, so
+ * application code rarely needs this.
+ */
+export type AuthTokenRefreshResponse = AuthenticationResponse | MerchantAuthenticationResponse
+
 /** Request body for buyer email/password signup. */
 export type AuthSignupRequest = components['schemas']['AuthSignupRequest']
 
@@ -79,7 +87,12 @@ export type ContentAccessInfo = components['schemas']['ContentAccessInfo']
 /** The next action a buyer must take in the checkout flow. */
 export type NextRequiredAction = ContentAccessInfo['next_required_action']
 
-/** A piece of content with buyer access information. */
+/**
+ * A piece of content with buyer access information: the work's public
+ * description (`id`, `content_type`, `title`, `teaser`, `price_cents`,
+ * `visibility`, `resource_url`) plus `access_info`. It never carries the
+ * deliverable; that comes back only from `purchases.create()`.
+ */
 export type ContentWithAccessResponse = components['schemas']['ContentWithAccessResponse']
 
 /** A content item in a list response. */
@@ -279,7 +292,11 @@ export type WalletPaymentSessionResponse = components['schemas']['WalletPaymentS
 /** Current wallet balance for the authenticated buyer. */
 export type WalletBalanceResponse = components['schemas']['WalletBalanceResponse']
 
-/** Status of a wallet payment session. */
+/**
+ * Status of a wallet payment session. `status` is one of `pending`,
+ * `awaiting_verification`, `processing`, `completed`, `cancelled`, `failed`
+ * or `reverted`. `balance_cents` is `null` for a Company member.
+ */
 export type WalletPaymentStatusResponse = components['schemas']['WalletPaymentStatusResponse']
 
 /** A single wallet transaction entry. */
@@ -291,7 +308,10 @@ export type PurchaseCreateRequest = components['schemas']['PurchaseCreateRequest
 /** A purchase record. */
 export type PurchaseResponse = components['schemas']['PurchaseResponse']
 
-/** Full checkout state for a buyer/content pair, including auth and fund status. */
+/**
+ * Full checkout state for a buyer/content pair, including auth and fund status.
+ * `content_title` is `null` only when nothing names the work.
+ */
 export type CheckoutStateResponse = components['schemas']['CheckoutStateResponse']
 
 /** Purchase verification result. */
@@ -547,7 +567,10 @@ export type CorpusManifestResponse = components['schemas']['CorpusManifestRespon
  */
 export type SigningKeyHistoryResponse = components['schemas']['SigningKeyHistoryResponse']
 
-/** A single x402 v2 resource entry returned by the Bazaar discovery endpoint. */
+/**
+ * A single x402 v2 resource entry returned by the Bazaar discovery endpoint.
+ * `metadata.title` is `null` for a work stored untitled.
+ */
 export type X402BazaarResource = components['schemas']['X402BazaarResource']
 
 /** Response from the public x402 Bazaar discovery endpoint (`GET /v1/x402/discovery/resources`). */
@@ -615,12 +638,18 @@ export type CompanyMember = components['schemas']['CompanyMember']
 /** The Company's open memberships. */
 export type CompanyMemberList = components['schemas']['CompanyMemberList']
 
+// The spec says "at least one" as `anyOf: [{required: [role]}, {required:
+// [daily_spend_limit_cents]}]`. openapi-typescript renders each branch as
+// `unknown`, collapsing the generated `CompanyMemberRoleRequest` to `unknown`,
+// so the two branches are spelled out here.
 /**
  * Request body for changing a member's role or daily Spend cap — at least one
  * of the two. `daily_spend_limit_cents` cannot be `null`: a Company member is
  * never uncapped.
  */
-export type CompanyMemberUpdateRequest = components['schemas']['CompanyMemberRoleRequest']
+export type CompanyMemberUpdateRequest =
+  | { role: CompanyRole; daily_spend_limit_cents?: number }
+  | { role?: CompanyRole; daily_spend_limit_cents: number }
 
 /**
  * A Machine user: a Buyer with a name and no email, password or login, owned by
@@ -826,9 +855,8 @@ export interface AuthPasswordResetBody {
  * Contains a human-readable confirmation message.
  */
 export interface AuthPasswordResetResponse {
-  data?: {
-    message?: string
-  }
+  /** Human-readable result message from the API. */
+  message: string
 }
 
 // ---------------------------------------------------------------------------

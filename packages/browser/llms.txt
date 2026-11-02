@@ -172,9 +172,11 @@ lw.wallet.createPaymentSession({ amount_cents: number }) → Promise<WalletPayme
 
 lw.wallet.getPaymentStatus(sessionId: string)          → Promise<WalletPaymentStatusResponse>
 // Poll after return from payment redirect to confirm funding.
-// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'failed' | 'cancelled'
-// completed/failed/cancelled are terminal; ACH can sit in awaiting_verification
-// (microdeposits) then processing for days. Personal top-ups only.
+// status: 'pending' | 'awaiting_verification' | 'processing' | 'completed' | 'cancelled' | 'failed' | 'reverted'
+// completed means the funds are in the wallet. ACH can sit in awaiting_verification
+// (microdeposits) then processing for days. cancelled is usually a superseded
+// session and can still return to pending, then completed. Personal top-ups only.
+// balance_cents: number | null (null for a Company member)
 ```
 
 ### lw.purchases
@@ -189,10 +191,12 @@ lw.purchases.get(purchaseId: string)                  → Promise<PurchaseRespon
 
 ```ts
 lw.content.getWithAccess(contentId: string) → Promise<ContentWithAccessResponse>
-// Returns content payload + access info. Requires a valid buyer session.
+// Returns the work's public description + access info; never the deliverable
+// (that comes only from lw.purchases.create()).
+// { id, content_type, title: string | null, teaser (plain text, SDK decodes base64),
+//   price_cents, visibility: 'public', resource_url: string | null, access_info }
 // content_type: 'markdown' | 'html' | 'pdf' | 'image' | 'video' | 'external_ref' | 'brokered'
-// content_body: plain text (SDK decodes base64 automatically) — markdown, brokered, or inline html
-// content_uri: URL — external_ref, pdf, image, video, or remote html
+
 ```
 
 ### lw.user
@@ -379,7 +383,7 @@ google.accounts.id.renderButton(document.getElementById('signin-btn'), { theme: 
 ```ts
 interface CheckoutStateResponse {
   content_id: string
-  content_title: string
+  content_title: string | null  // null only when nothing names the work
   price_cents: number
   checkout_state: {
     is_authenticated: boolean
