@@ -165,7 +165,7 @@ lw.wallet.balance()                                    → Promise<WalletBalance
 // spend today. content.getWithAccess().access_info.wallet_balance_cents is null
 // for them too. Handle null before rendering or doing arithmetic.
 
-lw.wallet.transactions(params?: PaginationParams)      → Promise<{ data: WalletTransactionItem[], pagination: PaginationMeta }>
+lw.wallet.transactions()                               → Promise<WalletTransactionItem[]>
 
 lw.wallet.createPaymentSession({ amount_cents: number }) → Promise<WalletPaymentSessionResponse>
 // { payment_url: string, session_id: string, ... } — redirect user to payment_url
@@ -183,8 +183,42 @@ lw.wallet.getPaymentStatus(sessionId: string)          → Promise<WalletPayment
 
 ```ts
 lw.purchases.create({ content_id: string })           → Promise<PurchaseResponse>
-lw.purchases.list(params?: PaginationParams)          → Promise<{ data: PurchaseResponse[], pagination: PaginationMeta }>
+lw.purchases.list()                                   → Promise<PurchaseResponse[]>
 lw.purchases.get(purchaseId: string)                  → Promise<PurchaseResponse>
+lw.purchases.licenseDocument(purchaseId: string)      → Promise<LicenseDocument>
+// LicenseDocument: { body: ArrayBuffer, contentType: string } — not JSON. Usually
+// application/pdf; text/markdown for an SEC filing. contentType is the server's header
+// verbatim ('application/octet-stream' if absent). Throws AuthError 401, ForbiddenError
+// 403 (not a buyer credential), NotFoundError 404 (unknown, not completed, or not captured).
+// The type is chosen by the work's source: offer it as a download, never render it inline.
+```
+
+Licence and source fields on every `PurchaseResponse`:
+
+- `license: PurchaseLicense | null` — `{ type, permissions: string[], document_url: string | null }`,
+  exactly as the work's source granted it (`ON_DEMAND_LICENSE`, `ON_DEMAND_FULL_USE_LICENSE`,
+  `public-domain` for an SEC filing, or another the source adds). `null` means "not recorded"
+  (every Store work, older brokered purchases), never "no rights granted".
+- `content.publication: PurchasePublication | null` — `{ id, name }` of a brokered work's Publication.
+- `content.filing: ContentSearchFiling | null` — an SEC filing's `{ filer_name, ticker, cik,
+  form_type, filing_date, period_of_report, accession_number }`; `null` otherwise.
+
+```ts
+const purchase = await lw.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+  // Pass the type through only for the two expected ones, so a server-sent
+  // text/html can never run in this origin.
+  const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+    ? contentType
+    : 'application/octet-stream'
+  const url = URL.createObjectURL(new Blob([body], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'licence'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 ```
 
 ### lw.content

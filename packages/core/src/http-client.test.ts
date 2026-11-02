@@ -408,6 +408,18 @@ describe('HttpClient.getRaw', () => {
     expect(receivedAccept).toBe('application/gzip, application/json')
   })
 
+  it('sends the Accept header the caller passes', async () => {
+    let receivedAccept = ''
+    server.use(
+      http.get(`${BASE}/v1/test`, ({ request }) => {
+        receivedAccept = request.headers.get('Accept') ?? ''
+        return new HttpResponse(null)
+      }),
+    )
+    await makeClient().getRaw('/v1/test', '*/*')
+    expect(receivedAccept).toBe('*/*')
+  })
+
   it('injects the Bearer token like get()', async () => {
     let receivedAuth = ''
     server.use(

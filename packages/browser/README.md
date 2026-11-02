@@ -45,7 +45,7 @@ const lw = init({
 | `lw.config`        | Platform public config (no auth required)                                       |
 | `lw.auth`          | Buyer signup, email/password login, Google OAuth, API key login, password reset |
 | `lw.wallet`        | Wallet balance, fund wallet via payment session                                 |
-| `lw.purchases`     | List and create content purchases                                               |
+| `lw.purchases`     | List and create content purchases; download a purchase's licence document       |
 | `lw.content`       | Fetch content with buyer access info                                            |
 | `lw.checkout`      | Checkout state — what action is required next                                   |
 | `lw.user.spendCap` | Buyer's daily spend cap — read and update the ceiling                           |
@@ -113,6 +113,34 @@ switch (checkout_state.next_required_action) {
     }
     break
   }
+}
+```
+
+## Example: Purchase Licences
+
+Every purchase carries `license` (a `PurchaseLicense`, or `null` when none was recorded —
+every Store work, and older brokered purchases; `null` never means "no rights"), plus
+`content.publication` (the brokered work's Publication, or `null`) and `content.filing`
+(the SEC filing, or `null`). When `license.document_url` is set,
+`lw.purchases.licenseDocument()` downloads it as `{ body: ArrayBuffer, contentType }` —
+usually `application/pdf`, or `text/markdown` for an SEC filing's terms.
+
+```ts
+const purchase = await lw.purchases.get(purchaseId)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await lw.purchases.licenseDocument(purchase.id)
+  // The type is the source's choice: offer a download, never render it inline.
+  // Pass the type through only for the two expected ones, so a server-sent
+  // text/html can never run in this origin.
+  const type = /^(application\/pdf|text\/markdown)\s*(;|$)/.test(contentType)
+    ? contentType
+    : 'application/octet-stream'
+  const url = URL.createObjectURL(new Blob([body], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'licence'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 ```
 

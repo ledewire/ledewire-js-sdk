@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { AuthError, NotFoundError, SpendCapReachedError } from '@ledewire/core'
+import { AuthError, ForbiddenError, NotFoundError, SpendCapReachedError } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   errorResponseFixture,
@@ -254,5 +254,114 @@ describe('purchases.verify', () => {
     )
 
     await expect(makeClient().purchases.verify('missing-content')).rejects.toThrow(NotFoundError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// purchases.licenseDocument
+// ---------------------------------------------------------------------------
+
+describe('purchases.licenseDocument', () => {
+  const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x00, 0xff])
+
+  it('returns a PDF document as bytes with its content type', async () => {
+    let receivedAccept = ''
+    server.use(
+      http.get(`${BASE}/v1/purchases/purchase-id-1/license_document`, ({ request }) => {
+        receivedAccept = request.headers.get('Accept') ?? ''
+        return new HttpResponse(PDF_BYTES, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'attachment; filename="licence.pdf"',
+          },
+        })
+      }),
+    )
+
+    const doc = await makeClient().purchases.licenseDocument('purchase-id-1')
+
+    expect(doc.contentType).toBe('application/pdf')
+    expect(doc.body).toBeInstanceOf(ArrayBuffer)
+    expect(new Uint8Array(doc.body)).toEqual(PDF_BYTES)
+    expect(receivedAccept).toBe('*/*')
+  })
+
+  it('returns a markdown document whose bytes decode as UTF-8 text', async () => {
+    const markdown = '# Terms for SEC filings\n\nPublic domain — no licence needed.\n'
+    server.use(
+      http.get(
+        `${BASE}/v1/purchases/purchase-id-1/license_document`,
+        () =>
+          new HttpResponse(markdown, {
+            headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+          }),
+      ),
+    )
+
+    const doc = await makeClient().purchases.licenseDocument('purchase-id-1')
+
+    expect(doc.contentType).toBe('text/markdown; charset=utf-8')
+    expect(new TextDecoder().decode(doc.body)).toBe(markdown)
+  })
+
+  it('reports application/octet-stream when the response names no content type', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchases/purchase-id-1/license_document`, () => {
+        const response = new HttpResponse(PDF_BYTES)
+        response.headers.delete('Content-Type')
+        return response
+      }),
+    )
+
+    const doc = await makeClient().purchases.licenseDocument('purchase-id-1')
+
+    expect(doc.contentType).toBe('application/octet-stream')
+  })
+
+  it('encodes the purchase id in the path', async () => {
+    server.use(
+      http.get(
+        `${BASE}/v1/purchases/a%2Fb/license_document`,
+        () => new HttpResponse('ok', { headers: { 'Content-Type': 'text/markdown' } }),
+      ),
+    )
+
+    const doc = await makeClient().purchases.licenseDocument('a/b')
+
+    expect(doc.contentType).toBe('text/markdown')
+  })
+
+  it('throws ForbiddenError on 403 (not a buyer credential)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchases/purchase-id-1/license_document`, () =>
+        HttpResponse.json(errorResponseFixture(1003, 'Invalid Role'), { status: 403 }),
+      ),
+    )
+
+    await expect(makeClient().purchases.licenseDocument('purchase-id-1')).rejects.toThrow(
+      ForbiddenError,
+    )
+  })
+
+  it('throws NotFoundError on 404 (no captured document for this purchase)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchases/missing/license_document`, () =>
+        HttpResponse.json(errorResponseFixture(1004, 'License document (missing) was not found'), {
+          status: 404,
+        }),
+      ),
+    )
+
+    await expect(makeClient().purchases.licenseDocument('missing')).rejects.toThrow(NotFoundError)
+  })
+
+  it('throws AuthError on 401', async () => {
+    server.use(
+      http.get(`${BASE}/v1/purchases/purchase-id-1/license_document`, () =>
+        HttpResponse.json(errorResponseFixture(1001, 'Unauthorized'), { status: 401 }),
+      ),
+    )
+
+    await expect(makeClient().purchases.licenseDocument('purchase-id-1')).rejects.toThrow(AuthError)
   })
 })

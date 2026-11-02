@@ -469,6 +469,51 @@ do {
 Searches with a `query` are rate-limited to 15 a minute per Buyer. A 429 throws a
 `LedewireError` with `statusCode` 429.
 
+Narrow to one Publication with `publication` (its id, or its exact name in any case).
+To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings come back,
+and `query` can be left out to list them newest first. Each result's `filing` describes
+the filing (`filer_name`, `ticker`, `cik`, `form_type`, `filing_date`,
+`period_of_report`, `accession_number`), and is `null` for every other work.
+Only Buyers whose Company subscribes to SEC filings are shown filings: for any other
+Buyer, these filters return no results.
+
+```ts
+// Apple's annual reports, amendments (10-K/A) included.
+const { data } = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
+for (const result of data) {
+  console.log(result.filing?.form_type, result.filing?.filing_date, result.title)
+}
+```
+
+## Example: Purchase Licences
+
+Every purchase carries `license` (a `PurchaseLicense`, or `null` when none was recorded —
+every Store work, and older brokered purchases; `null` never means "no rights"), plus
+`content.publication` (the brokered work's Publication, or `null`) and `content.filing`
+(the SEC filing, or `null`). `license.type` is the source's own licence type, such as
+`ON_DEMAND_LICENSE`, `ON_DEMAND_FULL_USE_LICENSE` or `public-domain` for an SEC filing.
+
+When `license.document_url` is set, `purchases.licenseDocument()` downloads the document.
+It is not JSON: you get `{ body: ArrayBuffer, contentType }`, usually `application/pdf`,
+or `text/markdown` for an SEC filing's terms.
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const purchase = await client.purchases.get(purchaseId)
+console.log(purchase.license?.type, purchase.content.publication?.name)
+if (purchase.license?.document_url) {
+  const { body, contentType } = await client.purchases.licenseDocument(purchase.id)
+  const ext = contentType.startsWith('application/pdf')
+    ? 'pdf'
+    : contentType.startsWith('text/markdown')
+      ? 'md'
+      : 'bin'
+  const file = `licence.${ext}`
+  await writeFile(file, Buffer.from(body))
+}
+```
+
 ## Example: x402 Bazaar Discovery
 
 Public, unauthenticated browsing of resources gated by the x402

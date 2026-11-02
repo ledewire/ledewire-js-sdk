@@ -13,6 +13,12 @@ import type {
  * is licensable before authenticating. Requests are always sent without
  * credentials, so a stale or expired session never blocks them.
  *
+ * The API also accepts an optional Buyer token on `list` and `get`: a Buyer whose
+ * Company holds a Subscription additionally sees the Publications it opens, such as
+ * SEC EDGAR. Because this namespace never sends credentials, its results are always
+ * the anonymous list. To find SEC filings, search with `content.search()` and its
+ * `form_type`, `ticker` or `cik` filters.
+ *
  * @example
  * ```ts
  * const { data } = await client.publications.list()

@@ -337,8 +337,60 @@ export type WalletTransactionItem = components['schemas']['WalletTransactionItem
 /** Request body for creating a purchase. */
 export type PurchaseCreateRequest = components['schemas']['PurchaseCreateRequest']
 
-/** A purchase record. */
+/**
+ * A purchase record.
+ *
+ * - `license` is the {@link PurchaseLicense} the purchase was delivered under, or `null`
+ *   when none was recorded (every Store work, and brokered purchases made before licences
+ *   were recorded). `null` means "not recorded", never "no rights granted".
+ * - `content.publication` is the {@link PurchasePublication} a brokered work was published
+ *   under; `null` for a Store's work.
+ * - `content.filing` is the {@link ContentSearchFiling} for an SEC filing; `null` for every
+ *   other work, and for a filing bought before its filer was recorded.
+ */
 export type PurchaseResponse = components['schemas']['PurchaseResponse']
+
+/**
+ * The licence one purchase was delivered under, exactly as the work's source granted it.
+ *
+ * `type` is the source's own licence type: `ON_DEMAND_LICENSE` (partial use),
+ * `ON_DEMAND_FULL_USE_LICENSE` (full use) or `public-domain` (an SEC filing), and a source
+ * may add others. `permissions` lists what was granted (e.g. `PARTIAL_USE`), empty for
+ * `public-domain`. `document_url` points at `/v1/purchases/{id}/license_document`, which
+ * `purchases.licenseDocument(id)` downloads; it is `null` until the document is captured.
+ */
+export type PurchaseLicense = components['schemas']['PurchaseLicense']
+
+/** The Publication a purchased work was published under (`content.publication` on a purchase). */
+export type PurchasePublication = components['schemas']['PurchasePublication']
+
+/**
+ * An SEC filing's primary document: filer name, ticker, CIK, form type, filing date,
+ * period of report and accession number. `filing` on a search result or a purchase's
+ * `content`; `null` for any work that is not an SEC filing.
+ */
+export type ContentSearchFiling = components['schemas']['ContentSearchFiling']
+
+/**
+ * A purchase's licence document, as `purchases.licenseDocument(id)` returns it.
+ *
+ * The body is raw bytes rather than decoded JSON, because the document is whatever the
+ * work's source served: usually a PDF, Markdown for an SEC filing, or anything else.
+ * `ArrayBuffer` is used because it works the same in Node, browsers and edge runtimes:
+ * wrap it with `Buffer.from(body)` in Node, `new Blob([body], { type: contentType })` in a
+ * browser, or `new TextDecoder().decode(body)` for a `text/*` type.
+ */
+export interface LicenseDocument {
+  /** The document's bytes. */
+  body: ArrayBuffer
+  /**
+   * The `Content-Type` the server sent, verbatim (e.g. `application/pdf`,
+   * `text/markdown; charset=utf-8`). `application/octet-stream` when none was sent. The
+   * type is the source's choice, so never render the document inline on your own origin
+   * on the strength of it.
+   */
+  contentType: string
+}
 
 /**
  * Full checkout state for a buyer/content pair, including auth and fund status.
@@ -519,7 +571,11 @@ export interface PublicationListParams {
 /** The Publication a search result belongs to, as `POST /v1/content/search` names it. */
 export type ContentSearchPublication = components['schemas']['ContentSearchPublication']
 
-/** One work in a buyer's LedeWire search, from a Store or a brokered Publication. */
+/**
+ * One work in a buyer's LedeWire search, from a Store or a brokered Publication.
+ * `filing` is a {@link ContentSearchFiling} for an SEC EDGAR filing (priced at 0, with
+ * access through the Company's Subscription), and `null` for every other work.
+ */
 export type ContentSearchResult = components['schemas']['ContentSearchResult']
 
 /** A {@link ContentSearchResult} that also names the Publication it was published by. */
@@ -529,6 +585,11 @@ export type ContentSearchResultWithPublication =
 /**
  * Body for `POST /v1/content/search`. Every field is optional. `limit` defaults to 20 on
  * the server, though the generated schema marks it required, so it is made optional here.
+ *
+ * `publication` keeps only works from one Publication (its `id`, or its exact `name` in any
+ * case). `form_type`, `ticker` and `cik` keep only SEC EDGAR filings, and let `query` be
+ * omitted to list the filings they name, newest first. `form_type` includes amendments
+ * (`10-K` also returns `10-K/A`).
  */
 export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
 

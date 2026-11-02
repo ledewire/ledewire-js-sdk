@@ -175,6 +175,22 @@ if (purchase.content_body) {
             <code>'fund_wallet'</code>. Their cap is set by a Company admin
             (<code>lw.company.members.update()</code>).
           </div>
+          <div class="callout">
+            <strong>Licences:</strong> each purchase carries
+            <code>license</code> (<code>type</code>, <code>permissions</code>,
+            <code>document_url</code>, or <code>null</code> when none was
+            recorded), <code>content.publication</code> and
+            <code>content.filing</code> (an SEC filing, else <code>null</code>).
+            <code>lw.purchases.licenseDocument(id)</code> downloads the licence
+            document as <code>{ body: ArrayBuffer, contentType }</code> —
+            usually a PDF. Offer it as a download, building the Blob with
+            <code>type: 'application/octet-stream'</code> unless
+            <code>contentType</code> is <code>application/pdf</code> or
+            <code>text/markdown</code>, so a server-sent
+            <code>text/html</code> can never run in your origin; call
+            <code>URL.revokeObjectURL()</code> after the click. Never render it
+            inline.
+          </div>
         </div>
       </div>
 
