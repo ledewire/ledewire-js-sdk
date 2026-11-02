@@ -62,7 +62,7 @@ Every change to a published method also touches:
 - **`createMockClient()`** in `@ledewire/node/testing`: a new or removed method needs its stub
   added or removed (the parity test fails otherwise).
 - **Generated files:** after changing either `ledewire.yml` copy, run
-  `bin/dexec pnpm generate:types`. After changing any export, run `bin/dexec pnpm docs`. Commit
+  `bin/dexec pnpm generate:types`. After changing any export, run `bin/dexec pnpm build && bin/dexec pnpm run docs` (`run`: bare `pnpm docs` is pnpm's own command; build first, or the pages churn to `src` paths). Commit
   both. Edit `api.gen.ts` only by regenerating it.
 - **Docs:** the related `docs/guides`, `examples/`, the package README and its `llms.txt`.
 - **A changeset**, written by hand as `.changeset/<short-slug>.md` (`pnpm changeset` is
