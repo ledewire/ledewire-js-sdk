@@ -145,6 +145,26 @@ describe('wrapAxiosWithPayment', () => {
     expect(payload.payload.token).toBe('buyer-jwt')
   })
 
+  it('pays at most once: a paid retry that is challenged again is not paid again', async () => {
+    let paidAttempts = 0
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (request.headers.get('payment-signature')) paidAttempts += 1
+        // Always challenge, even the paid retry.
+        return new HttpResponse(null, {
+          status: 402,
+          headers: { 'payment-required': PAYMENT_REQUIRED_HEADER },
+        })
+      }),
+    )
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+    await expect(instance.get(ORIGIN_URL)).rejects.toMatchObject({
+      name: 'LedewireError',
+      statusCode: 402,
+    })
+    expect(paidAttempts).toBe(1)
+  })
+
   it('delegates to client.buildPaymentSignature — works with a mock client', async () => {
     const mockSig = btoa(
       JSON.stringify({

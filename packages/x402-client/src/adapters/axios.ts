@@ -82,6 +82,12 @@ export function wrapAxiosWithPayment(
       if (!originalConfig) {
         return Promise.reject(error)
       }
+      // The paid retry runs back through this interceptor. If it is challenged
+      // again, hand the 402 to the caller rather than pay a second time:
+      // every attempt would be a separate payment.
+      if (originalConfig.headers.has('PAYMENT-SIGNATURE')) {
+        return Promise.reject(error)
+      }
       // Resolve baseURL + url (+ params) to the absolute URL actually requested.
       const url = instance.getUri(originalConfig)
 
