@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 
     const [firstStore] = stores
     if (!firstStore) return // narrowing — length guard above makes this unreachable
-    const storeId = firstStore.store_id
+    const storeId = firstStore.id
     console.log(`✓ Using store: ${firstStore.store_name} (${storeId})`)
 
     // -------------------------------------------------------------------------
