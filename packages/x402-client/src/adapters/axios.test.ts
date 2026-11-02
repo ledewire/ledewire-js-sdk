@@ -145,6 +145,28 @@ describe('wrapAxiosWithPayment', () => {
     expect(payload.payload.token).toBe('buyer-jwt')
   })
 
+  it('sends the paid retry with maxRedirects: 0', async () => {
+    const seen: (number | undefined)[] = []
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) =>
+        request.headers.get('payment-signature')
+          ? HttpResponse.json({ data: 'content' })
+          : new HttpResponse(null, {
+              status: 402,
+              headers: { 'payment-required': PAYMENT_REQUIRED_HEADER },
+            }),
+      ),
+    )
+    const instance = wrapAxiosWithPayment(axios.create(), makeClient())
+    instance.interceptors.request.use((config) => {
+      seen.push(config.maxRedirects)
+      return config
+    })
+    const res = await instance.get(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(seen.at(-1)).toBe(0)
+  })
+
   it('pays at most once: a paid retry that is challenged again is not paid again', async () => {
     let paidAttempts = 0
     server.use(

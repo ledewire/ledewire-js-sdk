@@ -82,7 +82,9 @@ export function wrapFetchWithPayment(
     const paidHeaders = new Headers(init?.headers)
     paidHeaders.set('PAYMENT-SIGNATURE', paymentSignature)
 
-    const paidResponse = await fetchFn(input, { ...init, headers: paidHeaders })
+    // redirect: 'error' — PAYMENT-SIGNATURE is a custom header, which fetch keeps
+    // on a redirect; never let the paid retry carry it to another location.
+    const paidResponse = await fetchFn(input, { ...init, headers: paidHeaders, redirect: 'error' })
 
     if (paidResponse.ok) {
       return paidResponse

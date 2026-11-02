@@ -101,7 +101,9 @@ export function wrapAxiosWithPayment(
       originalConfig.headers.set('PAYMENT-SIGNATURE', paymentSignature)
 
       try {
-        return await instance.request(originalConfig)
+        // maxRedirects: 0 — never let the paid retry carry PAYMENT-SIGNATURE
+        // to another location.
+        return await instance.request({ ...originalConfig, maxRedirects: 0 })
       } catch (retryError) {
         const axiosRetryError = retryError as AxiosError
         const retryStatus = axiosRetryError.response?.status ?? 0

@@ -175,7 +175,6 @@ client.allowsPaymentTo(url)
 const sig = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
 // Internal auth manager — also exported separately
-client.auth.apiBase  // readonly, the configured apiBase
 ```
 
 ## PaymentSigner interface
