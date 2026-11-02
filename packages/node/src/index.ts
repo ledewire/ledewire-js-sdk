@@ -33,6 +33,7 @@ export type {
   AuthenticationResponse,
   AuthTokenRefreshResponse,
   StoreAuthenticationResponse,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- still exported for 0.14.0 callers until a later breaking release
   BuyerContentSearchRequest,
   ContentSearchRequest,
   ContentSearchPublication,

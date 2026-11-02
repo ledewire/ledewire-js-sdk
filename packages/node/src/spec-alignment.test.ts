@@ -99,6 +99,7 @@ describe('return types match the spec operation responses', () => {
     // limit defaults on the server, though the spec marks it required, so every field is optional.
     type Body = Partial<OperationBody<'/v1/content/search', 'post'>>
     expectTypeOf<ContentSearchRequest>().toEqualTypeOf<Body>()
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- pins the deprecated alias to its replacement
     expectTypeOf<BuyerContentSearchRequest>().toEqualTypeOf<ContentSearchRequest>()
     expectTypeOf<
       Parameters<NodeClient['content']['search']>[0]
