@@ -172,17 +172,14 @@ export class LedewirePaymentClient {
    * @throws {AuthError} Buyer API key credentials are invalid.
    */
   async buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string> {
-    const { paymentRequired, accepted, contentId, apiBase } =
-      parsePaymentRequired(paymentRequiredHeader)
+    const { paymentRequired, accepted, contentId } = parsePaymentRequired(paymentRequiredHeader)
 
     if (Date.now() / 1000 > accepted.extra.expiresAt) {
       throw new NonceExpiredError()
     }
 
-    if (apiBase) {
-      this.auth.apiBase = apiBase
-    }
-
+    // Logs in only at the configured apiBase. The challenge's server is
+    // untrusted, so nothing in it may choose where the buyer key is sent.
     const token = await this.auth.getAccessToken()
 
     const supportsPaymentIdentifier = paymentRequired.extensions?.['payment-identifier'] != null

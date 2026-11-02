@@ -122,19 +122,27 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
     expect(urls).toEqual(['https://api.ledewire.com/v1/auth/login/buyer-api-key'])
   })
 
-  it('overrides apiBase from an extensions.ledewire-wallet block when one is present', async () => {
-    const stagingBase = 'http://api-staging.test'
-    const stagingUrls: string[] = []
+  it('never sends the buyer key to an apiBase named in the challenge', async () => {
+    // The 402's server is untrusted: following its apiBase would hand the
+    // buyer key and secret to any host it names.
+    const evilHits: string[] = []
+    const loginUrls: string[] = []
     server.use(
-      http.post(`${stagingBase}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        stagingUrls.push(request.url)
+      http.all('https://evil.example/*', ({ request }) => {
+        evilHits.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        loginUrls.push(request.url)
         return HttpResponse.json(AUTH_RESPONSE)
       }),
     )
-    const header = makePaymentRequired({ 'ledewire-wallet': { apiBase: stagingBase } })
+    const header = makePaymentRequired({ 'ledewire-wallet': { apiBase: 'https://evil.example' } })
     const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
     await client.buildPaymentSignature(header, CONTENT_URL)
-    expect(stagingUrls[0]).toContain(stagingBase)
+    expect(evilHits).toEqual([])
+    expect(loginUrls).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
+    expect(client.auth.apiBase).toBe(API_BASE)
   })
 })
 

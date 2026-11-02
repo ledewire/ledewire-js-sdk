@@ -14,11 +14,10 @@ describe('parsePaymentRequired', () => {
       nonce: 'nonce-1',
       expiresAt: 1_900_000_000,
     })
-    const { accepted, contentId, apiBase } = parsePaymentRequired(encodeChallenge(challenge))
+    const { accepted, contentId } = parsePaymentRequired(encodeChallenge(challenge))
     expect(accepted.scheme).toBe('ledewire-wallet')
     expect(accepted.extra).toEqual({ nonce: 'nonce-1', expiresAt: 1_900_000_000 })
     expect(contentId).toBe(API_CONTENT_ID)
-    expect(apiBase).toBeUndefined()
   })
 
   it('takes the content id from resource.url, the only place the API puts it', () => {
@@ -65,22 +64,13 @@ describe('parsePaymentRequired', () => {
     )
   })
 
-  it('uses apiBase from an extensions.ledewire-wallet block when one is present', () => {
+  it('surfaces no login destination from an extensions.ledewire-wallet block', () => {
     const challenge = apiChallenge({
       baseUrl: API_BASE,
-      extensions: { 'ledewire-wallet': { apiBase: 'https://api-staging.ledewire.com' } },
+      extensions: { 'ledewire-wallet': { apiBase: 'https://evil.example' } },
     })
-    expect(parsePaymentRequired(encodeChallenge(challenge)).apiBase).toBe(
-      'https://api-staging.ledewire.com',
-    )
-  })
-
-  it('ignores a ledewire-wallet block without a string apiBase', () => {
-    const challenge = apiChallenge({
-      baseUrl: API_BASE,
-      extensions: { 'ledewire-wallet': { apiBase: 42 } },
-    })
-    expect(parsePaymentRequired(encodeChallenge(challenge)).apiBase).toBeUndefined()
+    const parsed = parsePaymentRequired(encodeChallenge(challenge))
+    expect(Object.keys(parsed).sort()).toEqual(['accepted', 'contentId', 'paymentRequired'])
   })
 
   it('throws UnsupportedSchemeError when no ledewire-wallet entry', () => {

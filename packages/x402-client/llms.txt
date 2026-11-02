@@ -37,9 +37,9 @@ const fetch = createLedewireFetch({
 })
 ```
 
-apiBase is where the buyer key logs in. The Ledewire API's PAYMENT-REQUIRED does not
-name one (extensions is {}), so pass apiBase for staging. A server that sends
-extensions.ledewire-wallet.apiBase overrides it.
+apiBase is where the buyer key logs in, and the only place key and secret are sent.
+Pass it for staging. The client never follows an apiBase named in a PAYMENT-REQUIRED
+challenge (the 402's server is untrusted).
 
 ## x402 payment flow (transparent to caller)
 
@@ -171,7 +171,7 @@ const client = new LedewirePaymentClient({
 const sig = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
 // Internal auth manager — also exported separately
-client.auth.apiBase  // mutable; overridden by an extensions.ledewire-wallet.apiBase, if a server sends one
+client.auth.apiBase  // the configured base; never taken from a challenge
 ```
 
 ## PaymentSigner interface

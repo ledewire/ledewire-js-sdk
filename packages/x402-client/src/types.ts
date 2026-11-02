@@ -43,9 +43,9 @@ export interface LedewireFetchConfig {
   secret: string
   /**
    * Override the Ledewire API base URL used to log in with the buyer key.
-   * Defaults to `https://api.ledewire.com`; set it for staging. The Ledewire
-   * API's challenge does not name one; a server that sends an
-   * `extensions.ledewire-wallet.apiBase` field overrides this.
+   * Defaults to `https://api.ledewire.com`; set it for staging. The buyer
+   * key and secret are sent only here — never to an `apiBase` named in a
+   * `PAYMENT-REQUIRED` challenge, whose server is untrusted.
    */
   apiBase?: string
   /**
@@ -101,9 +101,10 @@ export interface LedewireWalletExtra {
 }
 
 /**
- * An optional `extensions.ledewire-wallet` discovery block. The Ledewire API
- * does not send one (its `extensions` is `{}`); when a server does, only its
- * `apiBase` is read.
+ * An `extensions.ledewire-wallet` discovery block. The Ledewire API does not
+ * send one (its `extensions` is `{}`), and the client never reads it: in
+ * particular its `apiBase` is ignored, since the challenge's server is
+ * untrusted and must not choose where the buyer key is sent.
  */
 export interface LedewireWalletExtension {
   /** Ledewire API base URL (environment-aware, derived from the request). */

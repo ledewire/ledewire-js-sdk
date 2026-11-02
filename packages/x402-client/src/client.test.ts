@@ -343,9 +343,10 @@ describe('createLedewireFetch', () => {
     expect(capturedPayloads[0]?.extensions).toBeUndefined()
   })
 
-  it('uses apiBase from extensions.ledewire-wallet when present', async () => {
-    const capturedUrls: string[] = []
-    const stagingBase = 'http://api-staging.test'
+  it('pays a challenge naming a hostile apiBase without contacting that host', async () => {
+    // The 402's server is untrusted; credentials go only to the configured base.
+    const evilHits: string[] = []
+    const loginUrls: string[] = []
     let firstRequest = true
 
     server.use(
@@ -358,7 +359,7 @@ describe('createLedewireFetch', () => {
               'PAYMENT-REQUIRED': btoa(
                 JSON.stringify({
                   ...PAYMENT_REQUIRED_PAYLOAD,
-                  extensions: { 'ledewire-wallet': { apiBase: stagingBase } },
+                  extensions: { 'ledewire-wallet': { apiBase: 'https://evil.example' } },
                 }),
               ),
             },
@@ -366,8 +367,12 @@ describe('createLedewireFetch', () => {
         }
         return HttpResponse.json(CONTENT_RESPONSE)
       }),
-      http.post(`${stagingBase}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        capturedUrls.push(request.url)
+      http.all('https://evil.example/*', ({ request }) => {
+        evilHits.push(request.url)
+        return HttpResponse.json(AUTH_RESPONSE)
+      }),
+      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+        loginUrls.push(request.url)
         return HttpResponse.json(AUTH_RESPONSE)
       }),
     )
@@ -378,8 +383,10 @@ describe('createLedewireFetch', () => {
       apiBase: API_BASE,
       fetch: globalThis.fetch,
     })
-    await fetchFn(ORIGIN_URL)
-    expect(capturedUrls[0]).toContain(stagingBase)
+    const res = await fetchFn(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(evilHits).toEqual([])
+    expect(loginUrls).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
   })
 
   it('uses globalThis.fetch when no custom fetch is provided in config', async () => {

@@ -70,10 +70,10 @@ const fetch = createLedewireFetch({
 })
 ```
 
-`apiBase` is where the buyer key logs in. The Ledewire API's `PAYMENT-REQUIRED` challenge
-does not name one (its `extensions` is `{}`), so for staging content pass
-`apiBase: 'https://api-staging.ledewire.com'`. A server that does send an
-`extensions.ledewire-wallet.apiBase` field overrides the configured value.
+`apiBase` is where the buyer key logs in, and the only place your key and secret are ever
+sent. For staging content pass `apiBase: 'https://api-staging.ledewire.com'`. The client
+never follows an `apiBase` named in a `PAYMENT-REQUIRED` challenge: it pays arbitrary
+URLs, so the server that sent the `402` is untrusted.
 
 ## Transport adapters
 

@@ -64,7 +64,7 @@ export class LedewireAuthManager {
   private accessToken: string | null = null
   private expiresAt = 0
 
-  /** @internal resolved apiBase — overridden by a PAYMENT-REQUIRED `ledewire-wallet` extension, when sent */
+  /** @internal the configured API base the buyer key logs in at — never taken from a challenge */
   apiBase: string
 
   constructor(

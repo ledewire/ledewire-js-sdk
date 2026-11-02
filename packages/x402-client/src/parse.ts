@@ -46,8 +46,9 @@ function contentIdFromResource(resource: unknown): string {
 /**
  * Decode and parse the raw `PAYMENT-REQUIRED` header value the Ledewire API
  * sends: `accepts[0].extra` carries `{ nonce, expiresAt }`, the content id is
- * the `{id}` in `resource.url`, and `extensions` is `{}`. An optional
- * `extensions['ledewire-wallet'].apiBase` is honoured when present.
+ * the `{id}` in `resource.url`, and `extensions` is `{}`. Nothing here says
+ * where to log in: the challenge comes from an untrusted server, so an
+ * `extensions['ledewire-wallet'].apiBase` is never read.
  *
  * @throws {UnsupportedSchemeError} When no `ledewire-wallet` scheme entry exists.
  * @throws {MalformedPaymentRequiredError} When the header is not base64 JSON,
@@ -58,7 +59,6 @@ export function parsePaymentRequired(headerValue: string): {
   paymentRequired: LedewirePaymentRequired
   accepted: LedewirePaymentRequirements
   contentId: string
-  apiBase?: string
 } {
   let decoded: unknown
   try {
@@ -95,18 +95,7 @@ export function parsePaymentRequired(headerValue: string): {
 
   const contentId = contentIdFromResource(paymentRequired.resource)
 
-  const extension = paymentRequired.extensions?.[SCHEME]
-  const apiBase =
-    extension && typeof extension === 'object'
-      ? (extension as Record<string, unknown>)['apiBase']
-      : undefined
-
-  return {
-    paymentRequired,
-    accepted,
-    contentId,
-    ...(typeof apiBase === 'string' && apiBase ? { apiBase } : {}),
-  }
+  return { paymentRequired, accepted, contentId }
 }
 
 /**
