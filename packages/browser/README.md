@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/@ledewire/browser)](https://www.npmjs.com/package/@ledewire/browser)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — embed buyer authentication, wallet funding, content purchases, and seller content discovery on any website with a single script tag.
+Browser SDK for the [LedeWire](https://api.ledewire.com/api-docs/index.html) content marketplace — embed buyer authentication, wallet funding, and content purchases on any website with a single script tag.
 
 ## CDN — No Install Required
 
@@ -40,18 +40,17 @@ const lw = init({
 
 ## Client Namespaces
 
-| Namespace           | Description                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `lw.config`         | Platform public config (no auth required)                                       |
-| `lw.auth`           | Buyer signup, email/password login, Google OAuth, API key login, password reset |
-| `lw.wallet`         | Wallet balance, fund wallet via payment session                                 |
-| `lw.purchases`      | List and create content purchases                                               |
-| `lw.content`        | Fetch content with buyer access info                                            |
-| `lw.checkout`       | Checkout state — what action is required next                                   |
-| `lw.user.spendCap`  | Buyer's daily spend cap — read and update the ceiling                           |
-| `lw.user.mcpKeys`   | Manage buyer MCP API keys for the Ledewire MCP server                           |
-| `lw.company`        | Company wallets: membership, invitations, members, Machine users, top-ups       |
-| `lw.seller.content` | List, search, and get store content (API key auth)                              |
+| Namespace          | Description                                                                     |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `lw.config`        | Platform public config (no auth required)                                       |
+| `lw.auth`          | Buyer signup, email/password login, Google OAuth, API key login, password reset |
+| `lw.wallet`        | Wallet balance, fund wallet via payment session                                 |
+| `lw.purchases`     | List and create content purchases                                               |
+| `lw.content`       | Fetch content with buyer access info                                            |
+| `lw.checkout`      | Checkout state — what action is required next                                   |
+| `lw.user.spendCap` | Buyer's daily spend cap — read and update the ceiling                           |
+| `lw.user.mcpKeys`  | Manage buyer MCP API keys for the Ledewire MCP server                           |
+| `lw.company`       | Company wallets: membership, invitations, members, Machine users, top-ups       |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
 
@@ -167,27 +166,12 @@ The full surface (`membership`, `invitations`, `members`, `machineUsers` with
 [`@ledewire/node`](../node/README.md#example-company-wallets). Admin-only
 methods throw `ForbiddenError` for a plain member.
 
-## Example: Seller Content Discovery
+## Store content management lives server-side
 
-Use `lw.seller.loginWithApiKey` with only the `key` to obtain a read-only token,
-then browse your store's content catalogue directly from the browser:
-
-```ts
-const lw = Ledewire.init({ apiKey: 'your_api_key' })
-
-// Obtain a view-only seller token (key only — no secret needed)
-await lw.seller.loginWithApiKey({ key: 'your_api_key' })
-
-// List all content
-const items = await lw.seller.content.list()
-
-// Search by title, URI, or metadata
-const results = await lw.seller.content.search({ title: 'intro' })
-const byMeta = await lw.seller.content.search({ metadata: { author: 'Alice' } })
-
-// Fetch a single item
-const item = await lw.seller.content.get('content-id')
-```
+`@ledewire/browser` is buyer-only. It has no `lw.seller` namespace and no store
+API-key login: a store API key must never be shipped to a browser. Manage store
+content from a server with `client.merchant.content.*` in
+[`@ledewire/node`](../node/README.md), passing the store's id explicitly.
 
 ## Token Storage
 

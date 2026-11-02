@@ -51,7 +51,7 @@ export type AuthLoginEmailRequest = components['schemas']['AuthLoginEmailRequest
 /** Request body for buyer Google OAuth login. */
 export type AuthLoginOAuthRequest = components['schemas']['AuthLoginOAuthRequest']
 
-/** Request body for API key authentication (seller). */
+/** Request body for store API-key authentication. */
 export type AuthLoginApiKeyRequest = components['schemas']['AuthLoginApiKeyRequest']
 
 /** Request body for merchant email/password login. */
@@ -270,7 +270,7 @@ type _ContentDriftGuard<_T extends U, U> = never
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _ContentSchemaCheck = _ContentDriftGuard<Content, components['schemas']['Content']>
 
-/** Full content item returned by all seller content endpoints. */
+/** Full content item returned by the store content endpoints. */
 export type ContentResponse = components['schemas']['ContentResponse']
 
 /** Request body for updating content. */

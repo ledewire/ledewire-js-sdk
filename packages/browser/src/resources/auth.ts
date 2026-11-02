@@ -5,8 +5,8 @@
  * Tokens are stored automatically in the `TokenManager` after every
  * successful call — callers never need to manage tokens directly.
  *
- * For seller/API key authentication, use {@link BrowserSellerNamespace.loginWithApiKey}
- * via `lw.seller.loginWithApiKey()`.
+ * Store API-key authentication is not offered in the browser: a store API key
+ * must stay server-side. Use `client.merchant.*` in `@ledewire/node` instead.
  *
  * @module
  */

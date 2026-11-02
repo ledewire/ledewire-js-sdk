@@ -1,7 +1,7 @@
 /**
  * Merchant content management namespace.
  *
- * CRUD operations for store content using merchant JWT authentication.
+ * CRUD operations for store content using a merchant JWT or a store API-key token.
  * Requires `owner` role or `is_author` permissions.
  *
  * @module
@@ -36,7 +36,8 @@ export interface MerchantContentSearchRequest {
 }
 
 /**
- * Manage content for a merchant store using merchant JWT authentication.
+ * Manage content for a merchant store using a merchant JWT or a store API-key
+ * token (`client.auth.loginWithApiKey`).
  *
  * Obtain via `client.merchant.content` — do not construct directly.
  */
