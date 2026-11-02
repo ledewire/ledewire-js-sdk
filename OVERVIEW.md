@@ -180,8 +180,8 @@ Every API error throws a `LedewireError` with:
 try {
   await lw.purchases.create({ content_id: '...', price_cents: 250 })
 } catch (err) {
-  if (err instanceof LedewireError && err.statusCode === 400) {
-    // Handle insufficient funds, already purchased, etc.
+  if (err instanceof LedewireError && err.statusCode === 422) {
+    // Price changed, insufficient funds, etc. (see err.type)
   }
 }
 ```

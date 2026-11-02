@@ -115,7 +115,7 @@
         // this response, and this is the only place it will ever appear —
         // there is no route that serves the same delivery again, so persist
         // it immediately if you need it beyond this page view.
-        // priceCents is the price this page showed the buyer. If the Seller
+        // priceCents is the price the buyer was quoted (checkout state). If the Seller
         // has changed it since, the API refuses (422) and charges nothing.
         const purchase = await lw.purchases.create({ content_id: CONTENT_ID, price_cents: priceCents })
         renderContent(purchase)

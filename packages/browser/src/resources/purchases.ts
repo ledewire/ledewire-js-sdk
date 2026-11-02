@@ -52,7 +52,7 @@ export class BrowserPurchasesNamespace {
    * @throws {LedewireError} `422` — `price_cents` no longer matches the
    *   work's current price (`Content (<id>) price appears to have changed`).
    *   Nothing is charged: re-read the price, show it to the buyer, and buy
-   *   again at the new price. A `422` also covers `insufficient_funds` and
+   *   again at the new price. A `422` also covers `insufficient_funds`, `not_subscribed` and
    *   the brokered-delivery refusals, which carry an `error.type`.
    * @throws {LedewireError} `400` — `content_id` or `price_cents` missing or
    *   of the wrong type. Nothing is charged.
