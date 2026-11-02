@@ -596,7 +596,12 @@ export type ContentSearchResultWithPublication =
  */
 export type ContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
 
-/** The buyer search request under its earlier name; the same type as {@link ContentSearchRequest}. */
+/**
+ * The buyer search request under its 0.14.0 name; the same type as {@link ContentSearchRequest}.
+ *
+ * @deprecated Use {@link ContentSearchRequest}. Kept so 0.14.0 code compiles; removed in a
+ *   later breaking release.
+ */
 export type BuyerContentSearchRequest = ContentSearchRequest
 
 /**
