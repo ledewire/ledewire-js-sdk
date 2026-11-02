@@ -30,9 +30,12 @@ const CAP_BODY = {
 }
 
 const API_BASE = 'http://api.test'
-const ORIGIN_URL = 'https://blog.example.com/posts/article'
 const NOW_SECONDS = Math.floor(Date.now() / 1000)
 const CONTENT_ID = 'content-uuid-1'
+/** A paid resource on the configured Ledewire API origin. */
+const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
+/** A resource on some other origin — a real client never pays or authenticates for it. */
+const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
 
 const PAYMENT_REQUIRED_HEADER = btoa(
   JSON.stringify({
@@ -83,6 +86,32 @@ afterAll(() => {
 
 const makeClient = () => new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
 
+/** A PAYMENT-REQUIRED header whose discovery block names `apiBase`. */
+function paymentRequiredNaming(apiBase: string): string {
+  const decoded = JSON.parse(atob(PAYMENT_REQUIRED_HEADER)) as {
+    extensions: { 'ledewire-wallet': Record<string, unknown> }
+  }
+  decoded.extensions['ledewire-wallet']['apiBase'] = apiBase
+  return btoa(JSON.stringify(decoded))
+}
+
+/** Records every buyer-key login against the configured API base. */
+function recordLogins(): string[] {
+  const logins: string[] = []
+  server.use(
+    http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
+      logins.push(request.url)
+      return HttpResponse.json({
+        token_type: 'Bearer',
+        access_token: 'buyer-jwt',
+        refresh_token: 'r',
+        expires_at: new Date(Date.now() + 1800_000).toISOString(),
+      })
+    }),
+  )
+  return logins
+}
+
 describe('wrapFetchWithPayment', () => {
   it('passes through non-402 responses unchanged', async () => {
     server.use(http.get(ORIGIN_URL, () => HttpResponse.json({ ok: true })))
@@ -107,6 +136,25 @@ describe('wrapFetchWithPayment', () => {
     const res = await fetch(ORIGIN_URL)
     expect(res.status).toBe(402)
     await expect(res.json()).resolves.toEqual(CAP_BODY)
+  })
+
+  it('sends the paid retry with redirect: "error", so PAYMENT-SIGNATURE never follows a redirect', async () => {
+    const inits: (RequestInit | undefined)[] = []
+    const spyFetch: typeof globalThis.fetch = (_input, init) => {
+      inits.push(init)
+      return Promise.resolve(
+        init && new Headers(init.headers).has('PAYMENT-SIGNATURE')
+          ? HttpResponse.json({ data: 'content' })
+          : new HttpResponse(null, {
+              status: 402,
+              headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+            }),
+      )
+    }
+    const res = await wrapFetchWithPayment(spyFetch, makeClient())(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(inits).toHaveLength(2)
+    expect(inits[1]?.redirect).toBe('error')
   })
 
   it('calls buildPaymentSignature and sets PAYMENT-SIGNATURE on retry', async () => {
@@ -139,7 +187,7 @@ describe('wrapFetchWithPayment', () => {
     const mockClient = { buildPaymentSignature: buildSpy } satisfies PaymentSigner
 
     server.use(
-      http.get(ORIGIN_URL, ({ request }) => {
+      http.get(THIRD_PARTY_URL, ({ request }) => {
         if (!request.headers.get('PAYMENT-SIGNATURE')) {
           return new HttpResponse(null, {
             status: 402,
@@ -151,9 +199,9 @@ describe('wrapFetchWithPayment', () => {
     )
 
     const fetch = wrapFetchWithPayment(globalThis.fetch, mockClient)
-    await fetch(ORIGIN_URL)
+    await fetch(THIRD_PARTY_URL)
     expect(buildSpy).toHaveBeenCalledOnce()
-    expect(buildSpy).toHaveBeenCalledWith(PAYMENT_REQUIRED_HEADER, ORIGIN_URL)
+    expect(buildSpy).toHaveBeenCalledWith(PAYMENT_REQUIRED_HEADER, THIRD_PARTY_URL)
   })
 
   it('throws InsufficientFundsError on 422 retry response', async () => {
@@ -412,6 +460,105 @@ describe('wrapFetchWithPayment', () => {
       )
       const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
       await expect(fetch(ORIGIN_URL)).rejects.toThrow(InsufficientFundsError)
+    })
+  })
+
+  describe('payment origin restriction', () => {
+    it('returns a 402 from another origin as-is, with no login and no paid retry', async () => {
+      const logins = recordLogins()
+      const signatures: (string | null)[] = []
+      server.use(
+        http.get(THIRD_PARTY_URL, ({ request }) => {
+          signatures.push(request.headers.get('PAYMENT-SIGNATURE'))
+          return HttpResponse.json(
+            { reason: 'pay me' },
+            { status: 402, headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER } },
+          )
+        }),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const res = await fetch(THIRD_PARTY_URL)
+      expect(res.status).toBe(402)
+      expect(res.headers.get('PAYMENT-REQUIRED')).toBe(PAYMENT_REQUIRED_HEADER)
+      await expect(res.json()).resolves.toEqual({ reason: 'pay me' })
+      expect(signatures).toEqual([null])
+      expect(logins).toEqual([])
+    })
+
+    it('returns the very same Response object for a refused origin', async () => {
+      const first = new Response(null, {
+        status: 402,
+        headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+      })
+      const inner = vi.fn().mockResolvedValue(first)
+      const fetch = wrapFetchWithPayment(inner, makeClient())
+      await expect(fetch(new URL(THIRD_PARTY_URL))).resolves.toBe(first)
+      expect(inner).toHaveBeenCalledOnce()
+    })
+
+    it('never contacts an apiBase named in the challenge; logs in at the configured base and pays', async () => {
+      const otherHostHits: string[] = []
+      const logins = recordLogins()
+      const header = paymentRequiredNaming('https://evil.example')
+      const signatures: string[] = []
+      server.use(
+        http.all('https://evil.example/*', ({ request }) => {
+          otherHostHits.push(request.url)
+          return HttpResponse.error()
+        }),
+        http.get(ORIGIN_URL, ({ request }) => {
+          const sig = request.headers.get('PAYMENT-SIGNATURE')
+          if (!sig) {
+            return new HttpResponse(null, { status: 402, headers: { 'PAYMENT-REQUIRED': header } })
+          }
+          signatures.push(sig)
+          return HttpResponse.json({ data: 'content' })
+        }),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+      const res = await fetch(ORIGIN_URL)
+      expect(res.status).toBe(200)
+      expect(signatures).toHaveLength(1)
+      expect(otherHostHits).toEqual([])
+      expect(logins).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
+    })
+
+    it('pays a third-party 402 through a custom signer that has no allowsPaymentTo', async () => {
+      const buildSpy = vi.fn().mockResolvedValue(btoa('{"mock":true}'))
+      server.use(
+        http.get(THIRD_PARTY_URL, ({ request }) => {
+          if (!request.headers.get('PAYMENT-SIGNATURE')) {
+            return new HttpResponse(null, {
+              status: 402,
+              headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+            })
+          }
+          return HttpResponse.json({ ok: true })
+        }),
+      )
+      const fetch = wrapFetchWithPayment(globalThis.fetch, { buildPaymentSignature: buildSpy })
+      const res = await fetch(THIRD_PARTY_URL)
+      expect(res.status).toBe(200)
+      expect(buildSpy).toHaveBeenCalledOnce()
+    })
+
+    it('returns the 402 unpaid when a custom signer refuses the origin', async () => {
+      const buildSpy = vi.fn().mockResolvedValue(btoa('{"mock":true}'))
+      const allowsSpy = vi.fn().mockReturnValue(false)
+      server.use(
+        http.get(ORIGIN_URL, () => {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }),
+      )
+      const signer: PaymentSigner = { buildPaymentSignature: buildSpy, allowsPaymentTo: allowsSpy }
+      const fetch = wrapFetchWithPayment(globalThis.fetch, signer)
+      const res = await fetch(ORIGIN_URL)
+      expect(res.status).toBe(402)
+      expect(allowsSpy).toHaveBeenCalledWith(ORIGIN_URL)
+      expect(buildSpy).not.toHaveBeenCalled()
     })
   })
 })

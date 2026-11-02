@@ -11,4 +11,13 @@ describe('index exports', () => {
     expect(x402Client.LedewireError).toBeTypeOf('function')
     expect(x402Client.SpendCapReachedError).toBeTypeOf('function')
   })
+
+  it('exports PaymentOriginNotAllowedError as a LedewireError', () => {
+    const err = new x402Client.PaymentOriginNotAllowedError(
+      'https://a.example',
+      'https://b.example',
+    )
+    expect(err).toBeInstanceOf(x402Client.LedewireError)
+    expect(err.name).toBe('PaymentOriginNotAllowedError')
+  })
 })

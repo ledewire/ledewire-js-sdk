@@ -11,13 +11,17 @@ import { parsePaymentRefusal } from '../parse.js'
  * that carries no `PAYMENT-REQUIRED` header — pass through unchanged; the API
  * never refuses that first request (see ledewire/api#1066).
  *
- * **Security note — the spend-cap numbers on {@link SpendCapReachedError} are
- * untrusted.** This wrapper fetches arbitrary third-party URLs, so a
- * `daily_spend_cap_reached` refusal can come from *any* server the caller
- * points it at, not only LedeWire's API — nothing here verifies it. Never
- * change a buyer's LedeWire spend cap based on the fields of an error caught
- * from this wrapper; confirm the real cap and spend first, against the
- * LedeWire API itself, via `user.spendCap.get()`.
+ * With a {@link LedewirePaymentClient}, only requests to the configured
+ * Ledewire API origin are paid: a `402` from any other origin is returned to
+ * the caller unpaid, with no login and no retry. A custom
+ * {@link PaymentSigner} decides this through its optional `allowsPaymentTo`.
+ *
+ * **Security note — treat the spend-cap numbers on {@link SpendCapReachedError}
+ * as informational.** They come from the response to the paid request, which
+ * nothing here verifies independently (and a custom signer may pay other
+ * origins). Never change a buyer's LedeWire spend cap based on the fields of
+ * an error caught from this wrapper; confirm the real cap and spend first,
+ * against the LedeWire API itself, via `user.spendCap.get()`.
  *
  * @example
  * ```ts
@@ -26,7 +30,7 @@ import { parsePaymentRefusal } from '../parse.js'
  * const client = new LedewirePaymentClient({ key, secret })
  * const fetch = wrapFetchWithPayment(globalThis.fetch, client)
  *
- * const res = await fetch('https://blog.example.com/posts/article')
+ * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
  *
  * @throws {UnsupportedSchemeError} When the `402` is not a `ledewire-wallet` challenge.
@@ -68,12 +72,19 @@ export function wrapFetchWithPayment(
       return firstResponse
     }
 
+    if (client.allowsPaymentTo && !client.allowsPaymentTo(url)) {
+      // Not the configured Ledewire API: never pay or authenticate for it.
+      return firstResponse
+    }
+
     const paymentSignature = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
     const paidHeaders = new Headers(init?.headers)
     paidHeaders.set('PAYMENT-SIGNATURE', paymentSignature)
 
-    const paidResponse = await fetchFn(input, { ...init, headers: paidHeaders })
+    // redirect: 'error' — PAYMENT-SIGNATURE is a custom header, which fetch keeps
+    // on a redirect; never let the paid retry carry it to another location.
+    const paidResponse = await fetchFn(input, { ...init, headers: paidHeaders, redirect: 'error' })
 
     if (paidResponse.ok) {
       return paidResponse

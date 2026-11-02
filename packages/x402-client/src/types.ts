@@ -9,6 +9,15 @@ export interface PaymentSigner {
    * base64-encoded `PAYMENT-SIGNATURE` string.
    */
   buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string>
+  /**
+   * Optional origin check. When present, the adapters call it with the full
+   * URL of the request that got the `402` and return that `402` to the caller
+   * unpaid when it returns `false` — no signature is built and no retry is
+   * made. `LedewirePaymentClient` implements it to allow only the configured
+   * Ledewire API origin. Signers without it are asked to sign every
+   * `PAYMENT-REQUIRED` challenge, as before.
+   */
+  allowsPaymentTo?(url: string): boolean
 }
 
 /**
@@ -26,8 +35,9 @@ export interface LedewireFetchConfig {
   secret: string
   /**
    * Override the Ledewire API base URL. Defaults to `https://api.ledewire.com`.
-   * Can also be discovered from the `extensions.ledewire-wallet.apiBase` field
-   * in a PAYMENT-REQUIRED response, which takes precedence when present.
+   * This is the only host buyer credentials and payments go to: the buyer-key
+   * login is sent here, and only requests to this origin are paid. A
+   * `PAYMENT-REQUIRED` challenge cannot change it.
    */
   apiBase?: string
   /**

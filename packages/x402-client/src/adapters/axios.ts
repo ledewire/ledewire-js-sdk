@@ -10,19 +10,25 @@ import { parsePaymentRefusal } from '../parse.js'
  * and retries the original request using the same Axios config. Returns the
  * same instance (mutated in-place) so calls can be chained.
  *
+ * With a {@link LedewirePaymentClient}, only requests to the configured
+ * Ledewire API origin are paid (the full URL is resolved with
+ * `instance.getUri()`, so `baseURL` is honoured): a `402` from any other
+ * origin rejects with the original Axios error, with no login and no retry.
+ * A custom {@link PaymentSigner} decides this through its optional
+ * `allowsPaymentTo`.
+ *
  * Requires `axios` to be installed as a peer dependency.
  *
  * Any `402` on the FIRST (unpaid) request that carries no `payment-required`
  * header passes through unchanged (rejects with the original Axios error) —
  * the API never refuses that first request (see ledewire/api#1066).
  *
- * **Security note — the spend-cap numbers on {@link SpendCapReachedError} are
- * untrusted.** This wrapper intercepts responses for arbitrary third-party
- * URLs, so a `daily_spend_cap_reached` refusal can come from *any* server
- * the caller points it at, not only LedeWire's API — nothing here verifies
- * it. Never change a buyer's LedeWire spend cap based on the fields of an
- * error caught from this interceptor; confirm the real cap and spend first,
- * against the LedeWire API itself, via `user.spendCap.get()`.
+ * **Security note — treat the spend-cap numbers on {@link SpendCapReachedError}
+ * as informational.** They come from the response to the paid request, which
+ * nothing here verifies independently (and a custom signer may pay other
+ * origins). Never change a buyer's LedeWire spend cap based on the fields of
+ * an error caught from this interceptor; confirm the real cap and spend
+ * first, against the LedeWire API itself, via `user.spendCap.get()`.
  *
  * @example
  * ```ts
@@ -33,7 +39,7 @@ import { parsePaymentRefusal } from '../parse.js'
  * const client = new LedewirePaymentClient({ key, secret })
  * const api = wrapAxiosWithPayment(axios.create(), client)
  *
- * const res = await api.get('https://blog.example.com/posts/article')
+ * const res = await api.get('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
  *
  * @throws {UnsupportedSchemeError} When the `402` is not a `ledewire-wallet` challenge.
@@ -76,14 +82,28 @@ export function wrapAxiosWithPayment(
       if (!originalConfig) {
         return Promise.reject(error)
       }
-      const url = originalConfig.url ?? ''
+      // The paid retry runs back through this interceptor. If it is challenged
+      // again, hand the 402 to the caller rather than pay a second time:
+      // every attempt would be a separate payment.
+      if (originalConfig.headers.has('PAYMENT-SIGNATURE')) {
+        return Promise.reject(error)
+      }
+      // Resolve baseURL + url (+ params) to the absolute URL actually requested.
+      const url = instance.getUri(originalConfig)
+
+      if (client.allowsPaymentTo && !client.allowsPaymentTo(url)) {
+        // Not the configured Ledewire API: never pay or authenticate for it.
+        return Promise.reject(error)
+      }
 
       const paymentSignature = await client.buildPaymentSignature(paymentRequiredHeader, url)
 
       originalConfig.headers.set('PAYMENT-SIGNATURE', paymentSignature)
 
       try {
-        return await instance.request(originalConfig)
+        // maxRedirects: 0 — never let the paid retry carry PAYMENT-SIGNATURE
+        // to another location.
+        return await instance.request({ ...originalConfig, maxRedirects: 0 })
       } catch (retryError) {
         const axiosRetryError = retryError as AxiosError
         const retryStatus = axiosRetryError.response?.status ?? 0
