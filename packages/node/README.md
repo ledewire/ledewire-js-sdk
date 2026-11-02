@@ -451,12 +451,16 @@ const keyHistory = await client.acquisitions.signingKeyHistory()
 ## Example: Buyer Content Search
 
 Search every Store and every brokered Publication from a Buyer's server. Page with
-`next_cursor` until it is `null`:
+`next_cursor` until it is `null`. The request is a `ContentSearchRequest` (a Store's search
+of its own content, `client.merchant.content.search()`, takes a `MerchantContentSearchRequest`):
 
 ```ts
+import type { ContentSearchRequest } from '@ledewire/node'
+
 let cursor: string | null | undefined
 do {
-  const page = await client.content.search({ query: 'quantum computing', cursor, limit: 20 })
+  const request: ContentSearchRequest = { query: 'quantum computing', cursor, limit: 20 }
+  const page = await client.content.search(request)
   for (const result of page.data) {
     console.log(result.title, result.publication?.name ?? '(Store work)')
   }

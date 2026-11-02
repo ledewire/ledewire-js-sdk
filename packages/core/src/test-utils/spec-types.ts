@@ -29,6 +29,24 @@ export type OperationOk<
   ? Body
   : never
 
+/**
+ * The `application/json` request body an operation declares. `never` when it
+ * declares none, so a pin against a missing body fails rather than passing vacuously.
+ *
+ * @example
+ * ```ts
+ * type Search = OperationBody<'/v1/content/search', 'post'>
+ * ```
+ */
+export type OperationBody<
+  P extends keyof paths,
+  M extends 'get' | 'post' | 'put' | 'patch' | 'delete',
+> = paths[P][M] extends {
+  requestBody: { content: { 'application/json': infer Body } }
+}
+  ? Body
+  : never
+
 /** The resolved value of an async method's returned promise. */
 export type Returns<F> = F extends (...args: never[]) => Promise<infer R> ? R : never
 

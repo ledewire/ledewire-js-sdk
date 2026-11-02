@@ -385,7 +385,7 @@ client.content.getWithAccess(contentId) → Promise<ContentWithAccessResponse>
 //   visibility: 'public', resource_url: string | null, access_info } — never the
 //   deliverable, which comes only from purchases.create().
 
-client.content.search(body)                                             → Promise<ContentSearchResponse>
+client.content.search(body: ContentSearchRequest)                       → Promise<ContentSearchResponse>
 // Buyer search across every Store and brokered Publication (Buyer or Machine user credentials).
 // body: { query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? }
 // (limit defaults to 20). publication: a Publication id or exact name (any case).

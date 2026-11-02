@@ -590,8 +590,14 @@ export type ContentSearchResultWithPublication =
  * case). `form_type`, `ticker` and `cik` keep only SEC EDGAR filings, and let `query` be
  * omitted to list the filings they name, newest first. `form_type` includes amendments
  * (`10-K` also returns `10-K/A`).
+ *
+ * This is the buyer's search, the request `content.search()` takes. A Store's search of its
+ * own content is `MerchantContentSearchRequest`.
  */
-export type BuyerContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+export type ContentSearchRequest = Partial<components['schemas']['ContentSearchRequest']>
+
+/** The buyer search request under its earlier name; the same type as {@link ContentSearchRequest}. */
+export type BuyerContentSearchRequest = ContentSearchRequest
 
 /**
  * One page of a buyer's LedeWire search. Keep paging while `next_cursor` is not null.

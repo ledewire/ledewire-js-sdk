@@ -14,8 +14,9 @@ import type {
   X402JwksResponse,
   X402VerifyOriginResponse,
 } from '@ledewire/core'
-import type { OperationOk, Returns } from '@ledewire/core/test-utils'
+import type { OperationBody, OperationOk, Returns } from '@ledewire/core/test-utils'
 import type { NodeClient } from './client.js'
+import type { BuyerContentSearchRequest, ContentSearchRequest } from './index.js'
 
 describe('return types match the spec operation responses', () => {
   it('content.getWithAccess', () => {
@@ -92,6 +93,18 @@ describe('return types match the spec operation responses', () => {
     expectTypeOf<Sale>().not.toHaveProperty('buyer_id')
     expectTypeOf<Sale>().not.toHaveProperty('buyer')
     expectTypeOf<Sale['fees']['store_net_cents']>().toEqualTypeOf<number | null>()
+  })
+
+  it('content.search takes the buyer search request, exported as ContentSearchRequest', () => {
+    // limit defaults on the server, though the spec marks it required, so every field is optional.
+    type Body = Partial<OperationBody<'/v1/content/search', 'post'>>
+    expectTypeOf<ContentSearchRequest>().toEqualTypeOf<Body>()
+    expectTypeOf<BuyerContentSearchRequest>().toEqualTypeOf<ContentSearchRequest>()
+    expectTypeOf<
+      Parameters<NodeClient['content']['search']>[0]
+    >().toEqualTypeOf<ContentSearchRequest>()
+    expectTypeOf<ContentSearchRequest>().toHaveProperty('query')
+    expectTypeOf<ContentSearchRequest>().not.toHaveProperty('title')
   })
 
   it('invitation lookup and accept', () => {

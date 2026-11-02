@@ -279,8 +279,9 @@ const summary = await client.merchant.sales.summary(store_id)</code></pre>
         </tbody>
       </table>
       <p>
-        The <code>ContentSearchRequest</code> type is gone; use
-        <code>MerchantContentSearchRequest</code>. In <code>@ledewire/browser</code>,
+        The seller-shaped search request is now only <code>MerchantContentSearchRequest</code>;
+        <code>ContentSearchRequest</code> names the buyer search request that
+        <code>client.content.search()</code> takes. In <code>@ledewire/browser</code>,
         <code>lw.seller</code> (including <code>lw.seller.loginWithApiKey</code> and
         <code>lw.seller.content.*</code>) has been removed: the browser SDK is buyer-only, and a
         store API key does not belong in a browser.
@@ -484,7 +485,8 @@ if (purchase.license?.document_url) {
 
       <h3>Buyer content search</h3>
       <p>
-        <code>client.content.search()</code> searches every Store and brokered Publication. Page
+        <code>client.content.search()</code> takes a <code>ContentSearchRequest</code> and
+        searches every Store and brokered Publication. Page
         with <code>next_cursor</code>, sending the same filters, until it is <code>null</code>.
         <code>publication</code> keeps one Publication's works (its id, or its exact name).
         <code>form_type</code>, <code>ticker</code> and <code>cik</code> return only SEC EDGAR

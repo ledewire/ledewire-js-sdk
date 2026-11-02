@@ -1,7 +1,7 @@
 import { decodeContentFields } from '@ledewire/core'
 import type { HttpClient } from '@ledewire/core'
 import type {
-  BuyerContentSearchRequest,
+  ContentSearchRequest,
   ContentSearchResponse,
   ContentWithAccessResponse,
 } from '@ledewire/core'
@@ -100,7 +100,7 @@ export class ContentNamespace {
    * const atlantic = await client.content.search({ query: 'housing', publication: 'The Atlantic' })
    * ```
    */
-  async search(body: BuyerContentSearchRequest): Promise<ContentSearchResponse> {
+  async search(body: ContentSearchRequest): Promise<ContentSearchResponse> {
     return this.http.post<ContentSearchResponse>('/v1/content/search', body)
   }
 }

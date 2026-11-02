@@ -8,8 +8,8 @@ Remove `client.seller` from `@ledewire/node` and `lw.seller` from `@ledewire/bro
 **Breaking:** the API retired `/v1/seller/{sales,sales/summary,buyers,config}`, and
 `/v1/seller/content*` is past its 2026-09-01 sunset, so the `seller` namespaces called routes
 that no longer work. Node's `client.seller` (`content`, `sales`, `buyers`, `config`) is gone,
-along with its `createMockClient()` stubs and the `ContentSearchRequest` type (use
-`MerchantContentSearchRequest`). `client.merchant.*` accepts store API-key tokens from
+along with its `createMockClient()` stubs and the seller-shaped `ContentSearchRequest` type (use
+`MerchantContentSearchRequest`; `ContentSearchRequest` now names the buyer search request). `client.merchant.*` accepts store API-key tokens from
 `client.auth.loginWithApiKey()`; every replacement takes the store's id, which you pass
 explicitly for now:
 
