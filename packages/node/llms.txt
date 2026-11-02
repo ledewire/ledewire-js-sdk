@@ -726,8 +726,16 @@ await agent.auth.loginWithBuyerApiKey({
 
 // Step 2: use wallet, purchases, content, checkout normally
 const balance = await agent.wallet.balance()
-const purchase = await agent.purchases.create({ content_id: 'abc123' })
-const article  = await agent.content.getWithAccess(purchase.content_id)
+// Check access before buying: getWithAccess is a preview, never the deliverable
+const preview = await agent.content.getWithAccess('abc123')
+if (preview.access_info.next_required_action === 'purchase') {
+  // The purchase response is the only (single-use) delivery: keep it now
+  const purchase = await agent.purchases.create({
+    content_id: preview.id,
+    price_cents: preview.price_cents,
+  })
+  const article = purchase.content_body ?? purchase.content_uri
+}
 ```
 
 `AgentClient` is typed as `Pick<NodeClient, 'auth' | 'wallet' | 'purchases' | 'content' | 'checkout' | 'user' | 'company' | 'publications' | 'acquisitions' | 'x402'>`.
