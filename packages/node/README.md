@@ -373,7 +373,7 @@ const bot = await client.company.machineUsers.create({ name: 'research-agent' })
 const { key, secret } = await client.company.machineUsers.buyerKeys.create(bot.id, {
   name: 'production',
 })
-const agent = createAgentClient({ key, secret }) // authenticates as the Machine user
+const agent = createAgentClient({ key, secret }) // logs in as the Machine user on its first call
 await client.company.machineUsers.mcpKeys.create(bot.id, {
   label: 'research-agent',
   scopes: ['mcp:search', 'mcp:purchase'],

@@ -345,10 +345,18 @@ export type AgentClient = Pick<
 /**
  * Creates a LedeWire client optimised for autonomous agents.
  *
- * The client authenticates automatically using a buyer API key + secret.
- * On the first API call the agent exchanges its credentials for a JWT; the
- * `TokenManager` then refreshes it proactively in the background — the agent
- * never needs to call `auth.loginWithBuyerApiKey()` manually.
+ * The client logs in by itself with the buyer API key and secret: the first
+ * authenticated call exchanges them for a session (through
+ * `auth.loginWithBuyerApiKey()`), concurrent first calls share that one login,
+ * and the `TokenManager` refreshes the session in the background. If a refresh
+ * fails, the client logs in again with the key and retries the call once. No
+ * explicit `auth.loginWithBuyerApiKey()` call is needed. A wrong or revoked key
+ * rejects the call with the API's `AuthError` after a single login attempt.
+ *
+ * A client that already holds a token (from `storage`, or an explicit login)
+ * does not log in. Don't mix another identity on an agent client (another
+ * buyer key, or `storage` holding someone else's session): if that session's
+ * refresh fails, the client falls back to the configured key.
  *
  * Only buyer-relevant namespaces are exposed. `merchant` and `config` are
  * intentionally absent.
@@ -362,11 +370,8 @@ export type AgentClient = Pick<
  *   secret: process.env.LEDEWIRE_BUYER_SECRET,
  * })
  *
- * // Authenticate once, then use the wallet and purchasing APIs freely
- * await agent.auth.loginWithBuyerApiKey({
- *   key: process.env.LEDEWIRE_BUYER_KEY,
- *   secret: process.env.LEDEWIRE_BUYER_SECRET,
- * })
+ * // The first call logs in with the key; no explicit login is needed
+ * const balance = await agent.wallet.balance()
  *
  * // Check access before buying: a preview and access_info, never the deliverable
  * const preview = await agent.content.getWithAccess('abc123')
@@ -383,10 +388,19 @@ export type AgentClient = Pick<
 export function createAgentClient(config: AgentClientConfig): AgentClient {
   const baseUrl = config.baseUrl ?? DEFAULT_BASE_URL
   const storage = config.storage ?? new MemoryTokenStorage()
+  const { key, secret } = config
+
+  // The buyer key logs in by itself, through the same `loginWithBuyerApiKey`
+  // an explicit login uses (a credential exchange, so it never re-enters the
+  // token manager). `client` is read only when a request needs a token, by
+  // which point it is constructed below.
+  const login = async (): Promise<string> =>
+    (await client.auth.loginWithBuyerApiKey({ key, secret })).access_token
 
   const tokenManager = new TokenManager({
     storage,
     refreshFn: createRefreshFn(baseUrl),
+    login,
   })
 
   const http = new HttpClient({
