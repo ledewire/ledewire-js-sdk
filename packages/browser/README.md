@@ -40,17 +40,18 @@ const lw = init({
 
 ## Client Namespaces
 
-| Namespace          | Description                                                                     |
-| ------------------ | ------------------------------------------------------------------------------- |
-| `lw.config`        | Platform public config (no auth required)                                       |
-| `lw.auth`          | Buyer signup, email/password login, Google OAuth, API key login, password reset |
-| `lw.wallet`        | Wallet balance, fund wallet via payment session                                 |
-| `lw.purchases`     | List and create content purchases; download a purchase's licence document       |
-| `lw.content`       | Fetch content with buyer access info                                            |
-| `lw.checkout`      | Checkout state — what action is required next                                   |
-| `lw.user.spendCap` | Buyer's daily spend cap — read and update the ceiling                           |
-| `lw.user.mcpKeys`  | Manage buyer MCP API keys for the Ledewire MCP server                           |
-| `lw.company`       | Company wallets: membership, invitations, members, Machine users, top-ups       |
+| Namespace             | Description                                                                     |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `lw.config`           | Platform public config (no auth required)                                       |
+| `lw.auth`             | Buyer signup, email/password login, Google OAuth, API key login, password reset |
+| `lw.wallet`           | Wallet balance, fund wallet via payment session                                 |
+| `lw.purchases`        | List and create content purchases; download a purchase's licence document       |
+| `lw.content`          | Fetch content with buyer access info                                            |
+| `lw.checkout`         | Checkout state — what action is required next                                   |
+| `lw.user.spendCap`    | Buyer's daily spend cap — read and update the ceiling                           |
+| `lw.user.mcpKeys`     | Manage buyer MCP API keys for the Ledewire MCP server                           |
+| `lw.user.paymentKeys` | Register, list and revoke the Ed25519 Payment keys that sign x402 payments      |
+| `lw.company`          | Company wallets: membership, invitations, members, Machine users, top-ups       |
 
 ## Example: Fetch Google OAuth Client ID Before Sign-In
 
@@ -162,6 +163,16 @@ await lw.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20
 const { key, secret } = await lw.user.mcpKeys.create({ label: 'my-agent', can_search: true })
 const keys = await lw.user.mcpKeys.list() // secrets never included
 await lw.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
+
+// Payment keys: the public Ed25519 keys that sign x402 payments. Never a login
+// credential and no secret; the SDK never takes the private key. `public_key` is
+// unpadded base64url of the 32 raw public-key bytes; `proof` is unpadded base64url
+// of that key's signature over 'ledewire-payment-key:' + public_key (see the
+// @ledewire/node README for a Node crypto recipe). At most 10 active: register the
+// replacement before revoking. Buyer tokens only; a bad proof or key gets 422.
+const paymentKey = await lw.user.paymentKeys.create({ name: 'my-agent', public_key, proof })
+const paymentKeys = await lw.user.paymentKeys.list() // a plain array, newest first
+await lw.user.paymentKeys.revoke(paymentKey.id)
 ```
 
 ## Example: Company Wallets
@@ -191,7 +202,7 @@ const { data: pending } = await lw.company.wallet.listPendingTopUps()
 ```
 
 The full surface (`membership`, `invitations`, `members`, `machineUsers` with
-`buyerKeys` / `mcpKeys`, `wallet`, `purchases`, `spend`) matches
+`buyerKeys` / `mcpKeys` / `paymentKeys`, `wallet`, `purchases`, `spend`) matches
 [`@ledewire/node`](../node/README.md#example-company-wallets). Admin-only
 methods throw `ForbiddenError` for a plain member.
 

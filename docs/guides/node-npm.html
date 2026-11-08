@@ -210,8 +210,8 @@ console.log(summary, data)</code></pre>
         no token is stored, and concurrent first requests share one login. When a refresh fails
         later, it logs in with the key again and retries the request once.
         <code>onAuthExpired</code> fires only when an automatic login fails, once per failed
-        attempt. A refused key rejects the request with an <code>AuthError</code> carrying the
-        API's message.
+        attempt. A refused key rejects the request with an <code>AuthError</code> carrying the API's
+        message.
       </p>
       <p>
         On a client created with <code>apiKey</code>, clearing the stored tokens doesn't drop the
@@ -238,8 +238,8 @@ const summary = await client.merchant.sales.summary(store_id)</code></pre>
       <p>
         A store API key logged in with its secret has <code>full</code> permission; logged in with
         the key alone it has <code>view</code> permission. Reads work with either. Content writes,
-        member admin and x402 setup need a <strong>full</strong> key (or an owner's merchant
-        login), and a <code>view</code> key gets a <code>403</code> <code>ForbiddenError</code>:
+        member admin and x402 setup need a <strong>full</strong> key (or an owner's merchant login),
+        and a <code>view</code> key gets a <code>403</code> <code>ForbiddenError</code>:
       </p>
       <ul>
         <li>
@@ -251,20 +251,18 @@ const summary = await client.merchant.sales.summary(store_id)</code></pre>
           <code>remove</code>
         </li>
         <li><code>merchant.pricingRules.create</code>, <code>deactivate</code></li>
-        <li>
-          <code>merchant.domains.add</code>, <code>verify</code>, <code>remove</code>
-        </li>
+        <li><code>merchant.domains.add</code>, <code>verify</code>, <code>remove</code></li>
       </ul>
 
       <h3 id="store-invitations">Store invitations</h3>
       <p>
         <code>merchant.users.invite()</code> emails an <code>invitation_token</code> to someone
         without an account. A signup page can show the invitation first with the public
-        <code>client.auth.getInviteInfo(token)</code>, which sends no credentials. The invitee
-        then joins through <code>client.auth.signup()</code> or
-        <code>client.auth.loginWithGoogle()</code> with <code>invitation_token</code>, or, already
-        a merchant, through <code>client.merchant.auth.acceptInvitation()</code>. A refused
-        invitation carries <code>err.type === 'invitation_not_accepted'</code> and the reason in
+        <code>client.auth.getInviteInfo(token)</code>, which sends no credentials. The invitee then
+        joins through <code>client.auth.signup()</code> or
+        <code>client.auth.loginWithGoogle()</code> with <code>invitation_token</code>, or, already a
+        merchant, through <code>client.merchant.auth.acceptInvitation()</code>. A refused invitation
+        carries <code>err.type === 'invitation_not_accepted'</code> and the reason in
         <code>err.details.reason</code>.
       </p>
       <pre><code>const invite = await client.auth.getInviteInfo(token) // 404 unknown, 409 used, 410 expired
@@ -439,9 +437,13 @@ try {
             <td>list, create, revoke</td>
           </tr>
           <tr>
+            <td><code>client.user.paymentKeys.*</code></td>
+            <td>list, create, revoke (Ed25519 Payment keys for x402; no secret)</td>
+          </tr>
+          <tr>
             <td><code>client.company.*</code></td>
             <td>
-              membership, invitations, members, machineUsers (+ buyerKeys, mcpKeys), wallet,
+              membership, invitations, members, machineUsers (+ buyerKeys, mcpKeys, paymentKeys), wallet,
               purchases, spend
             </td>
           </tr>
@@ -518,15 +520,15 @@ if (purchase.license?.document_url) {
 
       <h3>Buyer content search</h3>
       <p>
-        <code>client.content.search()</code> takes a <code>ContentSearchRequest</code> and
-        searches every Store and brokered Publication. Page
-        with <code>next_cursor</code>, sending the same filters, until it is <code>null</code>.
-        <code>publication</code> keeps one Publication's works (its id, or its exact name).
-        <code>form_type</code>, <code>ticker</code> and <code>cik</code> return only SEC EDGAR
-        filings, and <code>query</code> may then be left out to list them newest first. Each
-        result's <code>filing</code> gives the filer, ticker, CIK, form, filing date, period of
-        report and accession number, and is <code>null</code> for every other work.
-        Only Buyers whose Company subscribes to SEC filings are shown filings: for any other Buyer these filters return no results.
+        <code>client.content.search()</code> takes a <code>ContentSearchRequest</code> and searches
+        every Store and brokered Publication. Page with <code>next_cursor</code>, sending the same
+        filters, until it is <code>null</code>. <code>publication</code> keeps one Publication's
+        works (its id, or its exact name). <code>form_type</code>, <code>ticker</code> and
+        <code>cik</code> return only SEC EDGAR filings, and <code>query</code> may then be left out
+        to list them newest first. Each result's <code>filing</code> gives the filer, ticker, CIK,
+        form, filing date, period of report and accession number, and is <code>null</code> for every
+        other work. Filings are shown to every signed-in Buyer, up to that Buyer's limit on SEC
+        requests; over it, the search returns what it could with <code>partial_results: true</code>.
       </p>
       <pre><code>// Apple's annual reports, amendments (10-K/A) included.
 let cursor
@@ -539,10 +541,11 @@ do {
 } while (cursor)</code></pre>
       <p>
         A cursor lasts 24 hours and fits only the search that issued it. One that is expired,
-        invalid, or sent with different filters throws <code>InvalidCursorError</code>
-        (<code>statusCode</code> 422, <code>type</code> <code>'invalid_cursor'</code>), and nothing
-        is searched. Drop the cursor and restart the search from the first page: the same cursor
-        never succeeds on retry.
+        invalid, or sent with different filters throws <code>InvalidCursorError</code> (<code
+          >statusCode</code
+        >
+        422, <code>type</code> <code>'invalid_cursor'</code>), and nothing is searched. Drop the
+        cursor and restart the search from the first page: the same cursor never succeeds on retry.
       </p>
       <pre><code>import { InvalidCursorError } from '@ledewire/node'
 
@@ -554,8 +557,8 @@ try {
 }</code></pre>
       <p>
         <code>client.publications.list()</code> and <code>get()</code> are sent without credentials,
-        so they return the public catalog. The API shows SEC EDGAR there only to a Buyer whose
-        Company holds a Subscription; search filings with the filters above instead.
+        so they return the public catalog. The API shows SEC EDGAR there only to a signed-in Buyer;
+        search filings with the filters above instead.
       </p>
 
       <h3>Bulk licensing (agents)</h3>

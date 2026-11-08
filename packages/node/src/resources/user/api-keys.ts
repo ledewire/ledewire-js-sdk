@@ -11,8 +11,9 @@ import type { UserApiKey, UserApiKeyCreateRequest, UserApiKeyCreateResponse } fr
  *
  * Buyer API keys are the authentication credential for autonomous agents — they
  * allow an agent to obtain a buyer JWT via `auth.loginWithBuyerApiKey()` without
- * requiring a username and password. Each key is named, independently revocable,
- * and can carry an optional `spending_limit_cents` ceiling.
+ * requiring a username and password. Each key is named and independently
+ * revocable. A key carries no spend limit of its own: what an agent may spend is
+ * the buyer's daily Spend cap (`client.user.spendCap`).
  *
  * **Secret handling:** `create()` returns the `secret` exactly once. It is never
  * retrievable again after the response is received — store it immediately in a
@@ -22,11 +23,8 @@ import type { UserApiKey, UserApiKeyCreateRequest, UserApiKeyCreateResponse } fr
  *
  * @example
  * ```ts
- * // Create a key for an agent, with a $10 spend ceiling
- * const { key, secret } = await client.user.apiKeys.create({
- *   name: 'my-rag-agent',
- *   spending_limit_cents: 1000,
- * })
+ * // Create a key for an agent; the buyer's Spend cap limits what it spends
+ * const { key, secret } = await client.user.apiKeys.create({ name: 'my-rag-agent' })
  * // Store secret immediately — it cannot be retrieved again
  * await secretsManager.put('LEDEWIRE_BUYER_SECRET', secret)
  *
@@ -58,7 +56,8 @@ export class UserApiKeysNamespace {
    * again. Store it immediately in a secrets manager before discarding the
    * response object.
    *
-   * @param body - Name and optional spend ceiling for the new key.
+   * @param body - The new key's name. To limit what the key may spend, set the
+   *   buyer's daily Spend cap with `client.user.spendCap.update()`.
    * @returns The new key's public identifier and one-time secret.
    * @throws {ForbiddenError} When the caller is a Machine user, whose keys its
    *   Company's admins manage through `company.machineUsers.buyerKeys`.
@@ -67,7 +66,6 @@ export class UserApiKeysNamespace {
    * ```ts
    * const { key, secret } = await client.user.apiKeys.create({
    *   name: 'production-agent',
-   *   spending_limit_cents: 5000, // $50 cap
    * })
    * // ⚠️ Store secret NOW — it is shown once only
    * process.env.LEDEWIRE_BUYER_SECRET = secret

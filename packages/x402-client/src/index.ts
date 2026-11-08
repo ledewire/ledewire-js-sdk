@@ -2,15 +2,23 @@
  * @ledewire/x402-client
  *
  * Runtime-agnostic x402 payment client for the Ledewire `ledewire-wallet` scheme.
- * Works in Node.js 18+, Deno, Cloudflare Workers, and any environment with
- * web-standard `fetch`, `atob`, and `btoa`.
+ * Works in Node.js 20+, Deno, Cloudflare Workers, current browsers, and any
+ * environment with web-standard `fetch`, `atob`, `btoa` and WebCrypto Ed25519
+ * (`crypto.subtle`).
+ *
+ * Every payment is a Payment authorization signed with an Ed25519 Payment key
+ * the Buyer registered (see {@link registerPaymentKey}); no session token or
+ * API key is sent to pay.
  *
  * ## Quick start (fetch)
  * @example
  * ```ts
  * import { createLedewireFetch } from '@ledewire/x402-client'
  *
- * const fetch = createLedewireFetch({ key: 'bktst_...', secret: '...' })
+ * const fetch = createLedewireFetch({
+ *   paymentKey: { id: process.env.LEDEWIRE_PAYMENT_KEY_ID, privateKey: process.env.LEDEWIRE_PAYMENT_KEY },
+ *   maxPriceCents: 500,
+ * })
  * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
  *
@@ -21,7 +29,7 @@
  * import { LedewirePaymentClient } from '@ledewire/x402-client'
  * import { wrapAxiosWithPayment } from '@ledewire/x402-client/axios'
  *
- * const client = new LedewirePaymentClient({ key: 'bktst_...', secret: '...' })
+ * const client = new LedewirePaymentClient({ paymentKey, maxPriceCents: 500 })
  * const api = wrapAxiosWithPayment(axios.create(), client)
  * const res = await api.get('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * ```
@@ -31,14 +39,14 @@
  * ```ts
  * import { LedewirePaymentClient } from '@ledewire/x402-client'
  *
- * const client = new LedewirePaymentClient({ key: 'bktst_...', secret: '...' })
+ * const client = new LedewirePaymentClient({ paymentKey, maxPriceCents: 500 })
  * // In your interceptor — pay only the configured Ledewire API:
  * if (!client.allowsPaymentTo(request.url)) return response
  * const sig = await client.buildPaymentSignature(
  *   response.headers.get('payment-required'),
  *   request.url,
  * )
- * // Set PAYMENT-SIGNATURE: sig on the retry request.
+ * // Set PAYMENT-SIGNATURE: sig on one retry request, with redirects off.
  * ```
  *
  * @module
@@ -47,10 +55,20 @@ export { createLedewireFetch } from './client.js'
 export { LedewireAuthManager } from './auth.js'
 export { LedewirePaymentClient, throwPaymentError } from './payment-client.js'
 export { wrapFetchWithPayment } from './adapters/fetch.js'
+export { registerPaymentKey, createPaymentKeyRegistration } from './payment-keys.js'
+export type {
+  PaymentKeyCreateBody,
+  PaymentKeyRegistration,
+  PaymentKeyRegistrar,
+  RegisterPaymentKeyOptions,
+  RegisteredPaymentKey,
+} from './payment-keys.js'
+export { generatePaymentKey, canonicalAuthorization } from './signing.js'
 export {
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
-  NonceExpiredError,
+  PaymentRefusedError,
+  PriceAboveMaximumError,
   InsufficientFundsError,
   PaymentOriginNotAllowedError,
 } from './errors.js'
@@ -60,13 +78,11 @@ export {
  * internals, not published to npm. Import them from here (or from
  * `@ledewire/node`), never from `@ledewire/core` directly.
  *
- * On the PAID request's `402` refusal (spec form, ledewire/api#1066):
- * `AuthError` maps `invalid_ledewire_wallet_payload_token`, `ForbiddenError`
- * maps `invalid_ledewire_wallet_payload_role`, and `SpendCapReachedError`
- * maps `daily_spend_cap_reached`. The pre-api#1066 legacy mapping (kept
- * during the switch-over) instead reads a bare `401`/`403`/`402` status.
- * A `429` from the paid retry or the buyer-key login is a `RateLimitError`,
- * with `retryAfter` from the `Retry-After` header.
+ * A refused signed payment is a `PaymentRefusedError` (exported above).
+ * `SpendCapReachedError` is the paid request's `402` spend-cap body, which
+ * carries no `PAYMENT-REQUIRED`. A `429` from the paid request, the buyer-key
+ * login or Payment key registration is a `RateLimitError`, with `retryAfter`
+ * from the `Retry-After` header.
  *
  * `@ledewire/core` is bundled separately into every published package via
  * tsup, so each of `@ledewire/x402-client`, `@ledewire/node`, and
@@ -86,10 +102,12 @@ export {
 export type {
   PaymentSigner,
   LedewireFetchConfig,
+  LedewirePaymentKey,
+  LedewirePaymentKeyRecord,
+  LedewireRefusalCode,
   LedewirePaymentRequired,
   LedewirePaymentRequirements,
-  LedewireWalletExtra,
-  LedewireWalletExtension,
+  LedewirePaymentAuthorization,
   LedewireWalletPayload,
   LedewirePaymentPayload,
   LedewireSettlementResponse,

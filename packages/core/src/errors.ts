@@ -351,7 +351,7 @@ export class PurchaseError extends LedewireError {
  * 402 — where adding money to the wallet is enough to retry — a spend cap refusal
  * is a daily policy limit on the buyer's account (every new buyer starts with a
  * default cap). It clears only when the spend window rolls over at {@link
- * SpendCapReachedError.resetsAt}, or when the buyer raises or removes the cap via
+ * SpendCapReachedError.resetsAt}, or when the buyer raises the cap via
  * `user.spendCap.update()`.
  *
  * @example

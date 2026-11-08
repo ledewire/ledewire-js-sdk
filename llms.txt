@@ -9,6 +9,11 @@
 
 - `@ledewire/browser` — Browser SDK (ESM + CDN IIFE `Ledewire` global). Buyer flows only.
 - `@ledewire/node` — Node.js SDK. Full API: merchant (store) and buyer flows.
+- `@ledewire/x402-client` — x402 `fetch`/Axios wrapper that pays `402` content challenges
+  with the `ledewire-wallet` scheme. Each payment is a Payment authorization signed locally
+  with an Ed25519 Payment key (`createLedewireFetch({ paymentKey, maxPriceCents })`); no
+  session token is sent. `registerPaymentKey({ key, secret, name })` registers one. See
+  `packages/x402-client/llms.txt`.
 
 ## Browser CDN usage
 
@@ -60,10 +65,11 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `PurchaseResponse.license` (`PurchaseLicense | null`: `type`, `permissions`, `document_url`), `content.publication` (`PurchasePublication | null`) and `content.filing` (`ContentSearchFiling | null`, SEC filings only)
 - `lw.content.getWithAccess(contentId)` → content preview + the caller's access info (buyer token or none; never the deliverable)
 - `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
-- `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap (a whole number of cents; it can't be removed)
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
+- `lw.user.paymentKeys.list()` → `PaymentKey[]` (bare array, newest first) / `.create({ name, public_key, proof })` → `PaymentKey` / `.revoke(id)` — the public Ed25519 keys that sign x402 payments; never a login credential, no secret; at most 10 active, so register the replacement before revoking; buyer tokens only (403 `Invalid Role`); invalid proof, malformed or duplicate key → 422
 - `lw.company.*` — Company wallets (same API as `client.company.*` below)
 
 ### @ledewire/node — createClient()
@@ -94,19 +100,20 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
-- `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap (a whole number of cents; it can't be removed)
 - `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
+- `client.user.paymentKeys.list()` → `PaymentKey[]` / `.create({ name, public_key, proof })` → `PaymentKey` / `.revoke(id)` — Ed25519 Payment keys for x402. `public_key` is unpadded base64url of the 32 raw public-key bytes; `proof` is unpadded base64url of that key's Ed25519 signature over ASCII `ledewire-payment-key:` + `public_key`. The SDK never takes the private key. Max 10 active (rotate: register first, then revoke); a Machine user's keys are registered by an admin (`company.machineUsers.paymentKeys`)
 - `client.company.membership.get()` / `.leave()` — the buyer's own Company membership (404 when in none)
 - `client.company.invitations.list()` / `.create({ email, role? })` / `.revoke(id)` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` or `auth.loginWithGoogle()` as `company_invitation_token` (a token that can't be accepted refuses the signup: 422 `invitation_not_accepted`, `details.reason`)
 - `client.company.members.list()` / `.update(membershipId, { role?, daily_spend_limit_cents? })` / `.remove(membershipId)` — admin; member caps are never `null`
-- `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
+- `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` / `.paymentKeys` (`list(muId)` / `create(muId, body)` / `revoke(muId, id)`) — admin; agent identities with no login. `paymentKeys.list()` returns `{ data: PaymentKey[] }`, unlike the Buyer's bare array
 - `client.company.wallet.get()` / `.createPaymentSession(body)` / `.listPendingTopUps()` — admin; `get()` is the only place the Company balance appears; Company top-ups are not found by `wallet.getPaymentStatus()`
 - `client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })` / `client.company.spend.list({ member?, from?, to? })` — admin reports
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
 - `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
-- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results
-- `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Filings are shown to every signed-in Buyer (over their SEC request limit: `partial_results: true`)
+- `client.publications.listWorks(id, { from?, to?, cursor?, limit?, page_kind? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs, each with its `page_kind` and `topics` labels (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present
 - `client.acquisitions.cancel(id)` → `AcquisitionResponse` — withdraw a quote (no money moves), or (Company admin) stop a held Company-paid acquisition

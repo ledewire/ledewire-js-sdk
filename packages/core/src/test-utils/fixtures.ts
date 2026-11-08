@@ -30,6 +30,7 @@ type MerchantPricingRuleSchema = components['schemas']['MerchantPricingRule']
 type MerchantDomainVerificationSchema = components['schemas']['MerchantDomainVerification']
 type UserApiKeySchema = components['schemas']['UserApiKey']
 type UserApiKeyCreateResponseSchema = components['schemas']['UserApiKeyCreateResponse']
+type PaymentKeySchema = components['schemas']['PaymentKey']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type UserSpendCapSchema = components['schemas']['UserSpendCap']
 type McpApiKeySchema = components['schemas']['McpApiKey']
@@ -397,6 +398,7 @@ export function purchaseResponseFixture(
     license: null,
     timestamp: '2099-01-01T00:00:00Z',
     status: 'completed',
+    payment_key_id: null,
     ...overrides,
   }
 }
@@ -541,7 +543,6 @@ export function userApiKeyFixture(overrides?: Partial<UserApiKeySchema>): UserAp
     name: 'My Agent Key',
     key: 'bktst_abc123',
     last_used_at: null,
-    spending_limit_cents: null,
     created_at: '2099-01-01T00:00:00Z',
     ...overrides,
   }
@@ -558,6 +559,21 @@ export function userApiKeyCreateResponseFixture(
     id: 'key-id-1',
     key: 'bktst_abc123',
     secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a Payment key fixture. A Payment key is a public key: it has no secret.
+ */
+export function paymentKeyFixture(overrides?: Partial<PaymentKeySchema>): PaymentKeySchema {
+  return {
+    id: 'payment-key-id-1',
+    name: 'research-agent',
+    public_key: '11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo',
+    created_by_user_id: null,
+    last_used_at: null,
+    created_at: '2099-01-01T00:00:00Z',
     ...overrides,
   }
 }
@@ -696,7 +712,16 @@ export function publicationWorkListFixture(
     publication_id: 'pub-id-1',
     domain: 'example.com',
     date_filter: 'not_requested',
-    works: [{ url: 'https://example.com/articles/1', last_mod: '2099-01-01T00:00:00Z' }],
+    works: [
+      {
+        url: 'https://example.com/articles/1',
+        last_mod: '2099-01-01T00:00:00Z',
+        page_kind: 'article',
+        page_kind_basis: 'observed',
+        topics: [],
+        topics_basis: 'inherited',
+      },
+    ],
     next_cursor: null,
     ...overrides,
   }

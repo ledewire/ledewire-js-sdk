@@ -15,12 +15,12 @@
 <div class="tsd-comment tsd-typography"><p>Request body for renaming a Machine user or changing its description. Give
 at least one of the two. A <code>null</code> or blank <code>description</code> clears it; <code>name</code>
 cannot be <code>null</code>, and is at most 100 characters.</p>
-<p>Assembled here: the spec expresses &quot;at least one&quot; as an <code>anyOf</code>, which the
-generator widens to <code>unknown</code>. Each field's type comes from the generated
-create request instead.</p>
+<p>Assembled here: the spec expresses &quot;at least one&quot; as an <code>anyOf</code>, and the
+generator adds an all-optional branch that accepts an empty body. Each field's
+type comes from the generated create request instead.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in core/dist/index.d.ts:12073</li></ul></aside></div>
+<li>Defined in core/dist/index.d.ts:12692</li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

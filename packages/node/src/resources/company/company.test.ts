@@ -18,6 +18,7 @@ import {
   http,
   HttpResponse,
   paginationMetaFixture,
+  paymentKeyFixture,
   walletPaymentSessionFixture,
 } from '@ledewire/core/test-utils'
 import { createClient } from '../../client.js'
@@ -455,6 +456,121 @@ describe('company.machineUsers', () => {
 
       await makeClient().company.machineUsers.mcpKeys.revoke('machine-user-id-1', 'mu-mcp-key-id-1')
       expect(called).toBe(true)
+    })
+  })
+
+  describe('paymentKeys', () => {
+    const path = `${BASE}/v1/company/machine-users/machine-user-id-1/payment-keys`
+    const body = {
+      name: 'production',
+      public_key: '11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo',
+      proof: 'p'.repeat(86),
+    }
+
+    it('list() sends GET and returns the keys envelope', async () => {
+      const keys = { data: [paymentKeyFixture({ created_by_user_id: 'user-id-1' })] }
+      let method: string | undefined
+      server.use(
+        http.get(path, ({ request }) => {
+          method = request.method
+          return HttpResponse.json(keys)
+        }),
+      )
+
+      await expect(
+        makeClient().company.machineUsers.paymentKeys.list('machine-user-id-1'),
+      ).resolves.toEqual(keys)
+      expect(method).toBe('GET')
+    })
+
+    it('create() posts the name, public key and proof under the Machine user', async () => {
+      const created = paymentKeyFixture({ created_by_user_id: 'user-id-1' })
+      let method: string | undefined
+      let captured: unknown
+      server.use(
+        http.post(path, async ({ request }) => {
+          method = request.method
+          captured = await request.json()
+          return HttpResponse.json(created, { status: 201 })
+        }),
+      )
+
+      const result = await makeClient().company.machineUsers.paymentKeys.create(
+        'machine-user-id-1',
+        body,
+      )
+
+      expect(method).toBe('POST')
+      expect(captured).toEqual(body)
+      expect(result).toEqual(created)
+    })
+
+    it('create() surfaces a deactivated Machine user as a 409', async () => {
+      server.use(
+        http.post(path, () =>
+          HttpResponse.json(errorResponseFixture(409, 'Machine user is deactivated'), {
+            status: 409,
+          }),
+        ),
+      )
+
+      const err = await makeClient()
+        .company.machineUsers.paymentKeys.create('machine-user-id-1', body)
+        .catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(LedewireError)
+      expect((err as LedewireError).statusCode).toBe(409)
+    })
+
+    it('create() throws ForbiddenError for a caller who is not a Company admin', async () => {
+      server.use(http.post(path, () => forbidden()))
+
+      await expect(
+        makeClient().company.machineUsers.paymentKeys.create('machine-user-id-1', body),
+      ).rejects.toThrow(ForbiddenError)
+    })
+
+    it('revoke() sends DELETE to the key under the Machine user', async () => {
+      let method: string | undefined
+      server.use(
+        http.delete(`${path}/payment-key-id-1`, ({ request }) => {
+          method = request.method
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
+
+      await expect(
+        makeClient().company.machineUsers.paymentKeys.revoke(
+          'machine-user-id-1',
+          'payment-key-id-1',
+        ),
+      ).resolves.toBeUndefined()
+      expect(method).toBe('DELETE')
+    })
+
+    it('encodes both ids as single path segments', async () => {
+      let pathname: string | undefined
+      server.use(
+        http.delete(`${BASE}/v1/company/machine-users/:mu/payment-keys/:id`, ({ request }) => {
+          pathname = new URL(request.url).pathname
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
+
+      await makeClient().company.machineUsers.paymentKeys.revoke('m/u', 'k?y')
+
+      expect(pathname).toBe('/v1/company/machine-users/m%2Fu/payment-keys/k%3Fy')
+    })
+
+    it('revoke() throws NotFoundError for no such active key', async () => {
+      server.use(
+        http.delete(`${path}/missing`, () =>
+          HttpResponse.json(errorResponseFixture(404, 'Not Found'), { status: 404 }),
+        ),
+      )
+
+      await expect(
+        makeClient().company.machineUsers.paymentKeys.revoke('machine-user-id-1', 'missing'),
+      ).rejects.toThrow(NotFoundError)
     })
   })
 })

@@ -45,10 +45,11 @@ client.auth.*                   buyer auth (email, google, api-key, password res
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
 client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
 client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
+client.user.paymentKeys.*       buyer Ed25519 Payment keys for x402 (list, create, revoke)
 client.company.membership.*     the buyer's own Company membership (get, leave)
 client.company.invitations.*    invite (admin), list (admin), accept (invitee, with emailed token)
 client.company.members.*        list, update role / daily Spend cap, remove (admin; membership ids)
-client.company.machineUsers.*   Machine users (list, create, deactivate) + .buyerKeys / .mcpKeys (admin)
+client.company.machineUsers.*   Machine users (list, create, deactivate) + .buyerKeys / .mcpKeys / .paymentKeys (admin)
 client.company.wallet.*         Company top-up payment session, pending top-ups (admin)
 client.company.purchases.*      everything the Company paid for, per member (admin, paginated)
 client.company.spend.*          spend per membership over a date range (admin)
@@ -97,6 +98,7 @@ lw.content.*         content with access info
 lw.user.apiKeys.*    buyer API key management (list, create, revoke)
 lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
 lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
+lw.user.paymentKeys.* buyer Ed25519 Payment keys for x402 (list, create, revoke)
 lw.company.*         Company wallets — same surface as client.company.*
 ```
 
@@ -212,6 +214,30 @@ Call `listStores()` only when you need the full `ManageableStore` detail
 5. Write a Vitest test using MSW — see existing tests for patterns
 6. Run `pnpm typecheck && pnpm test` — both must pass
 7. Run `pnpm docs` and commit the updated `docs/api/`
+
+### Syncing with an API release
+
+The API changes first and the SDK follows. There is no automated trigger and
+no CI check between the two repos: when an API promotion reaches its `main`,
+someone starts one SDK sync by hand.
+
+1. Branch `feature/api-sync-<yyyy-mm>` from `main`.
+2. Diff the API's `docs/api/v1/ledewire.yml` on `main` against this repo's
+   `ledewire.yml`, operation by operation and schema by schema. Each change is
+   either breaking, additive, or docs-only.
+3. File one issue per slice, with the spec sync as the first slice. Each slice
+   names its package(s) and has a `## Base branch` section naming the feature
+   branch. A release issue lists them as sub-issues.
+4. The spec-sync slice copies the API's spec into both `ledewire.yml` and
+   `docs/ledewire.yml` byte for byte, runs `pnpm generate:types`, fixes what
+   the regeneration breaks, and pins the changed types in
+   `spec-alignment.test.ts`.
+5. Merge the slices into the feature branch, then open one promotion PR into
+   `main` that carries a `Closes` line per slice. A human reviews the branch
+   and merges it, then merges the Version Packages PR.
+
+If the SDK needs a method before the API has deployed it, file an API issue
+labelled `blocks-sdk` and hold the release until production serves it.
 
 ### JSDoc is required on all exports
 

@@ -20,6 +20,8 @@ export async function loginWithBuyerApiKey(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, secret }),
+    // The secret goes to the configured API and nowhere else.
+    redirect: 'error',
   })
 
   if (!res.ok) {
@@ -50,9 +52,10 @@ export async function loginWithBuyerApiKey(
 
 /**
  * Manages a buyer JWT obtained from a buyer API key, refreshing it before
- * it expires.
+ * it expires. Payments no longer use it: they are signed with a Payment key.
+ * It remains for callers that need a buyer token, e.g. to manage Payment keys.
  *
- * This is a lightweight auth holder for use in `@ledewire/x402-client`.
+ * This is a lightweight auth holder.
  * It does not persist tokens to storage — appropriate for short-lived agents.
  * For long-running processes, integrate with `TokenManager` from `@ledewire/core`.
  */

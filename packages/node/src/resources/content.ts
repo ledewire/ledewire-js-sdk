@@ -62,8 +62,9 @@ export class ContentNamespace {
    * `publication`, `form_type`, `ticker`, `cik` and `limit`, until it comes back `null`.
    * A cursor lasts 24 hours. Without a `query`, only Store works are searched, filtered
    * by the other fields — unless `form_type`, `ticker` or `cik` is given, which lists
-   * the SEC EDGAR filings they name. Only Buyers whose Company subscribes to SEC filings are shown filings;
-   * for any other Buyer these filters return no results. Each result's `filing`
+   * the SEC EDGAR filings they name. Filings are shown to every signed-in Buyer, up
+   * to that Buyer's limit on SEC requests; over it, the search returns what it could
+   * with `partial_results: true`. Each result's `filing`
    * describes an SEC filing (filer, ticker, CIK, form, dates, accession number) and is
    * `null` for every other work; `publication` names a brokered work's Publication.
    *
@@ -94,7 +95,7 @@ export class ContentNamespace {
    *
    * // SEC EDGAR filings: `form_type`, `ticker` and `cik` return only filings, and
    * // `query` may be left out to list them newest first. `10-K` includes `10-K/A`.
-   * // Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results.
+   * // Filings are shown to every signed-in Buyer.
    * const filings = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
    * for (const result of filings.data) {
    *   console.log(result.filing?.form_type, result.filing?.filing_date, result.filing?.cik)

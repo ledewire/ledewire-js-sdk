@@ -5,7 +5,22 @@ import axios from 'axios'
 import { wrapAxiosWithPayment } from './axios.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
-import { InsufficientFundsError } from '../errors.js'
+import { InsufficientFundsError, PaymentRefusedError, PriceAboveMaximumError } from '../errors.js'
+import type { LedewirePaymentPayload, LedewireRefusalCode } from '../types.js'
+import {
+  API_BASE,
+  CONTENT_ID,
+  ORIGIN_URL,
+  PAY_TO,
+  PAYMENT_KEY,
+  PAYMENT_REQUIRED_HEADER,
+  THIRD_PARTY_URL,
+  challenge,
+  decodeSignature,
+  refusalBody,
+  refusalChallenge,
+  signatureVerifies,
+} from '../x402.test-helpers.js'
 import { AuthError, ForbiddenError, LedewireError, SpendCapReachedError } from '@ledewire/core'
 
 /** Base64-encode an x402 v2 `SettleResponse` refusal for the `payment-response` header. */
@@ -30,50 +45,7 @@ const CAP_BODY = {
   bulk_exempt: false,
 }
 
-const API_BASE = 'http://api.test'
-const NOW_SECONDS = Math.floor(Date.now() / 1000)
-const CONTENT_ID = 'content-uuid-1'
-/** A paid resource on the configured Ledewire API origin. */
-const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
-/** A resource on some other origin — a real client never pays or authenticates for it. */
-const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
-
-const PAYMENT_REQUIRED_HEADER = btoa(
-  JSON.stringify({
-    x402Version: 2,
-    resource: { url: ORIGIN_URL },
-    accepts: [
-      {
-        scheme: 'ledewire-wallet',
-        network: 'ledewire:v1',
-        amount: '100',
-        asset: 'USD',
-        payTo: 'store:uuid-1',
-        maxTimeoutSeconds: 60,
-        extra: { nonce: 'n', expiresAt: NOW_SECONDS + 120, contentId: CONTENT_ID },
-      },
-    ],
-    extensions: {
-      'ledewire-wallet': {
-        apiBase: API_BASE,
-        authEndpoint: '/v1/auth/login/buyer-api-key',
-        schemeVersion: 'ledewire:v1',
-        contentId: CONTENT_ID,
-      },
-    },
-  }),
-)
-
-const server = setupServer(
-  http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
-    HttpResponse.json({
-      token_type: 'Bearer',
-      access_token: 'buyer-jwt',
-      refresh_token: 'r',
-      expires_at: new Date(Date.now() + 1800_000).toISOString(),
-    }),
-  ),
-)
+const server = setupServer()
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' })
@@ -85,33 +57,43 @@ afterAll(() => {
   server.close()
 })
 
-const makeClient = () => new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
+const makeClient = (overrides: { maxPriceCents?: number } = {}) =>
+  new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, apiBase: API_BASE, ...overrides })
 
-/** A PAYMENT-REQUIRED header whose discovery block names `apiBase`. */
-function paymentRequiredNaming(apiBase: string): string {
-  const decoded = JSON.parse(atob(PAYMENT_REQUIRED_HEADER)) as {
-    extensions: { 'ledewire-wallet': Record<string, unknown> }
-  }
-  decoded.extensions['ledewire-wallet']['apiBase'] = apiBase
-  return btoa(JSON.stringify(decoded))
-}
-
-/** Records every buyer-key login against the configured API base. */
-function recordLogins(): string[] {
-  const logins: string[] = []
+/**
+ * Serves ORIGIN_URL: the first challenge to an unpaid request, then, for each
+ * paid request in turn, the next of `paid` (the last one repeats). Records
+ * every PAYMENT-SIGNATURE it receives, decoded.
+ */
+function serveContent(paid: (() => Response)[]): LedewirePaymentPayload[] {
+  const payments: LedewirePaymentPayload[] = []
   server.use(
-    http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
-      logins.push(request.url)
-      return HttpResponse.json({
-        token_type: 'Bearer',
-        access_token: 'buyer-jwt',
-        refresh_token: 'r',
-        expires_at: new Date(Date.now() + 1800_000).toISOString(),
-      })
+    http.get(ORIGIN_URL, ({ request }) => {
+      const sig = request.headers.get('payment-signature')
+      if (!sig) {
+        return new HttpResponse(null, {
+          status: 402,
+          headers: { 'payment-required': PAYMENT_REQUIRED_HEADER },
+        })
+      }
+      payments.push(decodeSignature(sig))
+      const next = paid[Math.min(payments.length, paid.length) - 1]
+      return next ? next() : HttpResponse.json({ data: 'content' })
     }),
   )
-  return logins
+  return payments
 }
+
+/** A refused paid request: 402, a fresh challenge naming `code`, and the matching body. */
+function refused(code: LedewireRefusalCode, accepts: Record<string, unknown> = {}): () => Response {
+  return () =>
+    HttpResponse.json(refusalBody(code), {
+      status: 402,
+      headers: { 'payment-required': refusalChallenge(code, accepts) },
+    })
+}
+
+const settled = (): Response => HttpResponse.json({ data: 'content' })
 
 describe('wrapAxiosWithPayment', () => {
   it('passes through non-402 responses unchanged', async () => {
@@ -141,8 +123,9 @@ describe('wrapAxiosWithPayment', () => {
     const res = await instance.get(ORIGIN_URL)
     expect(res.status).toBe(200)
     expect(capturedSigs).toHaveLength(1)
-    const payload = JSON.parse(atob(capturedSigs[0]!)) as { payload: { token: string } }
-    expect(payload.payload.token).toBe('buyer-jwt')
+    const payment = decodeSignature(capturedSigs[0]!)
+    expect(await signatureVerifies(payment)).toBe(true)
+    expect(JSON.stringify(payment)).not.toContain('token')
   })
 
   it('sends the paid retry with maxRedirects: 0', async () => {
@@ -482,8 +465,7 @@ describe('wrapAxiosWithPayment', () => {
   })
 
   describe('payment origin restriction', () => {
-    it('rejects with the original 402 from another origin, with no login and no paid retry', async () => {
-      const logins = recordLogins()
+    it('rejects with the original 402 from another origin, with no paid retry', async () => {
       const signatures: (string | null)[] = []
       server.use(
         http.get(THIRD_PARTY_URL, ({ request }) => {
@@ -500,11 +482,9 @@ describe('wrapAxiosWithPayment', () => {
       expect(axios.isAxiosError(err)).toBe(true)
       expect(err).toMatchObject({ response: { status: 402, data: { reason: 'pay me' } } })
       expect(signatures).toEqual([null])
-      expect(logins).toEqual([])
     })
 
     it('refuses a relative url resolved against a third-party baseURL', async () => {
-      const logins = recordLogins()
       const signatures: (string | null)[] = []
       server.use(
         http.get(THIRD_PARTY_URL, ({ request }) => {
@@ -524,7 +504,6 @@ describe('wrapAxiosWithPayment', () => {
         response: { status: 402 },
       })
       expect(signatures).toEqual([null])
-      expect(logins).toEqual([])
     })
 
     it('pays a relative url resolved against the API baseURL, passing the full url to the signer', async () => {
@@ -546,35 +525,34 @@ describe('wrapAxiosWithPayment', () => {
       const res = await instance.get(`/v1/x402/contents/${CONTENT_ID}`)
       expect(res.status).toBe(200)
       expect(signatures).toHaveLength(1)
-      const payload = JSON.parse(atob(signatures[0]!)) as { resource: { url: string } }
-      expect(payload.resource.url).toBe(ORIGIN_URL)
+      expect(decodeSignature(signatures[0]!).payload.authorization.resource).toBe(ORIGIN_URL)
     })
 
-    it('never contacts an apiBase named in the challenge; logs in at the configured base and pays', async () => {
+    it('pays only the configured origin, whatever host the challenge names', async () => {
       const otherHostHits: string[] = []
-      const logins = recordLogins()
-      const header = paymentRequiredNaming('https://evil.example')
-      const signatures: string[] = []
+      const header = challenge(
+        {},
+        { extensions: { 'ledewire-wallet': { apiBase: 'https://evil.example' } } },
+      )
+      const paidUrls: string[] = []
       server.use(
         http.all('https://evil.example/*', ({ request }) => {
           otherHostHits.push(request.url)
           return HttpResponse.error()
         }),
         http.get(ORIGIN_URL, ({ request }) => {
-          const sig = request.headers.get('payment-signature')
-          if (!sig) {
+          if (!request.headers.get('payment-signature')) {
             return new HttpResponse(null, { status: 402, headers: { 'payment-required': header } })
           }
-          signatures.push(sig)
+          paidUrls.push(request.url)
           return HttpResponse.json({ data: 'content' })
         }),
       )
       const instance = wrapAxiosWithPayment(axios.create(), makeClient())
       const res = await instance.get(ORIGIN_URL)
       expect(res.status).toBe(200)
-      expect(signatures).toHaveLength(1)
+      expect(paidUrls).toEqual([ORIGIN_URL])
       expect(otherHostHits).toEqual([])
-      expect(logins).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
     })
 
     it('rejects with the original 402 when a custom signer refuses the origin', async () => {
@@ -595,5 +573,105 @@ describe('wrapAxiosWithPayment', () => {
       expect(allowsSpy).toHaveBeenCalledWith(ORIGIN_URL)
       expect(buildSpy).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('wrapAxiosWithPayment: the signed payment and refusals', () => {
+  it('sends a signed authorization matching the challenge, with no token or content id', async () => {
+    const payments = serveContent([settled])
+    const res = await wrapAxiosWithPayment(axios.create(), makeClient()).get(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    const payment = payments[0]!
+    const raw: Record<string, unknown> = { ...payment }
+    expect(Object.keys(raw).sort()).toEqual(['accepted', 'payload', 'x402Version'])
+    expect(payment.payload.authorization).toMatchObject({
+      from: PAYMENT_KEY.id,
+      to: PAY_TO,
+      value: '250',
+      asset: 'USD',
+      resource: ORIGIN_URL,
+    })
+    expect(raw).not.toHaveProperty('nonce')
+    expect(payment.payload).not.toHaveProperty('token')
+    expect(payment.payload).not.toHaveProperty('contentId')
+    expect(await signatureVerifies(payment)).toBe(true)
+  })
+
+  it.each([
+    'invalid_ledewire_wallet_signature',
+    'unknown_payment_key',
+    'recipient_mismatch',
+    'resource_mismatch',
+    'nonce_already_used',
+  ] as const)(
+    'surfaces %s as a PaymentRefusedError naming it, without re-sending',
+    async (code) => {
+      const payments = serveContent([refused(code)])
+      const err = await wrapAxiosWithPayment(axios.create(), makeClient({ maxPriceCents: 1000 }))
+        .get(ORIGIN_URL)
+        .catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(PaymentRefusedError)
+      expect(err).toMatchObject({ refusal: code, type: code, statusCode: 402 })
+      expect(payments).toHaveLength(1)
+    },
+  )
+
+  it('re-signs payment_authorization_expired once, with a fresh nonce', async () => {
+    const payments = serveContent([refused('payment_authorization_expired'), settled])
+    const res = await wrapAxiosWithPayment(axios.create(), makeClient()).get(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(payments).toHaveLength(2)
+    expect(payments[1]!.payload.authorization.nonce).not.toBe(
+      payments[0]!.payload.authorization.nonce,
+    )
+  })
+
+  it('re-signs payment_authorization_expired only once', async () => {
+    const payments = serveContent([refused('payment_authorization_expired')])
+    const err = await wrapAxiosWithPayment(axios.create(), makeClient())
+      .get(ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toMatchObject({ refusal: 'payment_authorization_expired' })
+    expect(payments).toHaveLength(2)
+  })
+
+  it('re-signs amount_mismatch within maxPriceCents and throws above it', async () => {
+    const within = serveContent([refused('amount_mismatch', { amount: '300' }), settled])
+    const res = await wrapAxiosWithPayment(axios.create(), makeClient({ maxPriceCents: 300 })).get(
+      ORIGIN_URL,
+    )
+    expect(res.status).toBe(200)
+    expect(within.map((p) => p.payload.authorization.value)).toEqual(['250', '300'])
+
+    const above = serveContent([refused('amount_mismatch', { amount: '301' })])
+    const err = await wrapAxiosWithPayment(axios.create(), makeClient({ maxPriceCents: 300 }))
+      .get(ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PriceAboveMaximumError)
+    expect(above).toHaveLength(1)
+  })
+
+  it('never re-signs to a payee or resource the fresh challenge changed', async () => {
+    const payments = serveContent([
+      refused('payment_authorization_expired', { payTo: 'store:other' }),
+    ])
+    const err = await wrapAxiosWithPayment(axios.create(), makeClient())
+      .get(ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentRefusedError)
+    expect(err).toMatchObject({ refusal: 'payment_authorization_expired' })
+    expect(payments).toHaveLength(1)
+  })
+
+  it('signs at most twice even when every refusal could be re-signed', async () => {
+    const payments = serveContent([
+      refused('payment_authorization_expired'),
+      refused('amount_mismatch', { amount: '250' }),
+    ])
+    const err = await wrapAxiosWithPayment(axios.create(), makeClient({ maxPriceCents: 1000 }))
+      .get(ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toMatchObject({ refusal: 'amount_mismatch' })
+    expect(payments).toHaveLength(2)
   })
 })

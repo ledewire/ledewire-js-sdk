@@ -1,125 +1,117 @@
 import { describe, it, expect } from 'vitest'
-import { parsePaymentRequired, parsePaymentResponse, parsePaymentRefusal } from './parse.js'
+import {
+  parsePaymentRequired,
+  parsePaymentResponse,
+  parsePaymentRefusal,
+  refusalCodeOf,
+  sameRecipientAndResource,
+} from './parse.js'
 import { UnsupportedSchemeError, MalformedPaymentRequiredError } from './errors.js'
-
-const NOW_SECONDS = Math.floor(Date.now() / 1000)
-
-function makePaymentRequired(overrides?: object) {
-  const base = {
-    x402Version: 2,
-    resource: { url: 'https://blog.example.com/posts/article' },
-    accepts: [
-      {
-        scheme: 'ledewire-wallet',
-        network: 'ledewire:v1',
-        amount: '100',
-        asset: 'USD',
-        payTo: 'store:uuid-1',
-        maxTimeoutSeconds: 60,
-        extra: {
-          nonce: 'abc123',
-          expiresAt: NOW_SECONDS + 120,
-          contentId: 'content-uuid-1',
-        },
-      },
-    ],
-    extensions: {
-      'ledewire-wallet': {
-        apiBase: 'https://api.ledewire.com',
-        authEndpoint: '/v1/auth/login/buyer-api-key',
-        signupUrl: 'https://ledewire.com/signup',
-        schemeVersion: 'ledewire:v1',
-        contentId: 'content-uuid-1',
-      },
-    },
-    ...overrides,
-  }
-  return btoa(JSON.stringify(base))
-}
+import { encodeJsonHeader } from './encoding.js'
+import {
+  ORIGIN_URL,
+  PAY_TO,
+  challenge,
+  challengeObject,
+  refusalChallenge,
+} from './x402.test-helpers.js'
 
 describe('parsePaymentRequired', () => {
-  it('parses a valid PAYMENT-REQUIRED header', () => {
-    const { accepted, extension } = parsePaymentRequired(makePaymentRequired())
-    expect(accepted.scheme).toBe('ledewire-wallet')
-    expect(accepted.extra.nonce).toBe('abc123')
-    expect(accepted.extra.contentId).toBe('content-uuid-1')
-    expect(extension.apiBase).toBe('https://api.ledewire.com')
-    expect(extension.contentId).toBe('content-uuid-1')
+  it('parses the spec challenge, whose extra and extensions are {}, with no MalformedPaymentRequiredError', () => {
+    const { paymentRequired, accepted } = parsePaymentRequired(challenge())
+    expect(accepted).toEqual({
+      scheme: 'ledewire-wallet',
+      network: 'ledewire:v1',
+      amount: '250',
+      asset: 'USD',
+      payTo: PAY_TO,
+      maxTimeoutSeconds: 300,
+      extra: {},
+    })
+    expect(paymentRequired.resource.url).toBe(ORIGIN_URL)
+    expect(paymentRequired.extensions).toEqual({})
+  })
+
+  it('decodes a UTF-8 resource description', () => {
+    const header = challenge(
+      {},
+      { resource: { url: ORIGIN_URL, description: 'Caf\u00e9 \u2014 \u65b0\u95fb' } },
+    )
+    expect(parsePaymentRequired(header).paymentRequired.resource.description).toBe(
+      'Caf\u00e9 \u2014 \u65b0\u95fb',
+    )
+  })
+
+  it('picks the ledewire-wallet entry among others', () => {
+    const value = challengeObject()
+    const other = { ...value.accepts[0], scheme: 'exact', network: 'eip155:8453' }
+    const header = encodeJsonHeader({ ...value, accepts: [other, ...value.accepts] })
+    expect(parsePaymentRequired(header).accepted.scheme).toBe('ledewire-wallet')
   })
 
   it('throws UnsupportedSchemeError when no ledewire-wallet entry', () => {
-    const header = btoa(
-      JSON.stringify({
-        x402Version: 2,
-        resource: { url: 'https://example.com' },
-        accepts: [
-          {
-            scheme: 'exact',
-            network: 'eip155:8453',
-            amount: '1',
-            asset: 'USDC',
-            payTo: '0x123',
-            maxTimeoutSeconds: 60,
-            extra: {},
-          },
-        ],
-      }),
+    expect(() => parsePaymentRequired(challenge({ network: 'eip155:8453' }))).toThrow(
+      UnsupportedSchemeError,
     )
-    expect(() => parsePaymentRequired(header)).toThrow(UnsupportedSchemeError)
   })
 
-  it('throws MalformedPaymentRequiredError for invalid base64', () => {
-    expect(() => parsePaymentRequired('not-valid-base64!!!')).toThrow(MalformedPaymentRequiredError)
-  })
-
-  it('throws MalformedPaymentRequiredError when extension block is missing', () => {
-    const header = btoa(
-      JSON.stringify({
-        x402Version: 2,
-        resource: { url: 'https://example.com' },
-        accepts: [
-          {
-            scheme: 'ledewire-wallet',
-            network: 'ledewire:v1',
-            amount: '100',
-            asset: 'USD',
-            payTo: 'store:x',
-            maxTimeoutSeconds: 60,
-            extra: { nonce: 'n', expiresAt: NOW_SECONDS + 120, contentId: 'cid' },
-          },
-        ],
-        extensions: {},
-      }),
-    )
+  it.each([
+    ['invalid base64', 'not-valid-base64!!!'],
+    ['a JSON array', btoa('[]')],
+    ['no accepts array', encodeJsonHeader({ x402Version: 2 })],
+    ['an amount above 2^53', challenge({ amount: '9007199254740993' })],
+    ['a negative maxTimeoutSeconds', challenge({ maxTimeoutSeconds: -1 })],
+    ['a fractional maxTimeoutSeconds', challenge({ maxTimeoutSeconds: 1.5 })],
+    ['an empty payTo', challenge({ payTo: '' })],
+    ['an array extra', challenge({ extra: [] })],
+    ['no resource', challenge({}, { resource: undefined })],
+  ])('throws MalformedPaymentRequiredError for %s', (_label, header) => {
     expect(() => parsePaymentRequired(header)).toThrow(MalformedPaymentRequiredError)
   })
+})
 
-  it('throws MalformedPaymentRequiredError when extension is missing contentId', () => {
-    const header = btoa(
-      JSON.stringify({
-        x402Version: 2,
-        resource: { url: 'https://example.com' },
-        accepts: [
-          {
-            scheme: 'ledewire-wallet',
-            network: 'ledewire:v1',
-            amount: '100',
-            asset: 'USD',
-            payTo: 'store:x',
-            maxTimeoutSeconds: 60,
-            extra: { nonce: 'n', expiresAt: NOW_SECONDS + 120, contentId: 'cid' },
-          },
-        ],
-        extensions: {
-          'ledewire-wallet': {
-            apiBase: 'https://api.ledewire.com',
-            authEndpoint: '/v1/auth/...',
-            schemeVersion: 'ledewire:v1',
-          },
-        },
-      }),
-    )
-    expect(() => parsePaymentRequired(header)).toThrow(MalformedPaymentRequiredError)
+describe('sameRecipientAndResource', () => {
+  it('is true when only the price or the error changed', () => {
+    expect(
+      sameRecipientAndResource(challenge(), refusalChallenge('amount_mismatch', { amount: '999' })),
+    ).toBe(true)
+  })
+
+  it('is false when payTo or resource.url changed, or a challenge does not parse', () => {
+    expect(sameRecipientAndResource(challenge(), challenge({ payTo: 'store:other' }))).toBe(false)
+    expect(
+      sameRecipientAndResource(challenge(), challenge({}, { resource: { url: `${ORIGIN_URL}x` } })),
+    ).toBe(false)
+    expect(sameRecipientAndResource(challenge(), 'garbage')).toBe(false)
+  })
+})
+
+describe('refusalCodeOf', () => {
+  it.each([
+    'unknown_payment_key',
+    'invalid_ledewire_wallet_signature',
+    'recipient_mismatch',
+    'amount_mismatch',
+    'resource_mismatch',
+    'payment_authorization_expired',
+    'nonce_already_used',
+  ] as const)('reads %s from a fresh challenge', (code) => {
+    expect(refusalCodeOf(refusalChallenge(code))).toBe(code)
+  })
+
+  it('returns null for the first challenge, which refuses nothing', () => {
+    expect(refusalCodeOf(challenge())).toBeNull()
+  })
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['empty', ''],
+    ['not base64 JSON', '%%%'],
+    ['a JSON string', btoa('"amount_mismatch"')],
+    ['an unknown code', challenge({}, { error: 'something_new' })],
+  ])('returns null for a header that is %s', (_label, header) => {
+    expect(refusalCodeOf(header)).toBeNull()
   })
 })
 

@@ -53,6 +53,7 @@ const stores = await client.merchant.auth.listStores()
 | `client.user.apiKeys`          | Manage buyer API keys for autonomous agents                                                   |
 | `client.user.spendCap`         | Buyer's daily spend cap — read and update the ceiling                                         |
 | `client.user.mcpKeys`          | Manage buyer MCP API keys for the Ledewire MCP server                                         |
+| `client.user.paymentKeys`      | Register, list and revoke the Ed25519 Payment keys that sign x402 payments                    |
 | `client.company`               | Company wallets: membership, invitations, members, Machine users, top-ups, spend reports      |
 | `client.publications`          | Bulk-licensing catalog: publications and their works (public)                                 |
 | `client.topics`                | Topic directory: the subjects publications cover, with how many carry each (public)           |
@@ -310,7 +311,7 @@ try {
 ## Example: Buyer Spend Cap & MCP API Keys
 
 Every buyer starts with a default daily spend cap governing every wallet debit
-(MCP, REST, and the web payment gate). Read it, raise it, or remove it (`null`):
+(MCP, REST, and the web payment gate). Read it or change it; it can't be removed:
 
 ```ts
 const cap = await client.user.spendCap.get()
@@ -319,7 +320,6 @@ if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
 }
 
 await client.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
-await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove the cap
 ```
 
 MCP API keys authenticate agent requests to the Ledewire MCP server. The
@@ -336,6 +336,34 @@ await secretsManager.put('LEDEWIRE_MCP_CREDENTIAL', `${key}:${secret}`)
 const keys = await client.user.mcpKeys.list() // secrets never included
 await client.user.mcpKeys.revoke(keys[0].id) // to change scopes: revoke + recreate
 ```
+
+Payment keys are the public halves of the Ed25519 keys that sign x402 payments.
+A Payment key is never a login credential, and LedeWire never holds the private
+half, so there is no secret to store from the response — keep the private key
+yourself. Prove you hold it by signing `ledewire-payment-key:` + `public_key`:
+
+```ts
+import { generateKeyPairSync, sign } from 'node:crypto'
+
+const { publicKey, privateKey } = generateKeyPairSync('ed25519')
+// Unpadded base64url of the 32 raw public-key bytes (the tail of the SPKI DER)
+const public_key = publicKey
+  .export({ type: 'spki', format: 'der' })
+  .subarray(-32)
+  .toString('base64url')
+const message = Buffer.from(`ledewire-payment-key:${public_key}`, 'ascii')
+const proof = sign(null, message, privateKey).toString('base64url')
+
+const key = await client.user.paymentKeys.create({ name: 'research-agent', public_key, proof })
+const keys = await client.user.paymentKeys.list() // a plain array, newest first
+await client.user.paymentKeys.revoke(key.id)
+```
+
+A Buyer holds at most 10 active Payment keys, so rotate by registering the
+replacement before revoking the old key. Only buyer tokens may call these
+routes (others get 403 `Invalid Role`); an invalid proof, a malformed key or a
+duplicate key is refused with 422. Signing payments with the key is
+[`@ledewire/x402-client`](../x402-client/README.md)'s job.
 
 ## Example: Company Wallets
 
@@ -378,6 +406,14 @@ await client.company.machineUsers.mcpKeys.create(bot.id, {
   label: 'research-agent',
   scopes: ['mcp:search', 'mcp:purchase'],
 })
+// Its x402 Payment key: the agent holds the private half; the admin registers
+// the public half with a proof built as for user.paymentKeys.create().
+await client.company.machineUsers.paymentKeys.create(bot.id, {
+  name: 'production',
+  public_key,
+  proof,
+})
+const { data: paymentKeys } = await client.company.machineUsers.paymentKeys.list(bot.id) // { data } envelope
 await client.company.machineUsers.update(bot.id, { name: 'nightly-agent' }) // keys keep working
 await client.company.machineUsers.deactivate(bot.id) // permanent; revokes every key
 
@@ -398,7 +434,7 @@ Everything except `membership` and `invitations.accept()` is Company-admin only
 and throws `ForbiddenError` for a plain member. A member cannot change their own
 cap with `user.spendCap.update()` (403) — an admin sets it via
 `company.members.update()`. A Machine user cannot manage its own keys through
-`user.apiKeys` / `user.mcpKeys` (403).
+`user.apiKeys` / `user.mcpKeys` / `user.paymentKeys` (403).
 
 ## Example: Bulk Licensing (Acquisitions)
 
@@ -415,15 +451,16 @@ const { data: publications } = await client.publications.list({
   topics: ['sports'],
 })
 const publication = publications[0]
-const { data: urls } = await client.publications.listWorks(publication.id, {
+const { works } = await client.publications.listWorks(publication.id, {
   from: '2026-01-01',
   to: '2026-01-31',
+  page_kind: 'article', // optional: a filtered page may be empty before next_cursor is null
 })
 
 // 2. Submit the Selection. Quoting is asynchronous: poll for as long as the
 // response carries poll_after_seconds (2–60s, sized from the Selection).
 const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
-let acquisition = await client.acquisitions.create({ urls: urls.map((w) => w.url) })
+let acquisition = await client.acquisitions.create({ urls: works.map((w) => w.url) })
 while (acquisition.poll_after_seconds !== undefined) {
   await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
@@ -517,8 +554,8 @@ To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings c
 and `query` can be left out to list them newest first. Each result's `filing` describes
 the filing (`filer_name`, `ticker`, `cik`, `form_type`, `filing_date`,
 `period_of_report`, `accession_number`), and is `null` for every other work.
-Only Buyers whose Company subscribes to SEC filings are shown filings: for any other
-Buyer, these filters return no results.
+Filings are shown to every signed-in Buyer, up to that Buyer's limit on SEC requests;
+over it, the search returns what it could with `partial_results: true`.
 
 ```ts
 // Apple's annual reports, amendments (10-K/A) included.

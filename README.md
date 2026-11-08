@@ -53,7 +53,8 @@ const storeId = stores[0].id
 ```
 
 `@ledewire/node` also covers a buyer's daily spend cap (`client.user.spendCap`),
-MCP API keys (`client.user.mcpKeys`), Company wallets with members, Machine
+MCP API keys (`client.user.mcpKeys`), the Ed25519 Payment keys that sign x402
+payments (`client.user.paymentKeys`), Company wallets with members, Machine
 users and spend reports (`client.company`, also in `@ledewire/browser`), bulk
 licensing across a publication's catalog (`client.publications`,
 `client.acquisitions`), and x402 Bazaar discovery (`client.x402`) — see
