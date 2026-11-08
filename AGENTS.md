@@ -66,7 +66,9 @@ packages/browser/src/
 
 packages/x402-client/src/
   index.ts               ← createLedewireFetch() — x402 402-challenge fetch wrapper
-  payment-client.ts      ← LedewirePaymentClient — builds PAYMENT-SIGNATURE
+  payment-client.ts      ← LedewirePaymentClient — signs a Payment authorization per payment
+  signing.ts             ← Ed25519 (WebCrypto) + canonical authorization bytes
+  payment-keys.ts        ← registerPaymentKey() / createPaymentKeyRegistration()
   adapters/{fetch,axios}.ts
 ```
 
