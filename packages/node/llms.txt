@@ -418,7 +418,7 @@ client.content.search(body: ContentSearchRequest)                       → Prom
 // nothing searched: drop the cursor and restart from page one. Never retry the same cursor.
 
 // SEC EDGAR: Apple's annual reports, newest first, no query needed.
-// Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results.
+// Filings are shown to every signed-in Buyer (over their SEC request limit: partial_results: true).
 const { data } = await client.content.search({ ticker: 'AAPL', form_type: '10-K' })
 for (const r of data) console.log(r.filing?.form_type, r.filing?.filing_date, r.title)
 ```
@@ -446,8 +446,10 @@ client.user.apiKeys.revoke(keyId)                  → Promise<void>
 // body for create:
 interface UserApiKeyCreateRequest {
   name: string                     // human-readable label e.g. 'my-rag-agent'
-  spending_limit_cents?: number    // optional per-period cap in cents
 }
+// A key has no spend limit of its own: the buyer's daily Spend cap
+// (client.user.spendCap) limits what it spends. The API refuses
+// spending_limit_cents with 400.
 
 // list response item (no secret):
 interface UserApiKey {
@@ -455,7 +457,6 @@ interface UserApiKey {
   name: string
   key: string                      // e.g. 'bktst_abc123' — share with agent
   last_used_at: string | null
-  spending_limit_cents: number | null
   created_at: string
 }
 
@@ -468,8 +469,9 @@ interface UserApiKeyCreateResponse extends UserApiKey {
 ### client.user.spendCap
 
 Every new buyer starts with a default daily spend cap. It governs every wallet
-debit (MCP, REST, and the web payment gate). `null` on `update()` is the only
-way to become uncapped.
+debit (MCP, REST, and the web payment gate). `update()` changes the cap but
+cannot remove it. A buyer the API still records as uncapped reads `cap_cents`
+and `remaining_cents` as `null`.
 
 ```ts
 client.user.spendCap.get()     → Promise<UserSpendCap>
@@ -486,7 +488,7 @@ interface UserSpendCap {
 }
 
 interface UserSpendCapUpdateRequest {
-  daily_spend_limit_cents: number | null  // required; null removes the cap
+  daily_spend_limit_cents: number  // required; null is refused (422): a cap can change, never be removed
 }
 ```
 
@@ -496,7 +498,6 @@ if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
   console.warn(`Only ${cap.remaining_cents}c left before the cap resets at ${cap.resets_at}`)
 }
 await client.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
-await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove the cap
 ```
 
 **Exceeding the cap throws `SpendCapReachedError` (402)** from
@@ -640,8 +641,8 @@ client.topics.list()  → Promise<TopicDirectoryResponse>
 
 Read-only bulk-licensing catalog. Both endpoints are public — no buyer JWT
 required, requests always sent without credentials. (The API also takes an
-optional Buyer token on list/get, and then shows a subscribed Company's Buyer the
-Publications its Subscription opens, such as SEC EDGAR. The SDK never sends one
+optional Buyer token on list/get, and then also shows the Publications listed
+only to signed-in Buyers, such as SEC EDGAR. The SDK never sends one
 here, so these calls return the anonymous list; find SEC filings with
 `content.search({ form_type, ticker, cik })`.)
 
@@ -652,15 +653,21 @@ client.publications.list(params?: PublicationListParams)                → Prom
 client.publications.get(id)                                             → Promise<Publication>
 // Throws NotFoundError (404) for an id the list would not show.
 client.publications.listWorks(id, params?: PublicationWorksParams)      → Promise<PublicationWorkListResponse>
-// PublicationWorksParams: { from?: string, to?: string, cursor?: string, limit?: number }
+// PublicationWorksParams: { from?: string, to?: string, cursor?: string, limit?: number, page_kind?: PageKind }
 // from/to are inclusive YYYY-MM-DD bounds; limit defaults to the max, 1000.
+// PageKind: 'article' | 'section_index' | 'homepage' | 'media' | 'utility' | 'unclassified'
+// Each work: { url, last_mod, page_kind, page_kind_basis: 'observed' | 'rule' | null,
+//   topics: TopicSlug[] (≤3), topics_basis: 'rule' | 'inherited' }
 ```
 
 Check `date_filter` ('applied' | 'unsupported') before treating an empty page
 as "nothing in range" — some publications carry no modification dates at all.
 Paginate with `next_cursor`: pass it back as `cursor` with the same `from`/`to`.
-A `null` `next_cursor` means the walk is over. `listWorks()` is rate-limited:
-a `429` arrives as a `LedewireError` (the SDK does not retry; back off).
+A `null` `next_cursor` means the walk is over. With `page_kind`, each page is
+filtered after it is read, so a filtered page may be empty while `next_cursor`
+is non-null. Labels describe works and never gate them. `listWorks()` is
+rate-limited: a `429` arrives as a `RateLimitError` (the SDK does not retry;
+wait `retryAfter` seconds).
 
 Each `Publication` carries `coverage_horizon: { horizon_at, as_of, sources } | null`
 — the oldest date swept back to, when that sweep began, and where it looked.
@@ -687,6 +694,8 @@ client.acquisitions.acknowledgeExclusions(id)         → Promise<AcquisitionRes
 client.acquisitions.authorize(id)                     → Promise<AcquisitionResponse>              // 202 — places the hold, starts the run
 client.acquisitions.cancel(id)                        → Promise<AcquisitionResponse>              // withdraw a quote; idempotent
 client.acquisitions.listWorks(id, params?: AcquisitionWorksParams) → Promise<PaginatedAcquisitionWorkList> // per-work disposition, refused rows included
+// Each priced line records page_kind, page_kind_basis, topics and topics_basis (all four or none):
+// the labels the work had when it was priced. Absent on a line refused before pricing.
 // AcquisitionWorksParams: { page?, per_page?, delivery_state?, line_state?, exclusion_reason? } — filters AND together
 client.acquisitions.getCorpus(id)                     → Promise<CorpusResponse>                  // corpus state — always 200, never errors
 client.acquisitions.buildCorpus(id)                   → Promise<CorpusResponse>                  // 200 if already downloadable, else 202

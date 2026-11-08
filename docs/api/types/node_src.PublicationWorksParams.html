@@ -15,10 +15,11 @@
 <div class="tsd-comment tsd-typography"><p>Query parameters accepted by <code>GET /v1/publications/{id}/works</code>.
 <code>from</code>/<code>to</code> are inclusive dates (<code>YYYY-MM-DD</code>); <code>cursor</code> is the previous page's
 <code>next_cursor</code>, sent back with the same <code>from</code>/<code>to</code>; <code>limit</code> defaults to the maximum
-(1000).</p>
+(1000). <code>page_kind</code> keeps only works of that Page kind, so a filtered page may be
+empty while <code>next_cursor</code> is non-null.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in core/dist/index.d.ts:11868</li></ul></aside></div>
+<li>Defined in core/dist/index.d.ts:12473</li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

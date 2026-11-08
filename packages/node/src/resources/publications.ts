@@ -13,9 +13,9 @@ import type {
  * is licensable before authenticating. Requests are always sent without
  * credentials, so a stale or expired session never blocks them.
  *
- * The API also accepts an optional Buyer token on `list` and `get`: a Buyer whose
- * Company holds a Subscription additionally sees the Publications it opens, such as
- * SEC EDGAR. Because this namespace never sends credentials, its results are always
+ * The API also accepts an optional Buyer token on `list` and `get`: a Buyer
+ * additionally sees the Publications listed only to signed-in Buyers, such as SEC
+ * EDGAR. Because this namespace never sends credentials, its results are always
  * the anonymous list. To find SEC filings, search with `content.search()` and its
  * `form_type`, `ticker` or `cik` filters.
  *
@@ -105,9 +105,17 @@ export class PublicationsNamespace {
    * `from`/`to` to fetch the next page. A `null` `next_cursor` means the walk
    * is over — an empty page carrying a cursor is not the end.
    *
+   * Every work carries labels: a `page_kind` (`article`, `section_index`,
+   * `homepage`, `media`, `utility` or `unclassified`) and up to three `topics`,
+   * each with the basis it rests on. Labels describe a work and never gate it.
+   * Pass `page_kind` to keep only works of that kind. Each page is read from the
+   * catalog first and then filtered, so a filtered page may be short or empty
+   * while `next_cursor` is still non-null: keep paging until it is `null`.
+   *
    * @param id - The publication ID.
    * @param params - Optional `from`/`to` date bounds (inclusive, `YYYY-MM-DD`),
-   *   `cursor` for the next page, and `limit` (defaults to the maximum, 1000).
+   *   `cursor` for the next page, `limit` (defaults to the maximum, 1000), and
+   *   `page_kind` to keep only works of one Page kind.
    * @returns A page of the publication's works.
    * @throws {RateLimitError} (`statusCode === 429`) when the endpoint's rate
    *   limit is exhausted. The SDK does not retry automatically. Wait

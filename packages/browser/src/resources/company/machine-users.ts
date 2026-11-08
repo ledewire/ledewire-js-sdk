@@ -25,9 +25,9 @@ function machineUserPath(machineUserId: string): string {
  * Issue and revoke a Machine user's Buyer keys. Company admins only.
  *
  * A Machine user's Buyer key logs in through `auth.loginWithBuyerApiKey()` (or
- * `createAgentClient()`), exactly like a buyer's own key. Its spending limit is
- * the Machine user's membership Spend cap, so a key carries no
- * `spending_limit_cents` of its own.
+ * `createAgentClient()`), exactly like a buyer's own key. What it may spend is
+ * the Machine user's membership Spend cap; a key carries no spend limit of its
+ * own.
  *
  * **Secret handling:** `create()` returns the `secret` exactly once.
  *

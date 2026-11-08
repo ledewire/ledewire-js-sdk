@@ -202,6 +202,26 @@ describe('publications.listWorks', () => {
     })
   })
 
+  it('sends page_kind as a query parameter and returns each work with its labels', async () => {
+    let pageKind: string | null = null
+    server.use(
+      http.get(`${BASE}/v1/publications/pub-id-1/works`, ({ request }) => {
+        pageKind = new URL(request.url).searchParams.get('page_kind')
+        return HttpResponse.json(publicationWorkListFixture())
+      }),
+    )
+
+    const result = await makeNamespace().listWorks('pub-id-1', { page_kind: 'article' })
+
+    expect(pageKind).toBe('article')
+    expect(result.works[0]).toMatchObject({
+      page_kind: 'article',
+      page_kind_basis: 'observed',
+      topics: [],
+      topics_basis: 'inherited',
+    })
+  })
+
   it('URL-encodes the publication id path segment', async () => {
     server.use(
       http.get(`${BASE}/v1/publications/pub%2Fwith%2Fslashes/works`, () =>

@@ -52,8 +52,14 @@ export class BrowserPurchasesNamespace {
    * @throws {LedewireError} `422` — `price_cents` no longer matches the
    *   work's current price (`Content (<id>) price appears to have changed`).
    *   Nothing is charged: re-read the price, show it to the buyer, and buy
-   *   again at the new price. A `422` also covers `insufficient_funds`, `not_subscribed` and
-   *   the brokered-delivery refusals, which carry an `error.type`.
+   *   again at the new price. A `422` also covers `insufficient_funds` and the
+   *   brokered-delivery refusals, which carry an `error.type`. A Buyer over their
+   *   limit on SEC requests gets `retrieval_failed` for an SEC filing, with nothing
+   *   charged; it clears a moment later. (`not_subscribed` is no longer returned:
+   *   SEC filings are open to every signed-in Buyer.)
+   * @throws {RateLimitError} `429` — more than 60 purchases a minute by this
+   *   Buyer, counted across REST, MCP and x402. Nothing is charged. Wait
+   *   `err.retryAfter` seconds.
    * @throws {LedewireError} `400` — `content_id` or `price_cents` missing or
    *   of the wrong type. Nothing is charged.
    *

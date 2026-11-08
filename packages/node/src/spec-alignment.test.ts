@@ -12,6 +12,11 @@ import type {
   CheckoutStateResponse,
   CompanyMemberUpdateRequest,
   ContentWithAccessResponse,
+  PublicationWork,
+  PurchaseResponse,
+  UserApiKey,
+  UserApiKeyCreateRequest,
+  UserSpendCapUpdateRequest,
   StoreAuthenticationResponse,
   WalletPaymentStatusResponse,
   X402JwksResponse,
@@ -249,11 +254,17 @@ describe('hand-named types alias the spec', () => {
   })
 
   it('member and Machine user updates take their fields from the generated schemas', () => {
-    // The spec's "at least one of" `anyOf` branches carry only `required`, so the
-    // generator collapses both request schemas to `unknown`. When the spec gives the
-    // branches their `properties`, these fail: alias the generated types then.
-    expectTypeOf<SpecSchema<'CompanyMemberRoleRequest'>>().toBeUnknown()
-    expectTypeOf<SpecSchema<'CompanyMachineUserUpdateRequest'>>().toBeUnknown()
+    // The spec's "at least one of" `anyOf` branches now carry `properties`, but the
+    // generator adds a branch with every field optional, so the generated types accept
+    // an empty body the API refuses. The hand-written types keep "at least one" and
+    // must stay assignable to the generated ones. If the generated types stop
+    // accepting `{}`, the last two lines fail: alias the generated types then.
+    expectTypeOf<CompanyMemberUpdateRequest>().toExtend<SpecSchema<'CompanyMemberRoleRequest'>>()
+    expectTypeOf<CompanyMachineUserUpdateRequest>().toExtend<
+      SpecSchema<'CompanyMachineUserUpdateRequest'>
+    >()
+    expectTypeOf<Record<string, never>>().toExtend<SpecSchema<'CompanyMemberRoleRequest'>>()
+    expectTypeOf<Record<string, never>>().toExtend<SpecSchema<'CompanyMachineUserUpdateRequest'>>()
 
     expectTypeOf<NonNullable<CompanyMemberUpdateRequest['role']>>().toEqualTypeOf<
       CompanyMember['role']
@@ -272,5 +283,40 @@ describe('hand-named types alias the spec', () => {
     expectTypeOf<{ description: null }>().toExtend<CompanyMachineUserUpdateRequest>()
     expectTypeOf<Record<string, never>>().not.toExtend<CompanyMachineUserUpdateRequest>()
     expectTypeOf<{ name: null }>().not.toExtend<CompanyMachineUserUpdateRequest>()
+  })
+})
+
+describe('API 4c5f4a56 sync', () => {
+  it('the spend cap takes a number and never null', () => {
+    expectTypeOf<UserSpendCapUpdateRequest['daily_spend_limit_cents']>().toEqualTypeOf<number>()
+    expectTypeOf<UserSpendCapUpdateRequest>().toEqualTypeOf<
+      OperationBody<'/v1/user/spend-cap', 'patch'>
+    >()
+  })
+
+  it('a purchase names the Payment key that paid for it, or null', () => {
+    expectTypeOf<PurchaseResponse['payment_key_id']>().toEqualTypeOf<string | null>()
+  })
+
+  it('a publication work carries its labels', () => {
+    type Work = SpecSchema<'PublicationWork'>
+    expectTypeOf<PublicationWork>().toEqualTypeOf<Work>()
+    expectTypeOf<PublicationWork['page_kind']>().toEqualTypeOf<
+      'article' | 'section_index' | 'homepage' | 'media' | 'utility' | 'unclassified'
+    >()
+    expectTypeOf<PublicationWork['page_kind_basis']>().toEqualTypeOf<'observed' | 'rule' | null>()
+    expectTypeOf<PublicationWork['topics_basis']>().toEqualTypeOf<'rule' | 'inherited'>()
+    expectTypeOf<NonNullable<PublicationWorksParams['page_kind']>>().toEqualTypeOf<
+      PublicationWork['page_kind']
+    >()
+  })
+
+  it('a Buyer key has no spending limit', () => {
+    expectTypeOf<
+      'spending_limit_cents' extends keyof UserApiKey ? true : false
+    >().toEqualTypeOf<false>()
+    expectTypeOf<
+      'spending_limit_cents' extends keyof UserApiKeyCreateRequest ? true : false
+    >().toEqualTypeOf<false>()
   })
 })

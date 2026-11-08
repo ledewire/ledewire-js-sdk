@@ -406,8 +406,8 @@ export type UserSpendCap = components['schemas']['UserSpendCap']
 
 /**
  * Request body for `PATCH /v1/user/spend-cap`. `daily_spend_limit_cents` is required
- * and nullable: `null` is how a buyer becomes uncapped, and an omitted field is a
- * client error rather than a request to be uncapped.
+ * and is a whole number of cents: a buyer can change the cap but cannot remove it, so
+ * `null` and an omitted field are both refused with 422.
  */
 export type UserSpendCapUpdateRequest = components['schemas']['UserSpendCapUpdateRequest']
 
@@ -435,7 +435,9 @@ export type PublicationListResponse = components['schemas']['PublicationListResp
 
 /**
  * A work a {@link Publication} has available to license, as the broker's catalog lists
- * it. `url` is exactly what an acquisition Selection takes.
+ * it. `url` is exactly what an acquisition Selection takes. Every work carries labels:
+ * a `page_kind` and up to three `topics`, each with its basis (`page_kind_basis`,
+ * `topics_basis`). Labels describe a work and never gate it.
  */
 export type PublicationWork = components['schemas']['PublicationWork']
 
@@ -449,7 +451,8 @@ export type PublicationWorkListResponse = components['schemas']['PublicationWork
  * Query parameters accepted by `GET /v1/publications/{id}/works`.
  * `from`/`to` are inclusive dates (`YYYY-MM-DD`); `cursor` is the previous page's
  * `next_cursor`, sent back with the same `from`/`to`; `limit` defaults to the maximum
- * (1000).
+ * (1000). `page_kind` keeps only works of that Page kind, so a filtered page may be
+ * empty while `next_cursor` is non-null.
  */
 export type PublicationWorksParams = NonNullable<
   paths['/v1/publications/{id}/works']['get']['parameters']['query']
@@ -491,8 +494,8 @@ export type ContentSearchPublication = components['schemas']['ContentSearchPubli
 
 /**
  * One work in a buyer's LedeWire search, from a Store or a brokered Publication.
- * `filing` is a {@link ContentSearchFiling} for an SEC EDGAR filing (priced at 0, with
- * access through the Company's Subscription), and `null` for every other work.
+ * `filing` is a {@link ContentSearchFiling} for an SEC EDGAR filing (priced at 0, and
+ * open to every signed-in Buyer), and `null` for every other work.
  */
 export type ContentSearchResult = components['schemas']['ContentSearchResult']
 
@@ -688,12 +691,13 @@ export type CompanyMember = components['schemas']['CompanyMember']
 /** The Company's open memberships. */
 export type CompanyMemberList = components['schemas']['CompanyMemberList']
 
-// The spec says "at least one" as `anyOf: [{required: [role]}, {required:
-// [daily_spend_limit_cents]}]`. openapi-typescript renders each branch as
-// `unknown`, collapsing the generated `CompanyMemberRoleRequest` to `unknown`,
-// so the two branches are spelled out here, with each field's type taken from
-// the generated `CompanyMember`. Alias the generated type once the spec's
-// branches carry their `properties` (a type test fails when they do).
+// The spec says "at least one" as an `anyOf` of a `role` branch and a
+// `daily_spend_limit_cents` branch. openapi-typescript adds a third branch with
+// both fields optional, so the generated `CompanyMemberRoleRequest` accepts an
+// empty body the API refuses. The two branches are spelled out here instead,
+// with each field's type taken from the generated `CompanyMember`; a type test
+// keeps this assignable to the generated type and fails once that stops
+// accepting `{}`, when this can become an alias.
 /**
  * Request body for changing a member's role or daily Spend cap — at least one
  * of the two. `daily_spend_limit_cents` cannot be `null`: a Company member is
@@ -722,9 +726,9 @@ export type CompanyMachineUserCreateRequest = components['schemas']['CompanyMach
  * at least one of the two. A `null` or blank `description` clears it; `name`
  * cannot be `null`, and is at most 100 characters.
  *
- * Assembled here: the spec expresses "at least one" as an `anyOf`, which the
- * generator widens to `unknown`. Each field's type comes from the generated
- * create request instead.
+ * Assembled here: the spec expresses "at least one" as an `anyOf`, and the
+ * generator adds an all-optional branch that accepts an empty body. Each field's
+ * type comes from the generated create request instead.
  */
 export type CompanyMachineUserUpdateRequest =
   | (Pick<CompanyMachineUserCreateRequest, 'name'> &

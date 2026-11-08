@@ -197,10 +197,8 @@ import { createClient } from '@ledewire/node'
 const client = createClient()
 await client.auth.loginWithEmail({ email, password })
 
-const { key, secret } = await client.user.apiKeys.create({
-  name: 'my-agent',
-  spending_limit_cents: 5000, // $50 cap — optional
-})
+// The buyer's daily Spend cap (client.user.spendCap) limits what the key spends
+const { key, secret } = await client.user.apiKeys.create({ name: 'my-agent' })
 // Store secret immediately — it is never shown again
 ```
 
