@@ -4,6 +4,7 @@ import {
   parsePaymentResponse,
   parsePaymentRefusal,
   refusalCodeOf,
+  sameRecipientAndResource,
 } from './parse.js'
 import { UnsupportedSchemeError, MalformedPaymentRequiredError } from './errors.js'
 import { encodeJsonHeader } from './encoding.js'
@@ -66,6 +67,22 @@ describe('parsePaymentRequired', () => {
     ['no resource', challenge({}, { resource: undefined })],
   ])('throws MalformedPaymentRequiredError for %s', (_label, header) => {
     expect(() => parsePaymentRequired(header)).toThrow(MalformedPaymentRequiredError)
+  })
+})
+
+describe('sameRecipientAndResource', () => {
+  it('is true when only the price or the error changed', () => {
+    expect(
+      sameRecipientAndResource(challenge(), refusalChallenge('amount_mismatch', { amount: '999' })),
+    ).toBe(true)
+  })
+
+  it('is false when payTo or resource.url changed, or a challenge does not parse', () => {
+    expect(sameRecipientAndResource(challenge(), challenge({ payTo: 'store:other' }))).toBe(false)
+    expect(
+      sameRecipientAndResource(challenge(), challenge({}, { resource: { url: `${ORIGIN_URL}x` } })),
+    ).toBe(false)
+    expect(sameRecipientAndResource(challenge(), 'garbage')).toBe(false)
   })
 })
 

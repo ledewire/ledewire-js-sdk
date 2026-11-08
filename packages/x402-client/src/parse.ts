@@ -69,7 +69,9 @@ export function parsePaymentRequired(headerValue: string): {
     throw malformed('amount is not a decimal string of cents')
   }
   if (asset !== 'USD') throw malformed('asset is not USD')
-  if (typeof payTo !== 'string' || payTo === '') throw malformed('payTo is missing')
+  if (typeof payTo !== 'string' || !payTo.startsWith('store:')) {
+    throw malformed('payTo is not a store: recipient')
+  }
   if (
     typeof maxTimeoutSeconds !== 'number' ||
     !Number.isSafeInteger(maxTimeoutSeconds) ||
@@ -90,6 +92,28 @@ export function parsePaymentRequired(headerValue: string): {
   return {
     paymentRequired: paymentRequired as LedewirePaymentRequired,
     accepted: accepted as LedewirePaymentRequirements,
+  }
+}
+
+/**
+ * Whether two challenges ask to pay the same recipient for the same resource:
+ * equal `payTo` and `resource.url`. A re-sign after a refusal is allowed only
+ * then, so a refusal's fresh challenge can move the price or the window, never
+ * the payee or the work. Returns `false` when either does not parse.
+ *
+ * @param first - The challenge the client first answered.
+ * @param fresh - The refusal's fresh challenge.
+ */
+export function sameRecipientAndResource(first: string, fresh: string): boolean {
+  try {
+    const a = parsePaymentRequired(first)
+    const b = parsePaymentRequired(fresh)
+    return (
+      a.accepted.payTo === b.accepted.payTo &&
+      a.paymentRequired.resource.url === b.paymentRequired.resource.url
+    )
+  } catch {
+    return false
   }
 }
 

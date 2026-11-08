@@ -491,6 +491,23 @@ describe('wrapFetchWithPayment', () => {
       expect(signatures).toEqual([null])
     })
 
+    it('returns a 402 unpaid when the API redirected the request to another origin', async () => {
+      const signatures: (string | null)[] = []
+      server.use(
+        http.get(ORIGIN_URL, () => HttpResponse.redirect(THIRD_PARTY_URL, 302)),
+        http.get(THIRD_PARTY_URL, ({ request }) => {
+          signatures.push(request.headers.get('PAYMENT-SIGNATURE'))
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }),
+      )
+      const res = await wrapFetchWithPayment(globalThis.fetch, makeClient())(ORIGIN_URL)
+      expect(res.status).toBe(402)
+      expect(signatures).toEqual([null])
+    })
+
     it('returns the very same Response object for a refused origin', async () => {
       const first = new Response(null, {
         status: 402,
@@ -681,6 +698,19 @@ describe('wrapFetchWithPayment: refusals', () => {
       makeClient(),
     )(ORIGIN_URL).catch((e: unknown) => e)
     expect(err).toMatchObject({ refusal: 'amount_mismatch' })
+    expect(payments).toHaveLength(1)
+  })
+
+  it('never re-signs to a payee or resource the fresh challenge changed', async () => {
+    const payments = serveContent([
+      refused('payment_authorization_expired', { payTo: 'store:other' }),
+    ])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient(),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentRefusedError)
+    expect(err).toMatchObject({ refusal: 'payment_authorization_expired' })
     expect(payments).toHaveLength(1)
   })
 

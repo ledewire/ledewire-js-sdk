@@ -116,15 +116,22 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
     expect(authorization.validBefore - authorization.validAfter).toBe(300)
   })
 
-  it('signs the challenge resource.url as the resource', async () => {
-    const resource = `${API_BASE}/v1/x402/contents/other-id`
+  it('signs the challenge resource.url as the resource, whatever origin the API names', async () => {
+    const resource = `https://api-internal.example${new URL(ORIGIN_URL).pathname}`
     const { authorization } = decodeSignature(
       await makeClient().buildPaymentSignature(
         challenge({}, { resource: { url: resource } }),
-        ORIGIN_URL,
+        `${ORIGIN_URL}?ref=search`,
       ),
     ).payload
     expect(authorization.resource).toBe(resource)
+  })
+
+  it('refuses a challenge whose resource.url is another work', async () => {
+    const other = `${API_BASE}/v1/x402/contents/other-id`
+    await expect(
+      makeClient().buildPaymentSignature(challenge({}, { resource: { url: other } }), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(MalformedPaymentRequiredError)
   })
 
   it('pays a price at or below maxPriceCents', async () => {
@@ -154,6 +161,7 @@ describe('LedewirePaymentClient.buildPaymentSignature', () => {
     ['amount has a leading zero', { amount: '0250' }],
     ['asset is not USD', { asset: 'EUR' }],
     ['payTo is missing', { payTo: undefined }],
+    ['payTo is not a store', { payTo: '0xabc' }],
     ['maxTimeoutSeconds is not positive', { maxTimeoutSeconds: 0 }],
     ['extra is missing', { extra: undefined }],
   ])('throws MalformedPaymentRequiredError when %s', async (_label, accepts) => {

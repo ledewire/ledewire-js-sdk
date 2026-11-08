@@ -153,8 +153,11 @@ A `402` from any other origin is returned to the caller unpaid: `fetch` resolves
 original `402` `Response`, and the Axios adapter rejects with the original Axios error.
 `client.allowsPaymentTo(url)` tells you in advance whether a URL would be paid.
 
-Before it signs, the client checks what the challenge asks: the authorization pays whoever
-`payTo` names. Set `maxPriceCents` so a price you didn't expect is refused rather than paid.
+Before it signs, the client checks what the challenge asks: `payTo` must be a `store:`
+recipient, `resource.url` must name the path you requested (another work is refused with
+`MalformedPaymentRequiredError`), and a `402` that answered after a redirect to another origin
+is returned unpaid. The authorization pays whoever `payTo` names, so set `maxPriceCents` so a
+price you didn't expect is refused rather than paid.
 
 ## Payment keys
 
@@ -235,7 +238,8 @@ console.log(res.data)
 The axios adapter attaches a response interceptor that catches `402` responses,
 resolves the full request URL (honouring `baseURL`), checks `client.allowsPaymentTo()`,
 calls `client.buildPaymentSignature()`, sets the `PAYMENT-SIGNATURE` header,
-and retries the original request once, with `maxRedirects: 0`.
+and retries the original request once, with `maxRedirects: 0`. Axios enforces that only in
+Node; in browsers, where XHR follows redirects regardless, prefer the fetch adapter.
 
 ### Custom transports (ky, got, undici, …)
 
@@ -327,7 +331,8 @@ repeats it). Nothing is charged. The adapters handle each code as follows:
 | `nonce_already_used`                | Throws `PaymentRefusedError` — never re-sent; check whether the work was bought                                                       |
 
 A request is signed at most twice, and at most one of those payments can settle: a refused
-payment charges nothing.
+payment charges nothing. A re-sign keeps the first challenge's `payTo` and `resource.url`; if
+the fresh challenge changes either, the refusal is thrown instead.
 
 ```ts
 import {

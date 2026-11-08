@@ -89,7 +89,11 @@ refusal code (the body's error.type repeats it). Nothing is charged.
 - invalid_ledewire_wallet_signature, unknown_payment_key (unregistered or revoked),
   recipient_mismatch, resource_mismatch, nonce_already_used → PaymentRefusedError, never re-sent
 
-A request is signed at most twice; at most one payment can settle.
+A request is signed at most twice; at most one payment can settle. A re-sign requires the
+fresh challenge's payTo and resource.url to equal the first's; otherwise the refusal is thrown.
+Before any signing: payTo must start with "store:", resource.url must have the requested URL's
+path (else MalformedPaymentRequiredError), and a 402 reached via a redirect to another origin
+is returned unpaid (fetch adapter).
 
 ## Error types
 

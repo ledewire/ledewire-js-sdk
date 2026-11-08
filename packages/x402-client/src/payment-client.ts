@@ -96,8 +96,10 @@ export function throwLegacyPaymentError(status: number, body: unknown, retryAfte
  * @throws {InsufficientFundsError} `errorReason === 'insufficient_funds'`.
  * @throws {SpendCapReachedError} `errorReason === 'daily_spend_cap_reached'`
  *   and `body` has well-formed cap fields.
- * @throws {AuthError} `errorReason === 'invalid_ledewire_wallet_payload_token'`.
- * @throws {ForbiddenError} `errorReason === 'invalid_ledewire_wallet_payload_role'`.
+ * @throws {AuthError} `errorReason === 'invalid_ledewire_wallet_payload_token'`
+ *   (a legacy reason from session-token payments; the API no longer sends it).
+ * @throws {ForbiddenError} `errorReason === 'invalid_ledewire_wallet_payload_role'`
+ *   (legacy, likewise).
  * @throws {LedewireError} Any other `errorReason` — `err.type` is set to the
  *   raw reason so callers can still branch on it.
  */
@@ -249,7 +251,8 @@ export class LedewirePaymentClient {
    *   Ledewire API origin. Thrown before the challenge is read.
    * @throws {UnsupportedSchemeError} No `ledewire-wallet` entry in the `accepts` array.
    * @throws {MalformedPaymentRequiredError} The challenge is not base64 JSON,
-   *   or a field the client signs is missing or malformed.
+   *   a field the client signs is missing or malformed, or its `resource.url`
+   *   is not the path of `url`.
    * @throws {PriceAboveMaximumError} The price is above `maxPriceCents`.
    */
   async buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string> {
@@ -261,6 +264,15 @@ export class LedewirePaymentClient {
     }
 
     const { paymentRequired, accepted } = parsePaymentRequired(paymentRequiredHeader)
+
+    // The scheme page: check what you sign. The authorization must be for the
+    // work this request asked for. Compared by path: the challenge's origin is
+    // the API's own base URL, and a request's query string is not part of it.
+    if (pathOf(paymentRequired.resource.url) !== pathOf(url)) {
+      throw new MalformedPaymentRequiredError(
+        'PAYMENT-REQUIRED resource.url is not the requested resource',
+      )
+    }
 
     const amountCents = Number(accepted.amount)
     if (this.#maxPriceCents !== undefined && amountCents > this.#maxPriceCents) {
@@ -307,6 +319,15 @@ export class LedewirePaymentClient {
       this.#signingKey = importPaymentKey(privateKey)
     }
     return this.#signingKey
+  }
+}
+
+/** The path of an absolute URL, or `null` when it is relative or unparseable. */
+function pathOf(url: string): string | null {
+  try {
+    return new URL(url).pathname
+  } catch {
+    return null
   }
 }
 

@@ -5,7 +5,7 @@ import {
   throwLegacyPaymentError,
   throwPaymentRefusal,
 } from '../payment-client.js'
-import { parsePaymentRefusal, refusalCodeOf } from '../parse.js'
+import { parsePaymentRefusal, refusalCodeOf, sameRecipientAndResource } from '../parse.js'
 
 /** One signed payment, plus at most one re-signed one after a refusal. */
 const MAX_SIGNED_ATTEMPTS = 2
@@ -35,7 +35,7 @@ const MAX_SIGNED_ATTEMPTS = 2
  * ```ts
  * import { LedewirePaymentClient, wrapFetchWithPayment } from '@ledewire/x402-client'
  *
- * const client = new LedewirePaymentClient({ key, secret })
+ * const client = new LedewirePaymentClient({ paymentKey, maxPriceCents: 500 })
  * const fetch = wrapFetchWithPayment(globalThis.fetch, client)
  *
  * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
@@ -43,20 +43,18 @@ const MAX_SIGNED_ATTEMPTS = 2
  *
  * @throws {UnsupportedSchemeError} When the `402` is not a `ledewire-wallet` challenge.
  * @throws {MalformedPaymentRequiredError} When the server's `PAYMENT-REQUIRED` is malformed.
- * @throws {NonceExpiredError} When the payment nonce is already expired.
- * @throws {InsufficientFundsError} PAID request refused with `insufficient_funds`
- *   (spec form), or a legacy `422` (pre-api#1066).
- * @throws {AuthError} PAID request refused with `invalid_ledewire_wallet_payload_token`
- *   (spec form), or a legacy `401` (pre-api#1066).
- * @throws {ForbiddenError} PAID request refused with `invalid_ledewire_wallet_payload_role`
- *   (spec form), or a legacy `403` (pre-api#1066).
- * @throws {SpendCapReachedError} PAID request refused with `daily_spend_cap_reached`
- *   (spec form), or a legacy `402` spend-cap body (pre-api#1066) — retrying or
- *   funding the wallet cannot clear this, so there is nothing to re-challenge.
- * @throws {LedewireError} For other Ledewire API error responses; `err.type` carries
- *   the raw `errorReason` for an unrecognized spec-form refusal.
- */
-export function wrapFetchWithPayment(
+ * @throws {PriceAboveMaximumError} When the price is above `maxPriceCents`, first or after
+ *   an `amount_mismatch`; nothing more is signed.
+ * @throws {PaymentRefusedError} When the API refuses the signed payment and it is not
+ *   re-signed; `refusal` (and `type`) names the code.
+ * @throws {InsufficientFundsError} PAID request refused with `422`, or a `PAYMENT-RESPONSE`
+ *   `insufficient_funds` refusal.
+ * @throws {SpendCapReachedError} PAID request answered with a `402` spend-cap body (no
+ *   `PAYMENT-REQUIRED`) — retrying or funding the wallet cannot clear this.
+ * @throws {RateLimitError} PAID request refused with `429`, with `retryAfter`.
+ * @throws {LedewireError} For other Ledewire API error responses, e.g. `400 Malformed
+ *   PAYMENT-SIGNATURE header`.
+ */ export function wrapFetchWithPayment(
   fetchFn: typeof globalThis.fetch,
   client: PaymentSigner,
 ): typeof globalThis.fetch {
@@ -80,8 +78,13 @@ export function wrapFetchWithPayment(
       return firstResponse
     }
 
-    if (client.allowsPaymentTo && !client.allowsPaymentTo(url)) {
-      // Not the configured Ledewire API: never pay or authenticate for it.
+    if (
+      client.allowsPaymentTo &&
+      (!client.allowsPaymentTo(url) ||
+        (firstResponse.redirected && !client.allowsPaymentTo(firstResponse.url)))
+    ) {
+      // Not the configured Ledewire API (as asked for, or as answered after a
+      // redirect): never pay for it.
       return firstResponse
     }
 
@@ -109,7 +112,11 @@ export function wrapFetchWithPayment(
       const code = refusalCodeOf(freshChallenge)
       if (!code || !freshChallenge) break
 
-      if (attempt < MAX_SIGNED_ATTEMPTS && client.shouldResign?.(code)) {
+      if (
+        attempt < MAX_SIGNED_ATTEMPTS &&
+        client.shouldResign?.(code) &&
+        sameRecipientAndResource(paymentRequiredHeader, freshChallenge)
+      ) {
         challenge = freshChallenge
         continue
       }

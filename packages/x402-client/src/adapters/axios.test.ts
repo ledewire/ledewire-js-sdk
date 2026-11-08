@@ -651,6 +651,18 @@ describe('wrapAxiosWithPayment: the signed payment and refusals', () => {
     expect(above).toHaveLength(1)
   })
 
+  it('never re-signs to a payee or resource the fresh challenge changed', async () => {
+    const payments = serveContent([
+      refused('payment_authorization_expired', { payTo: 'store:other' }),
+    ])
+    const err = await wrapAxiosWithPayment(axios.create(), makeClient())
+      .get(ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentRefusedError)
+    expect(err).toMatchObject({ refusal: 'payment_authorization_expired' })
+    expect(payments).toHaveLength(1)
+  })
+
   it('signs at most twice even when every refusal could be re-signed', async () => {
     const payments = serveContent([
       refused('payment_authorization_expired'),
