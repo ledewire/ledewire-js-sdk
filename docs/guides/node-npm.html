@@ -437,9 +437,13 @@ try {
             <td>list, create, revoke</td>
           </tr>
           <tr>
+            <td><code>client.user.paymentKeys.*</code></td>
+            <td>list, create, revoke (Ed25519 Payment keys for x402; no secret)</td>
+          </tr>
+          <tr>
             <td><code>client.company.*</code></td>
             <td>
-              membership, invitations, members, machineUsers (+ buyerKeys, mcpKeys), wallet,
+              membership, invitations, members, machineUsers (+ buyerKeys, mcpKeys, paymentKeys), wallet,
               purchases, spend
             </td>
           </tr>

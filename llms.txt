@@ -64,6 +64,7 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
+- `lw.user.paymentKeys.list()` → `PaymentKey[]` (bare array, newest first) / `.create({ name, public_key, proof })` → `PaymentKey` / `.revoke(id)` — the public Ed25519 keys that sign x402 payments; never a login credential, no secret; at most 10 active, so register the replacement before revoking; buyer tokens only (403 `Invalid Role`); invalid proof, malformed or duplicate key → 422
 - `lw.company.*` — Company wallets (same API as `client.company.*` below)
 
 ### @ledewire/node — createClient()
@@ -96,10 +97,11 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
 - `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap (a whole number of cents; it can't be removed)
 - `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
+- `client.user.paymentKeys.list()` → `PaymentKey[]` / `.create({ name, public_key, proof })` → `PaymentKey` / `.revoke(id)` — Ed25519 Payment keys for x402. `public_key` is unpadded base64url of the 32 raw public-key bytes; `proof` is unpadded base64url of that key's Ed25519 signature over ASCII `ledewire-payment-key:` + `public_key`. The SDK never takes the private key. Max 10 active (rotate: register first, then revoke); a Machine user's keys are registered by an admin (`company.machineUsers.paymentKeys`)
 - `client.company.membership.get()` / `.leave()` — the buyer's own Company membership (404 when in none)
 - `client.company.invitations.list()` / `.create({ email, role? })` / `.revoke(id)` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` or `auth.loginWithGoogle()` as `company_invitation_token` (a token that can't be accepted refuses the signup: 422 `invitation_not_accepted`, `details.reason`)
 - `client.company.members.list()` / `.update(membershipId, { role?, daily_spend_limit_cents? })` / `.remove(membershipId)` — admin; member caps are never `null`
-- `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` (`list` / `create` / `revoke`) — admin; agent identities with no login
+- `client.company.machineUsers.list()` / `.create({ name })` / `.update(id, { name?, description? })` / `.deactivate(id)`, plus `.buyerKeys` / `.mcpKeys` / `.paymentKeys` (`list(muId)` / `create(muId, body)` / `revoke(muId, id)`) — admin; agent identities with no login. `paymentKeys.list()` returns `{ data: PaymentKey[] }`, unlike the Buyer's bare array
 - `client.company.wallet.get()` / `.createPaymentSession(body)` / `.listPendingTopUps()` — admin; `get()` is the only place the Company balance appears; Company top-ups are not found by `wallet.getPaymentStatus()`
 - `client.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })` / `client.company.spend.list({ member?, from?, to? })` — admin reports
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`

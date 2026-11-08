@@ -222,6 +222,11 @@ export function createMockClient(
         create: stub(),
         revoke: stub(),
       },
+      paymentKeys: {
+        list: stub(),
+        create: stub(),
+        revoke: stub(),
+      },
     },
     company: {
       membership: {
@@ -250,6 +255,11 @@ export function createMockClient(
           revoke: stub(),
         },
         mcpKeys: {
+          list: stub(),
+          create: stub(),
+          revoke: stub(),
+        },
+        paymentKeys: {
           list: stub(),
           create: stub(),
           revoke: stub(),

@@ -7,6 +7,7 @@ import type { HttpClient } from '@ledewire/core'
 import { UserApiKeysNamespace } from './api-keys.js'
 import { UserSpendCapNamespace } from './spend-cap.js'
 import { UserMcpKeysNamespace } from './mcp-keys.js'
+import { UserPaymentKeysNamespace } from './payment-keys.js'
 
 /**
  * Authenticated buyer account operations.
@@ -32,10 +33,17 @@ export class UserNamespace {
    */
   readonly mcpKeys: UserMcpKeysNamespace
 
+  /**
+   * Payment key management: register, list, and revoke the public Ed25519 keys
+   * that sign the buyer's x402 payments. Never a login credential.
+   */
+  readonly paymentKeys: UserPaymentKeysNamespace
+
   /** @internal */
   constructor(http: HttpClient) {
     this.apiKeys = new UserApiKeysNamespace(http)
     this.spendCap = new UserSpendCapNamespace(http)
     this.mcpKeys = new UserMcpKeysNamespace(http)
+    this.paymentKeys = new UserPaymentKeysNamespace(http)
   }
 }

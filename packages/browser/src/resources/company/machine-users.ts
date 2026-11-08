@@ -14,7 +14,10 @@ import type {
   CompanyMachineUserMcpKeyCreateRequest,
   CompanyMachineUserMcpKeyCreateResponse,
   CompanyMachineUserMcpKeyList,
+  CompanyMachineUserPaymentKeyList,
   CompanyMachineUserUpdateRequest,
+  PaymentKey,
+  PaymentKeyCreateRequest,
 } from '@ledewire/core'
 
 function machineUserPath(machineUserId: string): string {
@@ -145,6 +148,78 @@ export class CompanyMachineUserMcpKeysNamespace {
 }
 
 /**
+ * Register, list and revoke a Machine user's Payment keys. Company admins only.
+ *
+ * A Payment key is the public half of an Ed25519 key that the Machine user's
+ * agent signs x402 payments with. It is never a login credential, and LedeWire
+ * never holds the private half, so nothing secret is returned. A Machine user
+ * can't register its own keys: an admin does, here, and an audit event names
+ * the admin (`created_by_user_id`). Build `public_key` and `proof` exactly as
+ * for `user.paymentKeys.create()`, with the agent's key pair.
+ *
+ * A Machine user holds at most 10 active Payment keys, so rotate by registering
+ * the replacement before revoking the old key.
+ *
+ * Obtain via `client.company.machineUsers.paymentKeys` — do not construct directly.
+ */
+export class CompanyMachineUserPaymentKeysNamespace {
+  /** @internal */
+  constructor(private readonly http: HttpClient) {}
+
+  /**
+   * Lists a Machine user's active Payment keys, oldest first. Revoked keys are
+   * not listed.
+   *
+   * @param machineUserId - The Machine user id (`CompanyMachineUser.id`).
+   * @returns The keys, in a `{ data }` envelope.
+   * @throws {ForbiddenError} When the caller is not a Company admin, or the
+   *   token is not a buyer token (`Invalid Role`).
+   * @throws {NotFoundError} When the Machine user is not in the caller's Company.
+   */
+  async list(machineUserId: string): Promise<CompanyMachineUserPaymentKeyList> {
+    return this.http.get<CompanyMachineUserPaymentKeyList>(
+      `${machineUserPath(machineUserId)}/payment-keys`,
+    )
+  }
+
+  /**
+   * Registers a Payment key for a Machine user.
+   *
+   * @param machineUserId - The Machine user id (`CompanyMachineUser.id`).
+   * @param body - The key's name, `public_key` (unpadded base64url of the 32 raw
+   *   Ed25519 public-key bytes) and `proof` (unpadded base64url of an Ed25519
+   *   signature by that key over `ledewire-payment-key:` + `public_key`). See
+   *   `user.paymentKeys.create()` for a Node `crypto` example.
+   * @returns The registered key, `created_by_user_id` the admin. It carries no secret.
+   * @throws {ForbiddenError} When the caller is not a Company admin, or the
+   *   token is not a buyer token (`Invalid Role`).
+   * @throws {NotFoundError} When the Machine user is not in the caller's Company.
+   * @throws {LedewireError} With `statusCode === 409` when the Machine user is
+   *   deactivated; with `statusCode === 422` when the proof does not verify, the
+   *   key is malformed or already registered, or the Machine user already holds
+   *   10 active keys.
+   */
+  async create(machineUserId: string, body: PaymentKeyCreateRequest): Promise<PaymentKey> {
+    return this.http.post<PaymentKey>(`${machineUserPath(machineUserId)}/payment-keys`, body)
+  }
+
+  /**
+   * Revokes a Machine user's Payment key. It stops settling payments at once; a
+   * purchase it already paid for still names it.
+   *
+   * @param machineUserId - The Machine user id (`CompanyMachineUser.id`).
+   * @param id - The Payment key id (`PaymentKey.id`).
+   * @throws {NotFoundError} When there is no such Machine user in the caller's
+   *   Company, or no such active key.
+   */
+  async revoke(machineUserId: string, id: string): Promise<void> {
+    return this.http.delete(
+      `${machineUserPath(machineUserId)}/payment-keys/${encodeURIComponent(id)}`,
+    )
+  }
+}
+
+/**
  * Manage the Company's Machine users. Company admins only.
  *
  * A Machine user is a Buyer with a name and no email, password or login — an
@@ -177,10 +252,14 @@ export class CompanyMachineUsersNamespace {
   /** A Machine user's MCP API keys: list, create, revoke. */
   readonly mcpKeys: CompanyMachineUserMcpKeysNamespace
 
+  /** A Machine user's Payment keys, which sign its x402 payments: list, create, revoke. */
+  readonly paymentKeys: CompanyMachineUserPaymentKeysNamespace
+
   /** @internal */
   constructor(private readonly http: HttpClient) {
     this.buyerKeys = new CompanyMachineUserBuyerKeysNamespace(http)
     this.mcpKeys = new CompanyMachineUserMcpKeysNamespace(http)
+    this.paymentKeys = new CompanyMachineUserPaymentKeysNamespace(http)
   }
 
   /**

@@ -306,6 +306,41 @@ interface McpApiKeyCreateRequest {
 
 The `secret` in the create response is shown once — store it alongside `key`.
 
+#### lw.user.paymentKeys
+
+Payment keys are the public halves of the Ed25519 keys that sign x402 payments.
+A Payment key is never a login credential, and LedeWire never holds the private
+half: nothing secret is sent or returned, and the SDK takes no private key.
+Signing payments is `@ledewire/x402-client`'s job.
+
+```ts
+lw.user.paymentKeys.list()          → Promise<PaymentKey[]>   // a bare array, newest first; not paginated
+lw.user.paymentKeys.create(body)    → Promise<PaymentKey>     // 201
+lw.user.paymentKeys.revoke(id)      → Promise<void>           // 204
+
+interface PaymentKeyCreateRequest {
+  name: string
+  public_key: string  // unpadded base64url of the 32 raw Ed25519 public-key bytes (43 chars)
+  proof: string       // unpadded base64url of that key's Ed25519 signature (86 chars) over
+                      // the ASCII bytes 'ledewire-payment-key:' + public_key, exactly as sent
+}
+
+interface PaymentKey {
+  id: string                        // what a Payment authorization names in `from`
+  name: string
+  public_key: string
+  created_by_user_id: string | null // the Company admin, for a Machine user's key
+  last_used_at: string | null
+  created_at: string
+}
+```
+
+- At most 10 active keys per Buyer: rotate by registering the replacement, then revoking the old key.
+- Buyer tokens only; seller and merchant tokens get 403 `Invalid Role`.
+- A Machine user can't register or revoke its own keys (403); a Company admin does, through `company.machineUsers.paymentKeys`.
+- An invalid proof, a malformed key or a duplicate key gets 422 (as does an 11th key); a blank field gets 400.
+
+
 ### lw.company
 
 A Company is a shared wallet that pays for its members' purchases; each member
@@ -321,6 +356,7 @@ lw.company.members.list() / .update(membershipId, { role?, daily_spend_limit_cen
 lw.company.machineUsers.list() / .create({ name, description? }) / .update(id, { name?, description? }) / .deactivate(id)   // deactivate is permanent
 lw.company.machineUsers.buyerKeys.list(muId) / .create(muId, { name }) / .revoke(muId, keyId)
 lw.company.machineUsers.mcpKeys.list(muId) / .create(muId, { label, scopes }) / .revoke(muId, keyId)
+lw.company.machineUsers.paymentKeys.list(muId) / .create(muId, { name, public_key, proof }) / .revoke(muId, keyId)   // list() → { data: PaymentKey[] }
 lw.company.wallet.get() / .createPaymentSession({ amount_cents, currency? }) / .listPendingTopUps()   // get(): the Company balance, admin only
 lw.company.purchases.list({ member?, from?, to?, kind?, page?, per_page? })   // paginated
 lw.company.spend.list({ member?, from?, to? })
