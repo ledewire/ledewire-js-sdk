@@ -5,6 +5,7 @@ import {
   RateLimitError,
   parseRetryAfter,
 } from '@ledewire/core'
+import type { PaymentKeyCreateRequest } from '@ledewire/core'
 import { loginWithBuyerApiKey } from './auth.js'
 import { extractApiErrorMessage } from './errors.js'
 import {
@@ -19,21 +20,13 @@ const DEFAULT_API_BASE = 'https://api.ledewire.com'
 const PAYMENT_KEYS_PATH = '/v1/user/payment-keys'
 
 /**
- * The request body that registers a Payment key (`PaymentKeyCreateRequest`):
- * `POST /v1/user/payment-keys`, or, for a Company admin registering one for a
- * Machine user, `POST /v1/company/machine-users/{machine_user_id}/payment-keys`.
+ * The request body that registers a Payment key: the spec's
+ * `PaymentKeyCreateRequest`, `{ name, public_key, proof }`. Send it to
+ * `POST /v1/user/payment-keys` (`client.user.paymentKeys.create()` in
+ * `@ledewire/node`), or, for a Company admin registering a Machine user's key,
+ * `client.company.machineUsers.paymentKeys.create(machineUserId, body)`.
  */
-export interface PaymentKeyCreateBody {
-  /** A label for the key. */
-  name: string
-  /** The 32 raw Ed25519 public-key bytes, as unpadded base64url. */
-  public_key: string
-  /**
-   * Proof of possession: unpadded base64url Ed25519 signature, by the key,
-   * over `ledewire-payment-key:` followed by `public_key` exactly as sent.
-   */
-  proof: string
-}
+export type PaymentKeyCreateBody = PaymentKeyCreateRequest
 
 /** A Payment key's private half together with the body that registers it. */
 export interface PaymentKeyRegistration {

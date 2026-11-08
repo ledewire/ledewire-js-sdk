@@ -149,9 +149,12 @@ const { paymentKey, record } = await registerPaymentKey({
 // record = the API's PaymentKey { id, name, public_key, created_by_user_id, last_used_at, created_at }
 ```
 
+With @ledewire/node: `const { privateKey, body } = await createPaymentKeyRegistration(name)`,
+then `client.user.paymentKeys.create(body)` → record; paymentKey = { id: record.id, privateKey }.
+
 A Buyer holds at most 10 active Payment keys. A Company Machine user can't register its own:
-a Company admin sends the createPaymentKeyRegistration() body for it and hands the software
-the key id and private key.
+a Company admin sends the body with client.company.machineUsers.paymentKeys.create(machineUserId,
+body) and hands the software the key id and private key.
 
 ## Transport adapters
 

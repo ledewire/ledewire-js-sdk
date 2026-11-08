@@ -1,4 +1,4 @@
-import type { X402SettlementResponse } from '@ledewire/core'
+import type { PaymentKey, X402SettlementResponse } from '@ledewire/core'
 
 /*
  * Wire types for the `ledewire-wallet` x402 scheme.
@@ -11,11 +11,10 @@ import type { X402SettlementResponse } from '@ledewire/core'
  * - `LedewirePaymentRequirements`: `X402PaymentRequirements`, its `accepts` entry
  * - `LedewireWalletPayload`: `X402PaymentAuthorization`, the signed `payload`
  * - `LedewirePaymentAuthorization`: that payload's `authorization`
- * - `LedewirePaymentKeyRecord`: `PaymentKey`, a registered key
- * - `LedewireSettlementResponse`: an alias of the generated `SettlementResponse`
  *
- * They are copied rather than imported because `@ledewire/core` does not
- * export the generated `components`.
+ * The scheme types are copied rather than imported because `@ledewire/core`
+ * has no aliases for them. `LedewirePaymentKeyRecord` (`PaymentKey`) and
+ * `LedewireSettlementResponse` (`SettlementResponse`) alias core's.
  */
 
 /** A refusal code: why the API refused a well-formed signed payment. */
@@ -192,23 +191,11 @@ export interface LedewirePaymentPayload {
 }
 
 /**
- * A registered Payment key as the API returns it (`PaymentKey`). It holds
- * only the public half.
+ * A registered Payment key as the API returns it: the spec's `PaymentKey`,
+ * holding only the public half (`id`, `name`, `public_key`,
+ * `created_by_user_id`, `last_used_at`, `created_at`).
  */
-export interface LedewirePaymentKeyRecord {
-  /** The id a Payment authorization names in `from`. */
-  id: string
-  /** The key's label. */
-  name: string
-  /** The 32 raw Ed25519 public-key bytes, as unpadded base64url. */
-  public_key: string
-  /** The Company admin who registered it for a Machine user, else `null`. */
-  created_by_user_id: string | null
-  /** When it last settled a payment; `null` until it has. */
-  last_used_at: string | null
-  /** When it was registered. */
-  created_at: string
-}
+export type LedewirePaymentKeyRecord = PaymentKey
 
 /**
  * Decoded `PAYMENT-RESPONSE` header returned on a successful payment: the

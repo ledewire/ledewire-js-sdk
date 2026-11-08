@@ -171,9 +171,18 @@ It authenticates with a buyer API key (`key` and `secret`) or a buyer `accessTok
 returns `{ paymentKey, record }`: `paymentKey` is `{ id, privateKey }`, ready for
 `createLedewireFetch`, and `record` is the API's `PaymentKey` (public half only).
 
-A Company **Machine user** can't register its own keys. A Company admin builds the body with
-`createPaymentKeyRegistration()`, registers it for the Machine user, and gives the software
-running as it the key id and private key.
+`createPaymentKeyRegistration()` builds the same body for `@ledewire/node`, which never takes
+a private key:
+
+```ts
+const { privateKey, body } = await createPaymentKeyRegistration('research-agent')
+const record = await client.user.paymentKeys.create(body) // @ledewire/node
+const paymentKey = { id: record.id, privateKey }
+```
+
+A Company **Machine user** can't register its own keys. A Company admin builds the body the
+same way, registers it with `client.company.machineUsers.paymentKeys.create(machineUserId, body)`,
+and gives the software running as the Machine user the key id and private key.
 
 ## Transport adapters
 
