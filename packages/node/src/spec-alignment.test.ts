@@ -306,6 +306,7 @@ describe('API 4c5f4a56 sync', () => {
     >()
     expectTypeOf<PublicationWork['page_kind_basis']>().toEqualTypeOf<'observed' | 'rule' | null>()
     expectTypeOf<PublicationWork['topics_basis']>().toEqualTypeOf<'rule' | 'inherited'>()
+    expectTypeOf<PublicationWork['topics']>().toEqualTypeOf<SpecSchema<'TopicSlug'>[]>()
     expectTypeOf<NonNullable<PublicationWorksParams['page_kind']>>().toEqualTypeOf<
       PublicationWork['page_kind']
     >()
