@@ -54,7 +54,8 @@ const MAX_SIGNED_ATTEMPTS = 2
  * @throws {RateLimitError} PAID request refused with `429`, with `retryAfter`.
  * @throws {LedewireError} For other Ledewire API error responses, e.g. `400 Malformed
  *   PAYMENT-SIGNATURE header`.
- */ export function wrapFetchWithPayment(
+ */
+export function wrapFetchWithPayment(
   fetchFn: typeof globalThis.fetch,
   client: PaymentSigner,
 ): typeof globalThis.fetch {
