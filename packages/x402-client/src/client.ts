@@ -10,14 +10,18 @@ import type { LedewireFetchConfig } from './types.js'
  * {@link wrapFetchWithPayment}. For Axios or other HTTP clients, use those
  * building blocks directly.
  *
- * Buyer credentials go only to the configured `apiBase`, and only requests to
- * that origin are paid; a `402` from any other origin is returned unpaid.
+ * Each payment is a Payment authorization signed with `config.paymentKey`; no
+ * session token or API key is sent. Only requests to the configured `apiBase`
+ * origin are paid; a `402` from any other origin is returned unpaid.
  *
  * @example
  * ```ts
  * import { createLedewireFetch } from '@ledewire/x402-client'
  *
- * const fetch = createLedewireFetch({ key: 'bktst_...', secret: '...' })
+ * const fetch = createLedewireFetch({
+ *   paymentKey: { id: process.env.LEDEWIRE_PAYMENT_KEY_ID, privateKey: process.env.LEDEWIRE_PAYMENT_KEY },
+ *   maxPriceCents: 500,
+ * })
  *
  * const res = await fetch('https://api.ledewire.com/v1/x402/contents/<content-id>')
  * const content = await res.json()
@@ -25,14 +29,14 @@ import type { LedewireFetchConfig } from './types.js'
  *
  * @throws {UnsupportedSchemeError} When the `402` is not a `ledewire-wallet` challenge.
  * @throws {MalformedPaymentRequiredError} When the server's `PAYMENT-REQUIRED` is malformed.
- * @throws {NonceExpiredError} When the payment nonce is already expired.
+ * @throws {PriceAboveMaximumError} When the price is above `maxPriceCents`.
+ * @throws {PaymentRefusedError} When the API refuses the signed payment; `refusal` names the code.
  * @throws {InsufficientFundsError} When the buyer wallet has insufficient funds.
- * @throws {AuthError} When buyer API key authentication fails.
  * @throws {SpendCapReachedError} When a `402` carries no `PAYMENT-REQUIRED` header and
  *   its body is a daily-spend-cap-reached refusal — retrying or funding the wallet
  *   cannot clear this, so there is nothing to challenge.
- * @throws {RateLimitError} When the paid request or the buyer-key login is refused with
- *   `429`; `retryAfter` carries the `Retry-After` header in seconds, when sent.
+ * @throws {RateLimitError} When the paid request is refused with `429`; `retryAfter`
+ *   carries the `Retry-After` header in seconds, when sent.
  * @throws {LedewireError} For other API error responses (400, 401, 403, 404).
  */
 export function createLedewireFetch(config: LedewireFetchConfig): typeof globalThis.fetch {

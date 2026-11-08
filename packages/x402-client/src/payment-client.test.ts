@@ -1,20 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   LedewirePaymentClient,
   throwPaymentError,
   throwLegacyPaymentError,
   throwPaymentRefusal,
 } from './payment-client.js'
-import type { LedewirePaymentPayload, LedewirePaymentRefusal } from './types.js'
+import type { LedewirePaymentRefusal } from './types.js'
+import { decodeJsonHeader } from './encoding.js'
 import {
   extractApiErrorMessage,
-  NonceExpiredError,
   UnsupportedSchemeError,
   MalformedPaymentRequiredError,
   InsufficientFundsError,
   PaymentOriginNotAllowedError,
+  PriceAboveMaximumError,
 } from './errors.js'
 import {
   AuthError,
@@ -23,240 +22,243 @@ import {
   RateLimitError,
   SpendCapReachedError,
 } from '@ledewire/core'
+import {
+  API_BASE,
+  ORIGIN_URL,
+  PAY_TO,
+  PAYMENT_KEY,
+  PAYMENT_REQUIRED_HEADER,
+  THIRD_PARTY_URL,
+  challenge,
+  decodeSignature,
+  signatureVerifies,
+} from './x402.test-helpers.js'
 
-const API_BASE = 'http://api.test'
-const NOW_SECONDS = Math.floor(Date.now() / 1000)
-const CONTENT_ID = 'content-uuid-1'
-/** A paid resource on the configured Ledewire API origin. */
-const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
-/** A resource on some other origin — never paid, never authenticated against. */
-const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
+const makeClient = (overrides: { maxPriceCents?: number } = {}) =>
+  new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, apiBase: API_BASE, ...overrides })
 
-const makePaymentRequired = (overrides: Record<string, unknown> = {}) =>
-  btoa(
-    JSON.stringify({
-      x402Version: 2,
-      resource: { url: ORIGIN_URL },
-      accepts: [
-        {
-          scheme: 'ledewire-wallet',
-          network: 'ledewire:v1',
-          amount: '100',
-          asset: 'USD',
-          payTo: 'store:uuid-1',
-          maxTimeoutSeconds: 60,
-          extra: { nonce: 'nonce-abc', expiresAt: NOW_SECONDS + 120, contentId: CONTENT_ID },
-        },
-      ],
-      extensions: {
-        'ledewire-wallet': {
-          apiBase: API_BASE,
-          authEndpoint: '/v1/auth/login/buyer-api-key',
-          schemeVersion: 'ledewire:v1',
-          contentId: CONTENT_ID,
-        },
-      },
-      ...overrides,
-    }),
-  )
-
-const AUTH_RESPONSE = {
-  token_type: 'Bearer',
-  access_token: 'buyer-jwt',
-  refresh_token: 'refresh',
-  expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-}
-
-const server = setupServer(
-  http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () => HttpResponse.json(AUTH_RESPONSE)),
-)
-
-beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'error' })
-})
 afterEach(() => {
-  server.resetHandlers()
-})
-afterAll(() => {
-  server.close()
+  vi.useRealTimers()
 })
 
 describe('LedewirePaymentClient.buildPaymentSignature', () => {
-  it('returns a valid base64 PAYMENT-SIGNATURE with correct fields', async () => {
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    const sig = await client.buildPaymentSignature(makePaymentRequired(), ORIGIN_URL)
-    const payload = JSON.parse(atob(sig)) as LedewirePaymentPayload
-    expect(payload.x402Version).toBe(2)
-    expect(payload.resource.url).toBe(ORIGIN_URL)
-    expect(payload.payload.token).toBe('buyer-jwt')
-    expect(payload.payload.contentId).toBe(CONTENT_ID)
-    expect(payload.extensions).toBeUndefined()
+  it('parses a challenge whose extra is {} (no server nonce)', async () => {
+    const header = await makeClient().buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL)
+    expect(typeof header).toBe('string')
   })
 
-  it('includes payment-identifier UUID when server advertises support', async () => {
-    const header = makePaymentRequired({
-      extensions: {
-        'ledewire-wallet': {
-          apiBase: API_BASE,
-          authEndpoint: '/v1/auth/login/buyer-api-key',
-          schemeVersion: 'ledewire:v1',
-          contentId: CONTENT_ID,
-        },
-        'payment-identifier': { supported: true },
-      },
-    })
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    const sig = await client.buildPaymentSignature(header, ORIGIN_URL)
-    const payload = JSON.parse(atob(sig)) as LedewirePaymentPayload
-    const paymentId = payload.extensions?.['payment-identifier']
-    expect(typeof paymentId).toBe('string')
-    expect(paymentId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  it('builds { x402Version: 2, accepted, payload: { signature, authorization } } from the challenge', async () => {
+    const payment = decodeSignature(
+      await makeClient().buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL),
     )
+    expect(Object.keys(payment).sort()).toEqual(['accepted', 'payload', 'x402Version'])
+    expect(payment.x402Version).toBe(2)
+    expect(payment.accepted).toMatchObject({ scheme: 'ledewire-wallet', network: 'ledewire:v1' })
+    expect(Object.keys(payment.payload).sort()).toEqual(['authorization', 'signature'])
+    expect(payment.payload.authorization).toMatchObject({
+      from: PAYMENT_KEY.id,
+      to: PAY_TO,
+      value: '250',
+      asset: 'USD',
+      resource: ORIGIN_URL,
+    })
   })
 
-  it('throws NonceExpiredError when nonce is expired', async () => {
-    const header = makePaymentRequired({
-      accepts: [
-        {
-          scheme: 'ledewire-wallet',
-          network: 'ledewire:v1',
-          amount: '100',
-          asset: 'USD',
-          payTo: 'store:uuid-1',
-          maxTimeoutSeconds: 60,
-          extra: { nonce: 'n', expiresAt: NOW_SECONDS - 10, contentId: CONTENT_ID },
-        },
-      ],
-    })
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    await expect(client.buildPaymentSignature(header, ORIGIN_URL)).rejects.toThrow(
-      NonceExpiredError,
+  it('carries no session token, content id or top-level nonce', async () => {
+    const payment = decodeJsonHeader(
+      await makeClient().buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL),
+    ) as Record<string, Record<string, unknown>>
+    expect(payment).not.toHaveProperty('nonce')
+    expect(payment['payload']).not.toHaveProperty('token')
+    expect(payment['payload']).not.toHaveProperty('contentId')
+    expect(JSON.stringify(payment)).not.toMatch(/"token"|"contentId"/)
+  })
+
+  it("signs the authorization with the configured key, over the scheme's signed bytes", async () => {
+    const payment = decodeSignature(
+      await makeClient().buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL),
     )
+    expect(payment.payload.signature).toMatch(/^[A-Za-z0-9_-]{86}$/)
+    expect(await signatureVerifies(payment)).toBe(true)
+  })
+
+  it('gives every payment a fresh nonce of 64 lowercase hex characters', async () => {
+    const client = makeClient()
+    const nonces = await Promise.all(
+      [1, 2].map(
+        async () =>
+          decodeSignature(await client.buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL))
+            .payload.authorization.nonce,
+      ),
+    )
+    expect(nonces[0]).toMatch(/^[0-9a-f]{64}$/)
+    expect(nonces[1]).toMatch(/^[0-9a-f]{64}$/)
+    expect(nonces[0]).not.toBe(nonces[1])
+  })
+
+  it('opens the window now and keeps it within maxTimeoutSeconds', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-07T12:00:00Z'), toFake: ['Date'] })
+    const now = Math.floor(Date.now() / 1000)
+    const { authorization } = decodeSignature(
+      await makeClient().buildPaymentSignature(challenge({ maxTimeoutSeconds: 120 }), ORIGIN_URL),
+    ).payload
+    expect(authorization.validAfter).toBe(now)
+    expect(authorization.validBefore).toBe(now + 120)
+  })
+
+  it('never opens a window longer than 300 seconds, whatever the challenge allows', async () => {
+    const { authorization } = decodeSignature(
+      await makeClient().buildPaymentSignature(
+        challenge({ maxTimeoutSeconds: 86_400 }),
+        ORIGIN_URL,
+      ),
+    ).payload
+    expect(authorization.validBefore - authorization.validAfter).toBe(300)
+  })
+
+  it('signs the challenge resource.url as the resource, whatever origin the API names', async () => {
+    const resource = `https://api-internal.example${new URL(ORIGIN_URL).pathname}`
+    const { authorization } = decodeSignature(
+      await makeClient().buildPaymentSignature(
+        challenge({}, { resource: { url: resource } }),
+        `${ORIGIN_URL}?ref=search`,
+      ),
+    ).payload
+    expect(authorization.resource).toBe(resource)
+  })
+
+  it('refuses a challenge whose resource.url is another work', async () => {
+    const other = `${API_BASE}/v1/x402/contents/other-id`
+    await expect(
+      makeClient().buildPaymentSignature(challenge({}, { resource: { url: other } }), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(MalformedPaymentRequiredError)
+  })
+
+  it('pays a price at or below maxPriceCents', async () => {
+    const header = await makeClient({ maxPriceCents: 250 }).buildPaymentSignature(
+      PAYMENT_REQUIRED_HEADER,
+      ORIGIN_URL,
+    )
+    expect(decodeSignature(header).payload.authorization.value).toBe('250')
+  })
+
+  it('refuses a price above maxPriceCents before signing', async () => {
+    const err = await makeClient({ maxPriceCents: 249 })
+      .buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PriceAboveMaximumError)
+    expect(err).toMatchObject({ amountCents: 250, maxPriceCents: 249, statusCode: 402 })
   })
 
   it('throws UnsupportedSchemeError for non-ledewire-wallet accepts', async () => {
-    const header = btoa(
-      JSON.stringify({
-        x402Version: 2,
-        resource: { url: ORIGIN_URL },
-        accepts: [
-          {
-            scheme: 'exact',
-            network: 'eip155:8453',
-            amount: '1',
-            asset: 'USDC',
-            payTo: '0x0',
-            maxTimeoutSeconds: 60,
-            extra: {},
-          },
-        ],
-      }),
-    )
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    await expect(client.buildPaymentSignature(header, ORIGIN_URL)).rejects.toThrow(
-      UnsupportedSchemeError,
-    )
+    await expect(
+      makeClient().buildPaymentSignature(challenge({ scheme: 'exact' }), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(UnsupportedSchemeError)
   })
 
-  it('throws MalformedPaymentRequiredError for missing extension block', async () => {
-    const header = btoa(
-      JSON.stringify({
-        x402Version: 2,
-        resource: { url: ORIGIN_URL },
-        accepts: [
-          {
-            scheme: 'ledewire-wallet',
-            network: 'ledewire:v1',
-            amount: '100',
-            asset: 'USD',
-            payTo: 'store:uuid-1',
-            maxTimeoutSeconds: 60,
-            extra: { nonce: 'n', expiresAt: NOW_SECONDS + 60, contentId: CONTENT_ID },
-          },
-        ],
-        extensions: {},
-      }),
-    )
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    await expect(client.buildPaymentSignature(header, ORIGIN_URL)).rejects.toThrow(
-      MalformedPaymentRequiredError,
-    )
+  it.each([
+    ['amount is not a decimal string', { amount: 250 }],
+    ['amount has a leading zero', { amount: '0250' }],
+    ['asset is not USD', { asset: 'EUR' }],
+    ['payTo is missing', { payTo: undefined }],
+    ['payTo is not a store', { payTo: '0xabc' }],
+    ['maxTimeoutSeconds is not positive', { maxTimeoutSeconds: 0 }],
+    ['extra is missing', { extra: undefined }],
+  ])('throws MalformedPaymentRequiredError when %s', async (_label, accepts) => {
+    await expect(
+      makeClient().buildPaymentSignature(challenge(accepts), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(MalformedPaymentRequiredError)
   })
 
-  it('uses the default production apiBase when none is provided in config', async () => {
-    const loginUrls: string[] = []
-    server.use(
-      http.post('https://api.ledewire.com/v1/auth/login/buyer-api-key', ({ request }) => {
-        loginUrls.push(request.url)
-        return HttpResponse.json(AUTH_RESPONSE)
-      }),
-    )
-    // No apiBase provided — exercises the `?? 'https://api.ledewire.com'` branch
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's' })
-    const sig = await client.buildPaymentSignature(
-      makePaymentRequired(),
-      `https://api.ledewire.com/v1/x402/contents/${CONTENT_ID}`,
-    )
-    expect(sig).toBeDefined()
-    expect(loginUrls).toEqual(['https://api.ledewire.com/v1/auth/login/buyer-api-key'])
+  it('throws MalformedPaymentRequiredError when resource.url is missing', async () => {
+    await expect(
+      makeClient().buildPaymentSignature(challenge({}, { resource: {} }), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(MalformedPaymentRequiredError)
   })
 
-  it('ignores an apiBase named in the challenge and logs in at the configured base', async () => {
-    const otherHostHits: string[] = []
-    const loginUrls: string[] = []
-    server.use(
-      http.all('https://evil.example/*', ({ request }) => {
-        otherHostHits.push(request.url)
-        return HttpResponse.json(AUTH_RESPONSE)
-      }),
-      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        loginUrls.push(request.url)
-        return HttpResponse.json(AUTH_RESPONSE)
-      }),
-    )
-    const header = makePaymentRequired({
-      extensions: {
-        'ledewire-wallet': {
-          apiBase: 'https://evil.example',
-          authEndpoint: '/v1/auth/login/buyer-api-key',
-          schemeVersion: 'ledewire:v1',
-          contentId: CONTENT_ID,
-        },
-      },
-    })
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    const sig = await client.buildPaymentSignature(header, ORIGIN_URL)
-    expect(sig).toBeDefined()
-    expect(otherHostHits).toEqual([])
-    expect(loginUrls).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
-    expect(client.auth.apiBase).toBe(API_BASE)
+  it('throws MalformedPaymentRequiredError for a value the scheme cannot sign', async () => {
+    await expect(
+      makeClient().buildPaymentSignature(challenge({ payTo: 'store:café' }), ORIGIN_URL),
+    ).rejects.toBeInstanceOf(MalformedPaymentRequiredError)
   })
 
-  it('throws PaymentOriginNotAllowedError for a url outside the configured API origin, without logging in', async () => {
-    const loginUrls: string[] = []
-    server.use(
-      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
-        loginUrls.push(request.url)
-        return HttpResponse.json(AUTH_RESPONSE)
-      }),
-    )
-    const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
-    const err = await client
-      .buildPaymentSignature(makePaymentRequired(), THIRD_PARTY_URL)
+  it('throws PaymentOriginNotAllowedError for a url outside the configured API origin', async () => {
+    const err = await makeClient()
+      .buildPaymentSignature(PAYMENT_REQUIRED_HEADER, THIRD_PARTY_URL)
       .catch((e: unknown) => e)
     expect(err).toBeInstanceOf(PaymentOriginNotAllowedError)
     expect(err).toBeInstanceOf(LedewireError)
-    expect((err as PaymentOriginNotAllowedError).statusCode).toBe(402)
-    expect((err as PaymentOriginNotAllowedError).name).toBe('PaymentOriginNotAllowedError')
-    expect((err as PaymentOriginNotAllowedError).message).toContain('https://blog.example.com')
-    expect((err as PaymentOriginNotAllowedError).message).toContain(API_BASE)
-    expect(loginUrls).toEqual([])
+    expect((err as Error).message).toContain('https://blog.example.com')
+    expect((err as Error).message).toContain(API_BASE)
+  })
+
+  it('uses the default production apiBase when none is provided in config', async () => {
+    const client = new LedewirePaymentClient({ paymentKey: PAYMENT_KEY })
+    expect(client.apiBase).toBe('https://api.ledewire.com')
+    await expect(
+      client.buildPaymentSignature(PAYMENT_REQUIRED_HEADER, ORIGIN_URL),
+    ).rejects.toBeInstanceOf(PaymentOriginNotAllowedError)
+  })
+})
+
+describe('LedewirePaymentClient constructor', () => {
+  it.each([
+    ['too short', 'AAAA'],
+    ['padded', `${PAYMENT_KEY.privateKey}=`],
+    ['standard base64', PAYMENT_KEY.privateKey.replace(/[-_]/g, '+') + '/'],
+  ])('refuses a private key that is %s, without echoing it', (_label, privateKey) => {
+    let caught: unknown
+    try {
+      new LedewirePaymentClient({ paymentKey: { id: PAYMENT_KEY.id, privateKey } })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(TypeError)
+    expect((caught as Error).message).not.toContain(privateKey)
+  })
+
+  it('refuses an empty key id', () => {
+    expect(() => new LedewirePaymentClient({ paymentKey: { ...PAYMENT_KEY, id: '' } })).toThrow(
+      TypeError,
+    )
+  })
+
+  it.each([-1, 1.5, Number.NaN])('refuses maxPriceCents %s', (maxPriceCents) => {
+    expect(() => new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, maxPriceCents })).toThrow(
+      TypeError,
+    )
+  })
+
+  it('keeps the private key out of its enumerable state', () => {
+    const client = makeClient()
+    expect(JSON.stringify(client)).not.toContain(PAYMENT_KEY.privateKey)
+    expect(Object.values(client)).not.toContain(PAYMENT_KEY.privateKey)
+  })
+})
+
+describe('LedewirePaymentClient.shouldResign', () => {
+  it('re-signs payment_authorization_expired', () => {
+    expect(makeClient().shouldResign('payment_authorization_expired')).toBe(true)
+  })
+
+  it('re-signs amount_mismatch only when a maximum price is configured', () => {
+    expect(makeClient().shouldResign('amount_mismatch')).toBe(false)
+    expect(makeClient({ maxPriceCents: 500 }).shouldResign('amount_mismatch')).toBe(true)
+  })
+
+  it.each([
+    'invalid_ledewire_wallet_signature',
+    'unknown_payment_key',
+    'recipient_mismatch',
+    'resource_mismatch',
+    'nonce_already_used',
+  ] as const)('never re-signs %s', (code) => {
+    expect(makeClient({ maxPriceCents: 500 }).shouldResign(code)).toBe(false)
   })
 })
 
 describe('LedewirePaymentClient.allowsPaymentTo', () => {
-  const client = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
+  const client = new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, apiBase: API_BASE })
 
   it('allows a url on the configured API origin', () => {
     expect(client.allowsPaymentTo(ORIGIN_URL)).toBe(true)
@@ -277,7 +279,7 @@ describe('LedewirePaymentClient.allowsPaymentTo', () => {
 
   it('treats the default port as the same origin', () => {
     expect(client.allowsPaymentTo('http://api.test:80/v1/x402')).toBe(true)
-    const prod = new LedewirePaymentClient({ key: 'bk', secret: 's' })
+    const prod = new LedewirePaymentClient({ paymentKey: PAYMENT_KEY })
     expect(prod.allowsPaymentTo('https://api.ledewire.com:443/v1/x402')).toBe(true)
     expect(prod.allowsPaymentTo('https://api.ledewire.com/v1/x402')).toBe(true)
     expect(prod.allowsPaymentTo('https://api-staging.ledewire.com/v1/x402')).toBe(false)
@@ -292,7 +294,7 @@ describe('LedewirePaymentClient.allowsPaymentTo', () => {
   })
 
   it('refuses everything when the configured apiBase is unparseable', () => {
-    const broken = new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: 'nonsense' })
+    const broken = new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, apiBase: 'nonsense' })
     expect(broken.allowsPaymentTo(ORIGIN_URL)).toBe(false)
   })
 })

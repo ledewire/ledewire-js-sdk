@@ -9,6 +9,11 @@
 
 - `@ledewire/browser` — Browser SDK (ESM + CDN IIFE `Ledewire` global). Buyer flows only.
 - `@ledewire/node` — Node.js SDK. Full API: merchant (store) and buyer flows.
+- `@ledewire/x402-client` — x402 `fetch`/Axios wrapper that pays `402` content challenges
+  with the `ledewire-wallet` scheme. Each payment is a Payment authorization signed locally
+  with an Ed25519 Payment key (`createLedewireFetch({ paymentKey, maxPriceCents })`); no
+  session token is sent. `registerPaymentKey({ key, secret, name })` registers one. See
+  `packages/x402-client/llms.txt`.
 
 ## Browser CDN usage
 
