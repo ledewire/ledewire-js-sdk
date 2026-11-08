@@ -67,21 +67,17 @@ describe('user.spendCap.update', () => {
     expect(capturedBody).toEqual({ daily_spend_limit_cents: 2000 })
   })
 
-  it('sends null to remove the cap (become uncapped)', async () => {
-    const fixture = spendCapFixture({ cap_cents: null, remaining_cents: null })
-    let capturedBody: unknown
+  it('refuses null at the type level: a buyer can change the cap but not remove it', async () => {
     server.use(
-      http.patch(`${BASE}/v1/user/spend-cap`, async ({ request }) => {
-        capturedBody = await request.json()
-        return HttpResponse.json(fixture)
-      }),
+      http.patch(`${BASE}/v1/user/spend-cap`, () =>
+        HttpResponse.json(errorResponseFixture(4001, 'Invalid spend cap'), { status: 422 }),
+      ),
     )
 
-    const result = await makeClient().user.spendCap.update({ daily_spend_limit_cents: null })
-
-    expect(result.cap_cents).toBeNull()
-    expect(result.remaining_cents).toBeNull()
-    expect(capturedBody).toEqual({ daily_spend_limit_cents: null })
+    await expect(
+      // @ts-expect-error null is not a cap; the API refuses it with 422
+      makeClient().user.spendCap.update({ daily_spend_limit_cents: null }),
+    ).rejects.toThrow('Invalid spend cap')
   })
 
   it('throws AuthError on 401', async () => {

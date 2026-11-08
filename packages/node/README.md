@@ -310,7 +310,7 @@ try {
 ## Example: Buyer Spend Cap & MCP API Keys
 
 Every buyer starts with a default daily spend cap governing every wallet debit
-(MCP, REST, and the web payment gate). Read it, raise it, or remove it (`null`):
+(MCP, REST, and the web payment gate). Read it or change it; it can't be removed:
 
 ```ts
 const cap = await client.user.spendCap.get()
@@ -319,7 +319,6 @@ if (cap.remaining_cents !== null && cap.remaining_cents < 500) {
 }
 
 await client.user.spendCap.update({ daily_spend_limit_cents: 2000 }) // raise to $20/day
-await client.user.spendCap.update({ daily_spend_limit_cents: null }) // remove the cap
 ```
 
 MCP API keys authenticate agent requests to the Ledewire MCP server. The
@@ -415,15 +414,16 @@ const { data: publications } = await client.publications.list({
   topics: ['sports'],
 })
 const publication = publications[0]
-const { data: urls } = await client.publications.listWorks(publication.id, {
+const { works } = await client.publications.listWorks(publication.id, {
   from: '2026-01-01',
   to: '2026-01-31',
+  page_kind: 'article', // optional: a filtered page may be empty before next_cursor is null
 })
 
 // 2. Submit the Selection. Quoting is asynchronous: poll for as long as the
 // response carries poll_after_seconds (2–60s, sized from the Selection).
 const wait = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
-let acquisition = await client.acquisitions.create({ urls: urls.map((w) => w.url) })
+let acquisition = await client.acquisitions.create({ urls: works.map((w) => w.url) })
 while (acquisition.poll_after_seconds !== undefined) {
   await wait(acquisition.poll_after_seconds)
   acquisition = await client.acquisitions.get(acquisition.id)
@@ -517,8 +517,8 @@ To search SEC EDGAR filings, pass `form_type`, `ticker` or `cik`: only filings c
 and `query` can be left out to list them newest first. Each result's `filing` describes
 the filing (`filer_name`, `ticker`, `cik`, `form_type`, `filing_date`,
 `period_of_report`, `accession_number`), and is `null` for every other work.
-Only Buyers whose Company subscribes to SEC filings are shown filings: for any other
-Buyer, these filters return no results.
+Filings are shown to every signed-in Buyer, up to that Buyer's limit on SEC requests;
+over it, the search returns what it could with `partial_results: true`.
 
 ```ts
 // Apple's annual reports, amendments (10-K/A) included.

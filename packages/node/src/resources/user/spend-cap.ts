@@ -9,11 +9,10 @@ import type { UserSpendCap, UserSpendCapUpdateRequest } from '@ledewire/core'
 /**
  * Manage the authenticated buyer's daily spend cap.
  *
- * Every new buyer starts with a default cap, so `null` on {@link
- * UserSpendCapNamespace.update} is the only way to become uncapped — there is no
- * separate "remove the cap" call. While capped, `cap_cents` and `remaining_cents`
- * are numbers; once uncapped, both read back as `null` because there is no ceiling
- * to report or subtract from.
+ * Every new buyer starts with a default cap. {@link UserSpendCapNamespace.update}
+ * changes it but cannot remove it: the API refuses `null` with 422. A buyer the API
+ * still records as uncapped reads `cap_cents` and `remaining_cents` back as `null`,
+ * because there is no ceiling to report or subtract from.
  *
  * The cap governs every wallet debit the buyer makes — MCP, REST, or the web
  * payment gate — over a rolling window bounded by `spend_window_timezone` (an IANA
@@ -24,7 +23,7 @@ import type { UserSpendCap, UserSpendCapUpdateRequest } from '@ledewire/core'
  * **Exceeding the cap throws {@link SpendCapReachedError}** (HTTP 402) from
  * `client.purchases.create()`, the x402 content gate, and acquisition
  * authorization. Funding the wallet does not clear it — the buyer must wait for
- * the window to roll at `resets_at`, or the cap must be raised or cleared here.
+ * the window to roll at `resets_at`, or the cap must be raised here.
  *
  * Obtain via `client.user.spendCap` — do not construct directly.
  *
@@ -37,9 +36,6 @@ import type { UserSpendCap, UserSpendCapUpdateRequest } from '@ledewire/core'
  *
  * // Raise the cap to $20/day
  * await client.user.spendCap.update({ daily_spend_limit_cents: 2000 })
- *
- * // Remove the cap entirely (become uncapped)
- * await client.user.spendCap.update({ daily_spend_limit_cents: null })
  * ```
  */
 export class UserSpendCapNamespace {
@@ -63,14 +59,15 @@ export class UserSpendCapNamespace {
   }
 
   /**
-   * Sets or clears the authenticated buyer's daily spend cap.
+   * Sets the authenticated buyer's daily spend cap.
    *
-   * `daily_spend_limit_cents` is required and nullable: pass a number to set the
-   * cap, or `null` to remove it (the only way to become uncapped). A cap set below
+   * `daily_spend_limit_cents` is required: a whole number of cents, zero or more.
+   * A buyer can change the cap but cannot remove it, so `null` is a type error and
+   * the API refuses it with 422. A cap set below
    * spend already made in the current window is accepted — it just leaves
    * `remaining_cents` at zero until the window rolls.
    *
-   * @param body - The new cap in whole cents, or `null` to remove it.
+   * @param body - The new cap in whole cents.
    * @returns The updated spend cap.
    * @throws {ForbiddenError} When the buyer holds an open Company membership. A
    *   member's cap — an admin's own included — is set by a Company admin through

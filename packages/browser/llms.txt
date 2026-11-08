@@ -255,8 +255,9 @@ it again.
 #### lw.user.spendCap
 
 Every buyer starts with a default daily spend cap governing every wallet debit
-(MCP, REST, and the web payment gate). `null` on `update()` is the only way to
-become uncapped.
+(MCP, REST, and the web payment gate). `update()` changes the cap but cannot
+remove it. A buyer the API still records as uncapped reads `cap_cents` and
+`remaining_cents` as `null`.
 
 ```ts
 lw.user.spendCap.get()                                        → Promise<UserSpendCap>
@@ -273,7 +274,7 @@ interface UserSpendCap {
 }
 
 interface UserSpendCapUpdateRequest {
-  daily_spend_limit_cents: number | null  // required; null removes the cap
+  daily_spend_limit_cents: number  // required; null is refused (422): a cap can change, never be removed
 }
 ```
 

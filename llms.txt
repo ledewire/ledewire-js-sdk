@@ -60,7 +60,7 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `PurchaseResponse.license` (`PurchaseLicense | null`: `type`, `permissions`, `document_url`), `content.publication` (`PurchasePublication | null`) and `content.filing` (`ContentSearchFiling | null`, SEC filings only)
 - `lw.content.getWithAccess(contentId)` → content preview + the caller's access info (buyer token or none; never the deliverable)
 - `lw.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
-- `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `lw.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap (a whole number of cents; it can't be removed)
 - `lw.user.mcpKeys.list()` → `McpApiKey[]` — MCP API keys (no secrets)
 - `lw.user.mcpKeys.create({ label, can_search?, can_purchase? })` → `McpApiKeyCreateResponse` — includes one-time `secret`
 - `lw.user.mcpKeys.revoke(id)` → revoke an MCP API key
@@ -94,7 +94,7 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `client.content.getWithAccess(contentId)` → content preview + the caller's own access info; buyer token (or none) only, a store credential gets 403 `ForbiddenError`
 - `client.checkout.state(contentId)` → `CheckoutStateResponse`
 - `client.user.spendCap.get()` → `UserSpendCap` — buyer's daily spend cap, spend-to-date, `resets_at`
-- `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap, or `null` to remove it
+- `client.user.spendCap.update({ daily_spend_limit_cents })` → `UserSpendCap` — set the cap (a whole number of cents; it can't be removed)
 - `client.user.mcpKeys.list()` / `.create({ label, can_search?, can_purchase?, can_manage_content?, can_read_analytics?, store_id? })` / `.revoke(id)` — MCP API key management
 - `client.company.membership.get()` / `.leave()` — the buyer's own Company membership (404 when in none)
 - `client.company.invitations.list()` / `.create({ email, role? })` / `.revoke(id)` / `.accept({ token })` — joining needs the emailed token; a new address can pass it to `auth.signup()` or `auth.loginWithGoogle()` as `company_invitation_token` (a token that can't be accepted refuses the signup: 422 `invitation_not_accepted`, `details.reason`)
@@ -105,8 +105,8 @@ const { store_id } = await client.auth.loginWithApiKey({
 - `client.publications.list({ q?, bulk_licensable?, topics?, page?, per_page? })` → `PublicationListResponse` — publications available to bulk-license (public, no auth); each has `coverage_horizon`
 - `client.publications.get(id)` → `Publication` — one publication; 404 (`NotFoundError`) when the list would not show it (public, no auth)
 - `client.topics.list()` → `TopicDirectoryResponse` — the Topic directory with how many publications carry each (public, no auth)
-- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Only Buyers whose Company subscribes to SEC filings are shown filings; anyone else gets no results
-- `client.publications.listWorks(id, { from?, to?, cursor?, limit? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs (public, no auth)
+- `client.content.search({ query?, tags?, max_price_cents?, metadata?, publication?, form_type?, ticker?, cik?, cursor?, limit? })` (a `ContentSearchRequest`; the seller shape is `MerchantContentSearchRequest`) → `ContentSearchResponse` — buyer search across every Store and brokered Publication; page with `next_cursor` until null; a refused cursor (expired, invalid, other filters) throws `InvalidCursorError` (422), so drop it and restart from page one. `form_type`/`ticker`/`cik` return only SEC EDGAR filings (`query` optional), each with a `filing`: e.g. `{ ticker: 'AAPL', form_type: '10-K' }`. Filings are shown to every signed-in Buyer (over their SEC request limit: `partial_results: true`)
+- `client.publications.listWorks(id, { from?, to?, cursor?, limit?, page_kind? }?)` → `PublicationWorkListResponse` — one page of a publication's work URLs, each with its `page_kind` and `topics` labels (public, no auth)
 - `client.acquisitions.create({ urls })` → `AcquisitionResponse` (201) — submit a Selection; `quote_state` starts `'pending'`
 - `client.acquisitions.get(id)` → `AcquisitionResponse` — poll for quote/run progress, every `poll_after_seconds` while that field is present
 - `client.acquisitions.cancel(id)` → `AcquisitionResponse` — withdraw a quote (no money moves), or (Company admin) stop a held Company-paid acquisition

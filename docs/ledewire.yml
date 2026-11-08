@@ -331,11 +331,9 @@ components:
                 means re-quote;
                 `client_error` is ours to fix and must never be retried unchanged;
                 `insufficient_funds` is cleared by funding the wallet and
-                `daily_spend_cap_reached` deliberately is not; `not_subscribed` means the work
-                is sold only to Buyers whose Company subscribes to it (SEC filings), so do not
-                retry it until the Company subscribes. Each code means the same whichever kind
-                of work was being bought, though only a work sold by subscription returns
-                `not_subscribed`.
+                `daily_spend_cap_reached` deliberately is not; no work currently returns
+                `not_subscribed`, which stays so that clients matching on it keep working. Each
+                code means the same whichever kind of work was being bought.
 
 
                 On the Bulk acquisition steps: `exclusions_unacknowledged` means post the
@@ -365,6 +363,18 @@ components:
                 in an older format, or issued for a different search. Drop it and start
                 again from the first page, without a cursor; the same cursor never succeeds
                 on retry.
+
+
+                On `GET /v1/x402/contents/{id}`, a refused signed payment's `error.type` is its
+                refusal code, the same as the fresh `PAYMENT-REQUIRED` challenge's `error`:
+                `unknown_payment_key`, `invalid_ledewire_wallet_signature`, `recipient_mismatch`,
+                `amount_mismatch`, `resource_mismatch`, `payment_authorization_expired` or
+                `nonce_already_used` (see `X402PaymentRequired.error` for each). None succeeds if
+                the same payment is sent again: sign a new Payment authorization.
+                `authorization_amount_mismatch` is the purchase refusing a signed price that is no
+                longer the work's price, and `nonce_already_used` a purchase already holding the
+                Payment key and nonce; on x402 they are answered as `amount_mismatch` and
+                `nonce_already_used`.
               enum:
                 - retrieval_failed
                 - not_licensable
@@ -386,6 +396,14 @@ components:
                 - invitation_not_accepted
                 - email_not_verified
                 - invalid_cursor
+                - unknown_payment_key
+                - invalid_ledewire_wallet_signature
+                - recipient_mismatch
+                - amount_mismatch
+                - resource_mismatch
+                - payment_authorization_expired
+                - nonce_already_used
+                - authorization_amount_mismatch
 
     AuthSignupRequest:
       type: object
@@ -501,9 +519,6 @@ components:
         last_used_at:
           type: [string, 'null']
           format: date-time
-        spending_limit_cents:
-          type: [integer, 'null']
-          description: Maximum cumulative spend in cents. null = no limit.
         created_at:
           type: string
           format: date-time
@@ -511,6 +526,9 @@ components:
     UserApiKeyCreateRequest:
       type: object
       required: [name]
+      description: >
+        spending_limit_cents is refused with 400, whatever its value (null included): a Buyer's
+        limit is their Spend cap.
       properties:
         name:
           type: string
@@ -518,11 +536,6 @@ components:
           description: >
             Human-readable label for the key. Must not be blank, and must be unique among the
             caller's own keys (a duplicate is refused with 422).
-        spending_limit_cents:
-          type: [integer, 'null']
-          minimum: 1
-          maximum: 2147483647
-          description: Optional spend ceiling in cents, greater than zero. Omitted or null means no limit.
 
     UserApiKeyCreateResponse:
       type: object
@@ -826,7 +839,17 @@ components:
         cannot be null.
       anyOf:
         - required: [name]
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: >
+                Trimmed of surrounding whitespace before it is checked; over 100 characters after
+                trimming is refused with 422.
         - required: [description]
+          properties:
+            description:
+              type: [string, 'null']
       properties:
         name:
           type: string
@@ -1054,7 +1077,19 @@ components:
       description: At least one of role and daily_spend_limit_cents.
       anyOf:
         - required: [role]
+          properties:
+            role:
+              type: string
+              enum: [admin, member]
         - required: [daily_spend_limit_cents]
+          properties:
+            daily_spend_limit_cents:
+              type: integer
+              minimum: 0
+              maximum: 2147483647
+              description: >
+                The member's daily Spend cap in cents. Any admin may set any member's, their own
+                included. null is refused — a member is never uncapped. Writes an AuditEvent.
       properties:
         role:
           type: string
@@ -1092,20 +1127,19 @@ components:
     UserSpendCapUpdateRequest:
       type: object
       description: >
-        Sets the buyer's cap. The field is required and nullable: null is how a buyer becomes
-        uncapped, and an omitted field is treated as a client error rather than as a request to
-        be uncapped. A cap below spend already made in the current window is accepted — it simply
-        leaves remaining_cents at zero until the window rolls. Zero is a valid cap and refuses
-        every priced purchase.
+        Sets the buyer's cap. The field is required and cannot be null: a buyer can change the cap
+        but cannot remove it. A cap below spend already made in the current window is
+        accepted — it simply leaves remaining_cents at zero until the window rolls. Zero is a
+        valid cap and refuses every priced purchase.
       required: [daily_spend_limit_cents]
       properties:
         daily_spend_limit_cents:
-          type: [integer, 'null']
+          type: integer
           minimum: 0
           maximum: 2147483647
           description: >
-            New cap in whole cents, or null to remove the cap. Negative, fractional and out-of-range
-            values are rejected with 422.
+            New cap in whole cents. Null, negative, fractional and out-of-range values are rejected
+            with 422.
 
     McpApiKeyCreateRequest:
       type: object
@@ -1269,12 +1303,13 @@ components:
             - type: 'null'
           description: >-
             For an SEC filing, who filed it and what it is; null for every other work. Always
-            sent. Only Buyers whose Company subscribes to SEC filings are shown filings.
+            sent. Filings are shown to every signed-in Buyer, up to that Buyer's limit on SEC
+            requests.
 
     ContentSearchFiling:
       description: >
         An SEC filing's primary document, as a search result describes it. Its price is 0: the
-        filing is public domain, and access comes with the Company's Subscription.
+        filing is public domain, and every signed-in Buyer may buy it.
       type: object
       required: [filer_name, ticker, cik, form_type, filing_date, period_of_report, accession_number]
       additionalProperties: false
@@ -1356,7 +1391,8 @@ components:
                 The Publication this work was published by, when it is brokered and its URL's host
                 is one of a listed Publication's domains (`www.` and letter case ignored). Null for
                 Store works and for brokered works on no listed Publication's domain. An SEC filing
-                always names the Publication of SEC filings, which is not listed. A work whose
+                always names the Publication of SEC filings, which is listed only to signed-in
+                Buyers. A work whose
                 Publication is `bulk_licensable` can be added to a Selection for a Bulk acquisition.
 
     ContentSearchPublication:
@@ -1828,6 +1864,30 @@ components:
         message:
           type: string
 
+    McpInsufficientScopeError:
+      type: object
+      description: >
+        Returned as the JSON text in `content[0].text` when get_content receives a payment
+        from a key without can_purchase. Always accompanied by isError: true, and never in
+        structuredContent. Nothing is charged and the nonce is not consumed.
+      required: [error, required_scope, oauth_url, message]
+      properties:
+        error:
+          type: string
+          enum: [insufficient_scope]
+        required_scope:
+          type: string
+          enum: ['mcp:purchase']
+          description: The scope the connection is missing.
+        oauth_url:
+          type: string
+          format: uri
+          description: >
+            The authorization endpoint. The client has to start sign-in, since opened without
+            the OAuth parameters this address answers with an error.
+        message:
+          type: string
+          description: The remedy in words, to relay to the person.
     McpDailySpendCapReachedError:
       type: object
       description: >
@@ -1987,7 +2047,8 @@ components:
           description: >
             Echoed from the request. Absent when the request's id could not be read: a parse
             error (`-32700`), an invalid envelope or a `null` id (`-32600`), or a refusal made
-            before the body was read (`405`, `406`, `413`, `415`, `429`).
+            before the body was read (`405`, `406`, `413`, `415`, `429`). The `429` for too many
+            purchase requests is made after the body is read, and echoes it.
           type: [integer, string]
         result:
           type: object
@@ -3114,7 +3175,7 @@ components:
 
     PurchaseResponse:
       type: object
-      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, license, timestamp, status]
+      required: [id, content_id, content, buyer_id, buyer, seller_id, seller, amount_cents, license, timestamp, status, payment_key_id]
       properties:
         id:
           type: string
@@ -3195,6 +3256,12 @@ components:
           format: date-time
         status:
           $ref: '#/components/schemas/PurchaseStatus'
+        payment_key_id:
+          type: [string, 'null']
+          description: >-
+            The id of the Payment key that signed the x402 payment for this purchase. Null for
+            every purchase that was not paid with a signed Payment authorization, including every
+            purchase made through `POST /v1/purchases`.
         content_body:
           type: string
           description: >
@@ -3638,6 +3705,39 @@ components:
         attempts:
           type: [integer, 'null']
           description: How many times retrieval was tried, the successful attempt included.
+        page_kind:
+          type: string
+          enum: [article, section_index, homepage, media, utility, unclassified]
+          description: >
+            What sort of page the work was, structurally, when this line was priced — the same
+            label `PublicationWork` carries, recorded at pricing and kept for as long as the
+            acquisition exists. A re-quote records it afresh. The four label fields are present
+            together or not at all: absent on a line refused before pricing (for example a
+            malformed or duplicate line, or a work refused when the Selection was sent) and on a
+            line priced before labels were recorded. Labels describe a work
+            and never gate it: no label excludes, reprices or reorders a line, and the Manifest
+            does not carry them.
+        page_kind_basis:
+          type: [string, 'null']
+          enum: [observed, rule, null]
+          description: >
+            How `page_kind` was decided at pricing. `observed`: from the page itself, such as a URL
+            that is the Publication's homepage. `rule`: a reviewed URL rule for the Publication.
+            Null when `page_kind` is `unclassified`.
+        topics:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/TopicSlug'
+          description: >
+            Up to three Topics the work was about when this line was priced. May be empty.
+        topics_basis:
+          type: string
+          enum: [rule, inherited]
+          description: >
+            How `topics` were decided at pricing. `rule`: a reviewed URL rule for the Publication
+            named them. `inherited`: the first three of the Publication's own Topics at that time,
+            which may be none.
 
     Publication:
       type: object
@@ -3884,8 +3984,10 @@ components:
       type: object
       description: >
         A work a Publication has available to license, as the Broker's catalog lists it. `url` is
-        exactly what a Selection takes.
-      required: [url, last_mod]
+        exactly what a Selection takes. Every work carries labels: a Page kind and up to three
+        Topics, each with the basis it rests on. Labels describe a work and never gate it: a work
+        of any Page kind is listed, quoted and sold exactly as it would be without one.
+      required: [url, last_mod, page_kind, page_kind_basis, topics, topics_basis]
       properties:
         url:
           type: string
@@ -3896,6 +3998,32 @@ components:
           description: >
             When the Broker says the work was last modified. Null where it supplies none, which on
             some publications is every work.
+        page_kind:
+          type: string
+          enum: [article, section_index, homepage, media, utility, unclassified]
+          description: >
+            What sort of page the work is, structurally. `unclassified` means no source labels it
+            yet; the work is not hidden or treated differently for it.
+        page_kind_basis:
+          type: [string, 'null']
+          enum: [observed, rule, null]
+          description: >
+            How `page_kind` was decided. `observed`: from the page itself, such as a URL that is
+            the Publication's homepage. `rule`: a reviewed URL rule for the Publication. Null when
+            `page_kind` is `unclassified`.
+        topics:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/TopicSlug'
+          description: >
+            Up to three Topics the work is about. May be empty.
+        topics_basis:
+          type: string
+          enum: [rule, inherited]
+          description: >
+            How `topics` were decided. `rule`: a reviewed URL rule for the Publication named them.
+            `inherited`: the first three of the Publication's own Topics, which may be none.
 
     PublicationWorkListResponse:
       type: object
@@ -3931,12 +4059,15 @@ components:
           type: [string, 'null']
           description: >
             Opaque. Pass it back as `cursor` with the same `from`/`to` for the next page. Null means
-            the walk is over; an empty page with a cursor is not the end.
+            the walk is over; an empty page with a cursor is not the end. It is the same with or
+            without `page_kind`, so a filtered page may be empty before the end.
 
     McpListPublicationWorksResult:
       description: >
         The MCP `list_publication_works` result. It is the same page as
-        `GET /v1/publications/{id}/works` returns, by reference, so the two cannot drift.
+        `GET /v1/publications/{id}/works` returns, by reference, so the two cannot drift: each
+        work carries its `page_kind`, `page_kind_basis`, `topics` and `topics_basis`, and a
+        `page_kind` filter keeps only that page's works of one kind.
       allOf:
         - $ref: '#/components/schemas/PublicationWorkListResponse'
 
@@ -4368,6 +4499,256 @@ components:
           description: >
             RS256-signed JWT for offline entitlement verification (default 24h TTL), verifiable
             via `/.well-known/x402-jwks.json`. Omitted, never null, if no signing key is configured.
+
+    X402PaymentRequired:
+      type: object
+      description: >
+        x402 v2 PaymentRequired. Base64-encoded JSON returned in the `PAYMENT-REQUIRED` header of
+        a `402` from `GET /v1/x402/contents/{id}`. The work's id is not in it: it is the `id` in
+        the request path, and the signed `resource` names it.
+      required: [x402Version, error, resource, accepts, extensions]
+      properties:
+        x402Version:
+          type: integer
+          enum: [2]
+        error:
+          type: string
+          description: >
+            Why the client is being asked to pay. `PAYMENT-SIGNATURE header is required` when the
+            request carried no payment. After a refused signed payment, the refusal code, which
+            the `402` body's `error.type` repeats: `unknown_payment_key` (no active Payment key
+            has the id in `from`; a revoked key answers the same), `invalid_ledewire_wallet_signature`
+            (the signature does not verify against that key), `recipient_mismatch` (`to` is not
+            `payTo`), `amount_mismatch` (`value` or `asset` is not what this challenge asks; the
+            challenge quotes the current price, so sign again for it), `resource_mismatch`
+            (`resource` is not `resource.url`), `payment_authorization_expired` (outside
+            `validAfter`..`validBefore` with 60 seconds of skew either side, `validAfter` not earlier
+            than `validBefore`, or a window longer than `maxTimeoutSeconds`) or
+            `nonce_already_used` (a purchase already holds this key
+            and nonce; sign again with a fresh nonce).
+          enum:
+            - PAYMENT-SIGNATURE header is required
+            - unknown_payment_key
+            - invalid_ledewire_wallet_signature
+            - recipient_mismatch
+            - amount_mismatch
+            - resource_mismatch
+            - payment_authorization_expired
+            - nonce_already_used
+        resource:
+          type: object
+          required: [url, description, mimeType]
+          properties:
+            url:
+              type: string
+              description: >
+                This endpoint for the work, `{base_url}/v1/x402/contents/{id}`. A Payment
+                authorization's `resource` must equal it exactly.
+            description:
+              type: string
+              description: The work's display title.
+            mimeType:
+              type: string
+              enum: [application/json]
+        accepts:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/X402PaymentRequirements'
+        extensions:
+          type: object
+          maxProperties: 0
+          description: Always `{}`.
+
+    X402PaymentRequirements:
+      type: object
+      description: >
+        One entry of `X402PaymentRequired.accepts`: what the server asks to be paid for the work
+        now. A signed Payment authorization is checked against exactly these values: its `to`
+        must equal `payTo`, its `value` and `asset` must equal `amount` and `asset`, and its
+        `validBefore - validAfter` must not exceed `maxTimeoutSeconds`.
+      required: [scheme, network, amount, asset, payTo, maxTimeoutSeconds, extra]
+      properties:
+        scheme:
+          type: string
+          enum: [ledewire-wallet]
+        network:
+          type: string
+          enum: ['ledewire:v1']
+        amount:
+          type: string
+          pattern: '^(0|[1-9][0-9]*)$'
+          description: The price in cents, as a decimal string.
+        asset:
+          type: string
+          enum: [USD]
+        payTo:
+          type: string
+          pattern: '^store:'
+          description: >
+            `store:<store id>`, the Store selling the work. For a brokered work it is LedeWire's
+            fixed id, `store:f67c246e-206c-5d62-b113-c526c54fac76`.
+        maxTimeoutSeconds:
+          type: integer
+          enum: [300]
+          description: The longest window, in seconds, a Payment authorization may span.
+        extra:
+          type: object
+          maxProperties: 0
+          description: >
+            Always `{}`. There is no server nonce: the client generates one inside the signed
+            Payment authorization.
+
+    X402PaymentPayload:
+      type: object
+      description: >
+        x402 v2 PaymentPayload: the Base64-encoded JSON a client sends in the `PAYMENT-SIGNATURE`
+        header of `GET /v1/x402/contents/{id}`. Members not listed here are ignored.
+      required: [x402Version, accepted, payload]
+      properties:
+        x402Version:
+          type: integer
+          enum: [2]
+        accepted:
+          type: object
+          description: >
+            The `accepts` entry being paid (an `X402PaymentRequirements`). Only `scheme` and
+            `network` are read from it; what is charged is what `payload.authorization` signs.
+          required: [scheme, network]
+          properties:
+            scheme:
+              type: string
+              enum: [ledewire-wallet]
+            network:
+              type: string
+              enum: ['ledewire:v1']
+        payload:
+          $ref: '#/components/schemas/X402PaymentAuthorization'
+
+    X402PaymentAuthorization:
+      type: object
+      description: >
+        A Payment authorization: the payer's signed promise to pay one amount, to one recipient,
+        for one resource, once, within a window. It is signed with a Payment key the payer
+        registered (`POST /v1/user/payment-keys`), and no session token is sent. A `payload`
+        carrying `token` instead is refused with 400 `Unsupported payment payload`.
+      required: [signature, authorization]
+      properties:
+        signature:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{86}$'
+          description: >
+            The Ed25519 signature, by the Payment key named in `from`, over the ASCII bytes
+            `ledewire-payment-authorization:` followed by the RFC 8785 (JCS) serialisation of
+            `authorization`, as unpadded base64url of its 64 bytes. Over the values `authorization` allows (printable ASCII strings and integers below 2^53), JCS is
+            the object with its keys sorted by code point, serialised as compact JSON with no
+            whitespace.
+        authorization:
+          type: object
+          additionalProperties: false
+          description: >
+            Exactly these eight members. Every string is printable ASCII; every integer is in
+            `[0, 2^53)`. Anything else is refused with 400 `Malformed PAYMENT-SIGNATURE header`.
+          required: [from, to, value, asset, resource, validAfter, validBefore, nonce]
+          properties:
+            from:
+              type: string
+              pattern: '^[ -~]*$'
+              description: The id of the payer's Payment key (`PaymentKey.id`).
+            to:
+              type: string
+              pattern: '^[ -~]*$'
+              description: The challenge's `payTo`.
+            value:
+              type: string
+              pattern: '^(0|[1-9][0-9]*)$'
+              description: "The price in cents, as a decimal string: the challenge's `amount`."
+            asset:
+              type: string
+              pattern: '^[ -~]*$'
+              description: The challenge's `asset`, `USD`.
+            resource:
+              type: string
+              pattern: '^[ -~]*$'
+              description: The challenge's `resource.url`.
+            validAfter:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+              description: >
+                Unix seconds. Not valid more than 60 seconds before this. Must be earlier than
+                `validBefore`.
+            validBefore:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+              description: >
+                Unix seconds. Not valid more than 60 seconds after this, and no more than
+                `maxTimeoutSeconds` after `validAfter`.
+            nonce:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+              description: >
+                64 lowercase hex characters (32 random bytes), generated by the client. A Payment
+                key can settle each nonce once; a second use is refused with `nonce_already_used`.
+
+    PaymentKey:
+      type: object
+      description: >
+        A Payment key: the public half of an Ed25519 key that signs x402 Payment authorizations.
+        It signs payments only and is never a login credential. LedeWire never holds the private
+        half, so there is no secret to return.
+      required: [id, name, public_key, created_by_user_id, last_used_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The id a Payment authorization names in `from`.
+        name:
+          type: string
+        public_key:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: The 32 raw Ed25519 public key bytes, as unpadded base64url.
+        created_by_user_id:
+          type: [string, 'null']
+          format: uuid
+          description: >
+            The Company admin who registered it for a Machine user. Null when its holder
+            registered it.
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+          description: When it last settled a payment. Null until it has.
+        created_at:
+          type: string
+          format: date-time
+
+    PaymentKeyCreateRequest:
+      type: object
+      required: [name, public_key, proof]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        public_key:
+          type: string
+          description: >
+            The 32 raw Ed25519 public key bytes, as unpadded base64url (43 characters). Anything
+            that does not decode to exactly 32 bytes, padded spellings included, is refused with
+            422, as is a key already registered. So are bytes that are not a canonical Ed25519
+            point encoding (`Public key is not a canonical Ed25519 point encoding`) and a
+            small-order point (`Public key is a small-order Ed25519 point`), over which a forged
+            signature can verify.
+        proof:
+          type: string
+          description: >
+            Proof of possession: an Ed25519 signature, made with the key being registered, over the
+            ASCII bytes `ledewire-payment-key:` followed by the `public_key` string exactly as sent,
+            as unpadded base64url of its 64 bytes (86 characters). A proof that does not verify is refused with
+            422, which also refuses a private key sent by mistake as `public_key`. It is checked
+            and discarded, never stored or returned.
 
     MerchantPricingRule:
       type: object
@@ -4871,9 +5252,11 @@ paths:
 
         `redirect_uri` is checked by who the client is. A registered client (an `lwc_` id from
         `POST /oauth/register`) must have registered it. A `client_id` that is an https URL is
-        treated as a Client ID Metadata Document: the document is fetched (3-second timeout,
-        private and loopback hosts refused) and must list the URI in its `redirect_uris`. Any
-        other client, including none, may only redirect to `localhost` or `127.0.0.1`.
+        treated as a Client ID Metadata Document: the document is fetched (6 seconds for the
+        whole fetch, private and loopback hosts refused) and must list the URI in its
+        `redirect_uris`; the URI must also use https, or http on a loopback address. Any other
+        client, including none, may only redirect to `localhost` or `127.0.0.1`, over http or
+        https.
       tags:
         - OAuth
       security: []
@@ -4933,7 +5316,7 @@ paths:
             The authorization parameters are unusable. Answered as JSON, not HTML: `redirect_uri is
             required`, `code_challenge is required`, `code_challenge_method must be S256`,
             `redirect_uri not registered for this client_id`, `client_id metadata fetch failed`,
-            `redirect_uri not permitted by client_id metadata` or `redirect_uri must be localhost`.
+            `redirect_uri not permitted by client_id metadata`, `redirect_uri must use https, or http on a loopback address` or `redirect_uri must be localhost`.
           content:
             application/json:
               schema:
@@ -4943,16 +5326,31 @@ paths:
                   summary: Unregistered client with a non-loopback redirect URI
                   value:
                     error: 'redirect_uri must be localhost'
+        '429':
+          description: >
+            Too many requests. The source IP is limited to 30 page loads per minute. Answered as
+            JSON, not HTML.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/AuthRetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OauthTooManyRequestsResponse'
 
     post:
       summary: OAuth consent submission
       description: >
         The consent page's form post — a browser flow, not an API call, and it requires the page's
         CSRF token. Carries the same authorization parameters as `GET /oauth/authorize`, validated
-        the same way, plus the person's credentials: `email` and `password`, or nothing when
-        `POST /oauth/authorize/google` has already verified them in this session. A person who
-        holds more than one store must also choose one with `store_id`. On success the browser is
-        redirected to `redirect_uri` with `code` (valid 10 minutes, single use) and `state`.
+        the same way, plus the person's credentials: `email` and `password`, or nothing when this
+        session has already verified them. A password submitted with `mcp:purchase` in `scope`
+        answers `200` with a signed-in page naming the paying wallet and the daily Spend cap, and
+        no code; submitting that page's form, which carries `signed_in_as`, issues it. A
+        `signed_in_as` that is no longer this session's identity also answers `200` and issues no
+        code. A person who holds more than one store must also choose one with `store_id`. On
+        success the browser is redirected to `redirect_uri` with `code` (valid 10 minutes, single
+        use) and `state`.
       tags:
         - OAuth
       security: []
@@ -4985,7 +5383,13 @@ paths:
                   type: string
                 store_id:
                   type: string
-                  description: Required when the person holds more than one store they own or author.
+                  description: >
+                    Required when the person holds more than one store they own or author. One of
+                    those stores, or `buyer_only` for a grant with no store, which leaves out
+                    `mcp:manage_content` and `mcp:analytics` whatever `scope` asks for.
+                signed_in_as:
+                  type: string
+                  description: The account the signed-in page named. Sent by that page's form.
                 authenticity_token:
                   type: string
                   description: The CSRF token from the consent page.
@@ -4999,8 +5403,10 @@ paths:
         '200':
           description: >
             The consent page again: with an error (`Invalid email or password`, or `Session expired.
-            Please sign in again.` when the Google-verified session no longer names a user), or with
-            a store picker for a person holding several stores.
+            Please sign in again.` when the saved sign-in is over 15 minutes old, the password has
+            changed since it, or it no longer names a user), with a
+            store picker for a person holding several stores, or as the signed-in page a client
+            requesting `mcp:purchase` stops at. No code is issued.
           content:
             text/html:
               schema:
@@ -5010,7 +5416,7 @@ paths:
             The authorization parameters are unusable. Answered as JSON, not HTML: `redirect_uri is
             required`, `code_challenge is required`, `code_challenge_method must be S256`,
             `redirect_uri not registered for this client_id`, `client_id metadata fetch failed`,
-            `redirect_uri not permitted by client_id metadata` or `redirect_uri must be localhost`;
+            `redirect_uri not permitted by client_id metadata`, `redirect_uri must use https, or http on a loopback address` or `redirect_uri must be localhost`;
             or `store not accessible` for a `store_id` the person cannot use.
           content:
             application/json:
@@ -5677,8 +6083,8 @@ paths:
                 $ref: '#/components/schemas/UserApiKeyCreateResponse'
         '400':
           description: >
-            The body failed validation: `name` missing or blank, or `spending_limit_cents` not an
-            integer from 1 to 2147483647.
+            The body failed validation: `name` missing or blank, or `spending_limit_cents` present
+            with any value, null included (a Buyer's limit is their Spend cap).
           content:
             application/json:
               schema:
@@ -5690,12 +6096,12 @@ paths:
                     error:
                       code: 400
                       message: 'name must be filled'
-                zero_limit:
-                  summary: Non-positive spending limit
+                spending_limit:
+                  summary: Spending limit refused
                   value:
                     error:
                       code: 400
-                      message: 'spending_limit_cents must be greater than 0'
+                      message: "spending_limit_cents is not allowed: a Buyer's limit is their Spend cap"
         '401':
           description: >
             Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
@@ -5791,6 +6197,158 @@ paths:
                       code: 404
                       message: 'Not found'
 
+  /v1/user/payment-keys:
+    get:
+      summary: List the authenticated Buyer's Payment keys
+      description: >
+        The caller's active Payment keys, newest first (`created_at` descending). Revoked keys are
+        not listed. Not paginated: there are at most 10. Requires a buyer token; seller and
+        merchant tokens get 403 `Invalid Role`.
+      tags:
+        - Payment Keys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The active keys, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentKey'
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The token is not a buyer token (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Register a Payment key
+      description: >
+        Registers the public half of an Ed25519 key the caller signs x402 payments with
+        (`GET /v1/x402/contents/{id}`). The private half never reaches LedeWire, so nothing secret
+        is returned, and a Payment key is never a login credential. A Buyer may hold at most 10
+        active Payment keys, so a key is rotated by registering its replacement before revoking
+        it. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`. A Machine
+        user cannot register its own keys: its Company's admins do, through
+        `POST /v1/company/machine-users/{machine_user_id}/payment-keys`.
+      tags:
+        - Payment Keys
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentKeyCreateRequest'
+      responses:
+        '201':
+          description: The registered key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentKey'
+        '400':
+          description: '`name`, `public_key` or `proof` is missing or blank'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The caller is a Machine user, whose keys its Company's admins manage
+            (`Machine users cannot manage their own keys`), or the token is not a buyer token
+            (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >
+            The key failed validation: a `public_key` that is not the unpadded base64url of
+            exactly 32 bytes, one that is not a canonical Ed25519 point encoding
+            (`Public key is not a canonical Ed25519 point encoding`), one that is a small-order
+            point (`Public key is a small-order Ed25519 point`), a `proof` that does not verify, a
+            public key already registered, or a caller already holding 10 active Payment keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                bad_proof:
+                  summary: Proof does not verify
+                  value:
+                    error:
+                      code: 422
+                      message: 'Proof is not a valid signature by this key'
+
+  /v1/user/payment-keys/{id}:
+    delete:
+      summary: Revoke a Payment key
+      description: >
+        The key is marked revoked and no longer settles payments; a purchase it paid for still
+        names it. Requires a buyer token; seller and merchant tokens get 403 `Invalid Role`. Only
+        the caller's own active keys can be revoked; another user's key, an already-revoked key
+        and an unknown id all answer 404.
+      tags:
+        - Payment Keys
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Key revoked. No body.
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The caller is a Machine user, whose keys its Company's admins manage
+            (`Machine users cannot manage their own keys`), or the token is not a buyer token
+            (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller has no active key with this id (including another user's key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/user/spend-cap:
     get:
       summary: Read the authenticated buyer's daily spend cap
@@ -5831,12 +6389,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
-      summary: Set or clear the authenticated buyer's daily spend cap
+      summary: Set the authenticated buyer's daily spend cap
       description: >
-        Writes daily_spend_limit_cents for the buyer the session token names — null clears the
-        cap, leaving the buyer uncapped. This is the supported way to become uncapped: buyer
-        creation always applies the default cap, even when an explicit null is supplied.
-        Returns the updated cap in the same shape GET returns.
+        Writes daily_spend_limit_cents for the buyer the session token names. A buyer can change
+        the cap but cannot remove it: null is refused with 422. Returns the updated cap in the same
+        shape GET returns.
       tags:
         - Buyer Spend Cap
       security:
@@ -5874,7 +6431,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: >
-            Cap is negative, above 2147483647, fractional, non-integer, or the field was omitted. Every validation
+            Cap is null, negative, above 2147483647, fractional, non-integer, or the field was omitted. Every validation
             failure on this operation is a 422, never a 400.
           content:
             application/json:
@@ -6652,6 +7209,185 @@ paths:
       responses:
         '204':
           description: Key revoked
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such Machine user in the caller's Company, or no such active key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/payment-keys:
+    get:
+      summary: List a Machine user's Payment keys
+      description: >
+        Company admins only. The Machine user's active Payment keys, oldest first. Revoked keys
+        are not listed.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The active keys, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentKey'
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Register a Payment key for a Machine user
+      description: >
+        Company admins only. Registers the public half of an Ed25519 key that the Machine user's
+        agent signs x402 payments with (`GET /v1/x402/contents/{id}`). The private half never
+        reaches LedeWire, so nothing secret is returned. A Machine user may hold at most 10 active
+        Payment keys, so a key is rotated by registering its replacement before revoking it. An
+        audit event names the admin.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentKeyCreateRequest'
+      responses:
+        '201':
+          description: The registered key, `created_by_user_id` the admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentKey'
+        '400':
+          description: '`name`, `public_key` or `proof` is missing or blank'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: >
+            Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
+            or the caller is a deactivated Machine user (`Machine user is deactivated`).
+            A buyer token whose user no longer exists gets `User not found`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >
+            The caller is not a Company admin, or the token is not a buyer token (`Invalid Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The caller belongs to no Company, or the Machine user is not in it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The Machine user is deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >
+            The key failed validation: a `public_key` that is not the unpadded base64url of
+            exactly 32 bytes, one that is not a canonical Ed25519 point encoding
+            (`Public key is not a canonical Ed25519 point encoding`), one that is a small-order
+            point (`Public key is a small-order Ed25519 point`), a `proof` that does not verify, a
+            public key already registered, or a Machine user already holding 10 active Payment keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/company/machine-users/{machine_user_id}/payment-keys/{id}:
+    delete:
+      summary: Revoke a Machine user's Payment key
+      description: >
+        Company admins only. The key is marked revoked and no longer settles payments; a purchase
+        it paid for still names it. An audit event names the admin.
+      tags:
+        - Company Memberships
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: machine_user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Key revoked. No body.
         '401':
           description: >
             Missing or invalid token (`Request must include a valid Bearer Token`, `Invalid token`),
@@ -9584,7 +10320,8 @@ paths:
 
 
         When part of the search cannot be run the call still succeeds, with what could be found
-        and `partial_results: true`. `next_cursor` then still points at what was missed, so
+        and `partial_results: true`. A Buyer over their limit on SEC requests gets the same.
+        `next_cursor` then still points at what was missed, so
         sending it asks for it again. `unavailable_providers` is deprecated and always empty.
 
 
@@ -9943,8 +10680,10 @@ paths:
             `InsufficientFundsError`), or one of the brokered-delivery refusals
             `retrieval_failed`, `not_licensable`, `not_found`, `price_drifted` and `client_error`
             (see `ErrorResponse.error.type` for what each means). `client_error` also covers a
-            purchase that could not be recorded. `not_subscribed` refuses a work sold only to
-            Buyers whose Company subscribes to it, before anything is charged or fetched.
+            purchase that could not be recorded. A Buyer over their limit on SEC requests gets
+            `retrieval_failed` for an SEC filing, with nothing charged or fetched; a moment later
+            it clears, and a Company's Subscription raises the limit. No work currently returns
+            `not_subscribed`.
           content:
             application/json:
               schema:
@@ -9978,6 +10717,28 @@ paths:
                       code: 422
                       message: 'Content could not be retrieved'
                       type: retrieval_failed
+        '429':
+          description: >
+            Too many purchase requests: a Buyer may make 60 a minute, counted together across this
+            endpoint, MCP `get_content`'s paid call and x402's verified payments. Every
+            authenticated request here counts, including one refused for its body or price.
+            Nothing was charged and no purchase was written. Waiting `Retry-After` seconds is
+            always enough.
+          headers:
+            Retry-After:
+              description: Seconds to wait. Always the full window (60).
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limited:
+                  value:
+                    error:
+                      code: 429
+                      message: 'Too many requests. Please try again later.'
 
   /v1/purchases/{id}:
     get:
@@ -11259,10 +12020,12 @@ paths:
       description: >
         Implements the x402 v2 payment protocol using the `ledewire-wallet` scheme.
         On the first request (no `PAYMENT-SIGNATURE` header) the server responds with
-        `402 Payment Required` and a `PAYMENT-REQUIRED` header describing the price and
-        a single-use nonce. The client retries with a `PAYMENT-SIGNATURE` header
-        containing the buyer JWT and nonce. On success the server responds with `200`,
-        a `PAYMENT-RESPONSE` header with the settlement result, and the content body.
+        `402 Payment Required` and a `PAYMENT-REQUIRED` header describing the price and the
+        recipient. The client retries with a `PAYMENT-SIGNATURE` header carrying a signed Payment
+        authorization: the client generates the nonce inside a signed Payment authorization and
+        signs it with a Payment key it registered (`POST /v1/user/payment-keys`). No session token
+        or API key is sent. On success the server responds with `200`, a `PAYMENT-RESPONSE`
+        header with the settlement result, and the content body.
 
 
         Free seller content (`price_cents: 0`) returns `200` immediately, with no handshake and
@@ -11270,9 +12033,10 @@ paths:
         purchase does not skip it, and each settled handshake is a new charge.
 
 
-        Retrying is **not** idempotent. There is no idempotency key; a nonce is single-use, so a
-        replayed `PAYMENT-SIGNATURE` gets a fresh 402 rather than a second charge, but a client
-        that starts a new handshake after a lost response pays again.
+        Retrying is **not** idempotent across Payment authorizations. A Payment key settles each
+        nonce once, so resending the same `PAYMENT-SIGNATURE` is refused with a 402
+        `nonce_already_used` rather than charged twice. A client that signs a new Payment
+        authorization after a lost response pays again.
       tags:
         - x402
       security: []
@@ -11290,13 +12054,19 @@ paths:
           required: false
           schema:
             type: string
+            contentEncoding: base64
+            contentMediaType: application/json
+            contentSchema:
+              $ref: '#/components/schemas/X402PaymentPayload'
           description: >-
-            Base64-encoded x402 v2 PaymentPayload JSON object. Required for paid content.
+            Base64-encoded x402 v2 PaymentPayload JSON object, decoded against
+            `$ref: '#/components/schemas/X402PaymentPayload'`. Required for paid content.
             Must carry `x402Version: 2`; `accepted.scheme: "ledewire-wallet"` and
-            `accepted.network: "ledewire:v1"`; and `payload.contentId` (this work's id),
-            `payload.nonce` (from the 402's `accepts[0].extra.nonce`) and `payload.token` (a
-            buyer JWT, with or without a `Bearer ` prefix). Other members are ignored. An unknown,
-            expired or already-used nonce gets a fresh 402 with a new nonce, not a 400.
+            `accepted.network: "ledewire:v1"`; and a `payload` that is a signed Payment
+            authorization (`X402PaymentAuthorization`): a `signature` and an `authorization` with
+            `from`, `to`, `value`, `asset`, `resource`, `validAfter`, `validBefore` and a
+            client-generated `nonce`. Other top-level members are ignored. A well-formed payment
+            the server refuses gets a 402 with a fresh challenge naming the refusal code.
       responses:
         '200':
           description: Payment settled; content delivered.
@@ -11315,26 +12085,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/X402ContentResponse'
         '402':
-          description: Payment required. PAYMENT-REQUIRED header contains the x402 v2 PaymentRequired JSON (Base64-encoded).
+          description: >
+            Payment required, with a `PAYMENT-REQUIRED` challenge (Base64-encoded x402 v2
+            PaymentRequired JSON). Three cases:
+
+
+            - **No payment was sent.** The challenge's `error` is `PAYMENT-SIGNATURE header is
+              required`.
+
+            - **A well-formed signed payment was refused.** The challenge is a fresh one, and its
+              `error` is one of the seven refusal codes: `unknown_payment_key`,
+              `invalid_ledewire_wallet_signature`, `recipient_mismatch`, `amount_mismatch`,
+              `resource_mismatch`, `payment_authorization_expired` or `nonce_already_used`. The
+              body is an `ErrorResponse` whose `error.type` equals the challenge's `error`, so a
+              client can read the code from either. Nothing is charged. For `amount_mismatch` the
+              fresh challenge quotes the work's current price. Sending the same payment again
+              never succeeds: sign a new Payment authorization against the fresh challenge.
+
+            - **The daily spend cap.** A `DailySpendCapReachedError` body and **no**
+              `PAYMENT-REQUIRED` header: the buyer's daily spend cap would be exceeded. Retrying
+              the handshake cannot help and neither can funding the wallet; the cap resets at
+              `resets_at`.
           headers:
             PAYMENT-REQUIRED:
               schema:
                 type: string
+                contentEncoding: base64
+                contentMediaType: application/json
+                contentSchema:
+                  $ref: '#/components/schemas/X402PaymentRequired'
               description: >
-                Base64-encoded x402 v2 PaymentRequired JSON: `x402Version` (2); `error`
-                (`PAYMENT-SIGNATURE header is required`); `resource` with `url` (this endpoint
-                for the work), `description` (the work's display title) and `mimeType`
-                (`application/json`); `accepts`, one entry with `scheme` (`ledewire-wallet`),
-                `network` (`ledewire:v1`), `amount` (price in cents, as a string), `asset`
-                (`USD`), `payTo` (`store:<store id>`, the Store selling the work; for a brokered work,
-                LedeWire's fixed id `f67c246e-206c-5d62-b113-c526c54fac76`), `maxTimeoutSeconds` (300) and `extra` with
-                `nonce` (single-use, valid 300 seconds) and `expiresAt` (Unix timestamp); and
-                `extensions`, always `{}`. The work's id is not in the payload: it is the `id`
-                in the request path, which the client echoes as `payload.contentId`.
-
-                A 402 carrying a `DailySpendCapReachedError` body and **no** PAYMENT-REQUIRED header is
-                the other case: the buyer's daily spend cap would be exceeded. Retrying the handshake
-                cannot help and neither can funding the wallet — the cap resets at `resets_at`.
+                Base64-encoded x402 v2 PaymentRequired JSON, decoded against
+                `$ref: '#/components/schemas/X402PaymentRequired'`. `accepts` holds one
+                `X402PaymentRequirements` entry: `scheme` (`ledewire-wallet`), `network`
+                (`ledewire:v1`), `amount` (price in cents, as a string), `asset` (`USD`), `payTo`
+                (`store:<store id>`, the Store selling the work; for a brokered work, LedeWire's
+                fixed id `f67c246e-206c-5d62-b113-c526c54fac76`), `maxTimeoutSeconds` (300) and
+                `extra`, always `{}`. There is no server nonce. The work's id is not in the
+                payload: it is the `id` in the request path, and `resource.url` names it.
           content:
             application/json:
               schema:
@@ -11350,6 +12138,13 @@ paths:
                     error:
                       code: 402
                       message: 'Payment required'
+                payment_refused:
+                  summary: A signed payment refused — the fresh challenge's `error` is the same code
+                  value:
+                    error:
+                      code: 402
+                      message: "The Payment authorization's nonce has already been used"
+                      type: 'nonce_already_used'
                 daily_spend_cap_reached:
                   summary: Daily spend cap reached
                   value:
@@ -11363,10 +12158,15 @@ paths:
                     resets_at: '2026-08-21T00:00:00Z'
         '400':
           description: >
-            `Malformed PAYMENT-SIGNATURE header` (not Base64, not JSON, not a JSON object, or an
-            `accepted` or `payload` that is not an object), `Unsupported x402 version`,
-            `Unsupported payment scheme or network`, `Content ID mismatch in payment payload`,
-            or `Nonce was not issued for this content`.
+            The `PAYMENT-SIGNATURE` header is not a payment the server can read, so no refusal code
+            and no challenge is returned: `Malformed PAYMENT-SIGNATURE header` (not Base64, not
+            JSON, a repeated key in any JSON object, including keys equal under Unicode case
+            folding, not a JSON object, an `accepted` or `payload`
+            that is not an object, or a
+            `payload` that is not a well-formed `X402PaymentAuthorization`), `Unsupported x402
+            version`, `Unsupported payment scheme or network`, or `Unsupported payment payload` (a
+            `payload` carrying a session `token` instead of a signed `authorization`; a session
+            token is never accepted as payment).
           content:
             application/json:
               schema:
@@ -11377,18 +12177,11 @@ paths:
                     error:
                       code: 400
                       message: 'Malformed PAYMENT-SIGNATURE header'
-        '401':
-          description: Invalid or expired JWT in `payload.token` (`Invalid token`).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: The JWT in `payload.token` is not a buyer token (`Invalid Role`).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                unsupported_payload:
+                  value:
+                    error:
+                      code: 400
+                      message: 'Unsupported payment payload'
         '404':
           description: Content not found or not publicly visible.
           content:
@@ -11409,8 +12202,11 @@ paths:
                   - $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: >
-            Rate limit exceeded (30 requests per minute per IP). Waiting `Retry-After` seconds
-            is always enough.
+            Rate limit exceeded: 30 requests per minute per IP, or 60 purchase requests per minute
+            per Buyer, counted together with `POST /v1/purchases` and MCP `get_content`'s paid
+            call. Only a payment that passes verification counts toward the Buyer's limit. Nothing
+            was charged and the nonce is unspent, so the same payment can be sent again while it
+            is valid. Waiting `Retry-After` seconds is always enough.
           headers:
             Retry-After:
               description: Seconds to wait. Always the full window (60).
@@ -11608,10 +12404,9 @@ paths:
         filter, so a Topic-filtered page that may be incomplete says so.
 
 
-        **Authorization:** none, or a **Buyer token**. A Buyer whose Company holds a Subscription
-        also sees the Publications it opens, listed, filtered and counted like the rest. Without a
-        token, or with a Buyer token and no Subscription, the list is the same. A token that is
-        sent must be a valid Buyer token: anything else is refused rather than read as anonymous.
+        **Authorization:** none, or a **Buyer token**. A Buyer also sees the Publications listed
+        only to signed-in Buyers, listed, filtered and counted like the rest. A token that is sent
+        must be a valid Buyer token: anything else is refused rather than read as anonymous.
       tags:
         - bulk-licensing
       security:
@@ -11714,8 +12509,8 @@ paths:
       description: >
         One Publication, exactly as its row in `GET /v1/publications`. Served from the same
         registry, so it answers even while the Broker is unreachable, and an id the list would not
-        show to this caller (not ready to license, withdrawn, or opened only by a Subscription the
-        caller does not hold) is a 404 here too.
+        show to this caller (not ready to license, withdrawn, or listed only to signed-in Buyers
+        when no token is sent) is a 404 here too.
 
 
         **Authorization:** none, or a **Buyer token**, as on `GET /v1/publications`.
@@ -11765,14 +12560,20 @@ paths:
       summary: List a publication's works by date range
       description: >
         One page of the article URLs a Publication has available to license, read live from the
-        Broker's catalog and optionally bounded by modification date. A page of URLs is exactly
+        Publication's catalog and optionally bounded by modification date. A page of URLs is exactly
         what `POST /v1/acquisitions` takes as a Selection. Works are not priced here; pricing
         happens when the Selection is quoted.
 
 
         Check `date_filter` before reading an empty page as "nothing in range". Some publications'
-        catalogs carry no modification dates, and on those the Broker's date filter returns
-        nothing at all. That is reported as `unsupported`.
+        catalogs carry no modification dates, and on those a date filter returns nothing at all.
+        That is reported as `unsupported`.
+
+
+        Every work carries a `page_kind` and up to three `topics`, each with its basis. Pass
+        `page_kind` to keep only works of that kind: each page is read from the catalog first and
+        then filtered, so a filtered page may be short or empty while `next_cursor` is not null.
+        Labels describe works and never exclude one on their own.
 
 
         **Authorization:** none.
@@ -11815,6 +12616,15 @@ paths:
             minimum: 1
             maximum: 1000
             default: 1000
+        - name: page_kind
+          in: query
+          required: false
+          description: >
+            Only works of this Page kind, from each page. Omit for every work. A filtered page may
+            be empty with a non-null `next_cursor`.
+          schema:
+            type: string
+            enum: [article, section_index, homepage, media, utility, unclassified]
       responses:
         '200':
           description: A page of works
@@ -11823,7 +12633,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicationWorkListResponse'
         '400':
-          description: A malformed or reversed date, a limit out of range, or a cursor that is invalid or was issued for a different query
+          description: A malformed or reversed date, a limit out of range, an unknown `page_kind`, or a cursor that is invalid or was issued for a different query
           content:
             application/json:
               schema:
@@ -13272,7 +14082,7 @@ paths:
         |---|---|---|---|
         | `search_content` | Open | — | Full-text search for premium content across all public stores |
         | `list_publications` | Open | — | Publications available to license, with their domains and bulk licensability |
-        | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date |
+        | `list_publication_works` | Open | — | One page of a publication's article URLs, optionally bounded by modification date, each labelled with a `page_kind` and `topics`; `page_kind` filters a page to one kind |
         | `list_topics` | Open | — | Every Topic, with how many listed publications carry it |
         | `register` | Open | — | Create a Ledewire account and receive an MCP API key in one step |
         | `get_wallet_balance` | Buyer | `mcp:search` | Current wallet balance in cents |
@@ -13348,7 +14158,7 @@ paths:
         | Request | Status | Challenge |
         |---|---|---|
         | A Bearer credential that does not authenticate (wrong secret, revoked, expired, or not `key:secret` at all, such as a JWT) — on **any** method, open tools and `tools/list` included | `401` | `error="invalid_token"`, plus `scope` when the request names a protected tool |
-        | No credential, on a `tools/call` naming a tool that is not open | `401` | no `error`; `scope` names what the call needs |
+        | No credential, on a `tools/call` naming a tool that is not open | `401` | no `error`; `scope` names `mcp:search mcp:purchase` plus any Store scope the call needs |
         | A key without the scope a tool's tier requires (a buyer tool from a key without `can_search`; a seller tool from a key that is not store-scoped, lacks the flag, or whose holder's store role no longer permits it) | `403` | `error="insufficient_scope"`, `scope` naming what the call needs |
         | A store-scoped key whose store membership has been revoked | `403` | `error="insufficient_scope"`, no `scope`: no scope fixes it |
 
@@ -13564,7 +14374,7 @@ paths:
 
             A tool called without the scope its tier requires is not a 200: it is a `403` (see
             below). A `get_content` payment from a key without `can_purchase` is a tool result
-            with `isError: true`.
+            with `isError: true`, whose text is McpInsufficientScopeError.
 
 
             Every tool's `inputSchema` sets `additionalProperties: false`, so an argument the tool
@@ -13760,16 +14570,17 @@ paths:
               description: >
                 RFC 6750 Bearer challenge. `resource_metadata` always names the RFC 9728
                 protected-resource metadata document. `error="invalid_token"` when a credential
-                was sent and failed; absent when none was sent (RFC 6750 §3.1). `scope` is the
-                space-separated scopes every protected call in the request needs (`mcp:search`
-                for an unknown name), and is absent when the request names no protected tool.
+                was sent and failed; absent when none was sent (RFC 6750 §3.1). `scope` is
+                `mcp:search mcp:purchase` plus any Store scope a protected call in the request
+                needs, so a sign-in always enables searching and buying, and is absent when the
+                request names no protected tool.
               schema:
                 type: string
               examples:
                 invalid_token:
-                  value: 'Bearer error="invalid_token", scope="mcp:search", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
+                  value: 'Bearer error="invalid_token", scope="mcp:search mcp:purchase", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
                 no_credentials:
-                  value: 'Bearer scope="mcp:search", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
+                  value: 'Bearer scope="mcp:search mcp:purchase", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
           content:
             application/json:
               schema:
@@ -13792,14 +14603,14 @@ paths:
             WWW-Authenticate:
               description: >
                 RFC 6750 Bearer challenge with `error="insufficient_scope"` and
-                `resource_metadata`. `scope` is the space-separated scopes every protected call
-                in the request needs, and is absent when the only refusal is a revoked store
-                membership.
+                `resource_metadata`. `scope` is `mcp:search mcp:purchase` plus any Store scope a
+                protected call in the request needs, and is absent when the only refusal is a
+                revoked store membership.
               schema:
                 type: string
               examples:
                 insufficient_scope:
-                  value: 'Bearer error="insufficient_scope", scope="mcp:manage_content", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
+                  value: 'Bearer error="insufficient_scope", scope="mcp:search mcp:purchase mcp:manage_content", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
                 revoked_membership:
                   value: 'Bearer error="insufficient_scope", resource_metadata="https://api.ledewire.com/.well-known/oauth-protected-resource/v1/mcp"'
           content:
@@ -13814,10 +14625,13 @@ paths:
         '429':
           description: >
             Rate limit exceeded (15/min per IP for a request with no credential or one that
-            failed, 60/min per key authenticated). Waiting `Retry-After` seconds is always
-            enough. The body is a JSON-RPC error with the application-defined code `-31429` —
-            MCP defines no rate-limit code — and no `id`, since the limit is enforced before the
-            body is read.
+            failed, 60/min per key authenticated), or too many purchase requests: a Buyer may
+            make 60 `get_content` calls carrying a payment per minute, counted together with
+            `POST /v1/purchases` and x402's verified payments. Waiting `Retry-After` seconds is
+            always enough. The body is a JSON-RPC error with the application-defined code
+            `-31429` — MCP defines no rate-limit code. It has no `id`, since those limits are
+            enforced before the body is read, except for the purchase limit, which echoes the
+            request's `id`.
           headers:
             Retry-After:
               description: Seconds to wait. Always the full window (60).

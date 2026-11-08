@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
+import { describe, it, expect, expectTypeOf, beforeAll, afterEach, afterAll } from 'vitest'
 import { AuthError, NotFoundError } from '@ledewire/core'
+import type { UserApiKey, UserApiKeyCreateRequest } from '@ledewire/core'
 import { createTestServer, http, HttpResponse } from '@ledewire/core/test-utils'
 import {
   userApiKeyFixture,
@@ -88,19 +89,13 @@ describe('user.apiKeys.create', () => {
     expect(capturedBody).toEqual({ name: 'my-rag-agent' })
   })
 
-  it('forwards optional spending_limit_cents', async () => {
-    const fixture = userApiKeyCreateResponseFixture()
-    let capturedBody: unknown
-    server.use(
-      http.post(`${BASE}/v1/user/api-keys`, async ({ request }) => {
-        capturedBody = await request.json()
-        return HttpResponse.json(fixture, { status: 201 })
-      }),
-    )
-
-    await makeClient().user.apiKeys.create({ name: 'capped-agent', spending_limit_cents: 1000 })
-
-    expect(capturedBody).toEqual({ name: 'capped-agent', spending_limit_cents: 1000 })
+  it('takes no per-key spend limit: the Spend cap is the limit', () => {
+    expectTypeOf<
+      'spending_limit_cents' extends keyof UserApiKeyCreateRequest ? true : false
+    >().toEqualTypeOf<false>()
+    expectTypeOf<
+      'spending_limit_cents' extends keyof UserApiKey ? true : false
+    >().toEqualTypeOf<false>()
   })
 
   it('throws AuthError on 401', async () => {

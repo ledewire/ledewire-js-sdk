@@ -397,6 +397,7 @@ export function purchaseResponseFixture(
     license: null,
     timestamp: '2099-01-01T00:00:00Z',
     status: 'completed',
+    payment_key_id: null,
     ...overrides,
   }
 }
@@ -541,7 +542,6 @@ export function userApiKeyFixture(overrides?: Partial<UserApiKeySchema>): UserAp
     name: 'My Agent Key',
     key: 'bktst_abc123',
     last_used_at: null,
-    spending_limit_cents: null,
     created_at: '2099-01-01T00:00:00Z',
     ...overrides,
   }
@@ -696,7 +696,16 @@ export function publicationWorkListFixture(
     publication_id: 'pub-id-1',
     domain: 'example.com',
     date_filter: 'not_requested',
-    works: [{ url: 'https://example.com/articles/1', last_mod: '2099-01-01T00:00:00Z' }],
+    works: [
+      {
+        url: 'https://example.com/articles/1',
+        last_mod: '2099-01-01T00:00:00Z',
+        page_kind: 'article',
+        page_kind_basis: 'observed',
+        topics: [],
+        topics_basis: 'inherited',
+      },
+    ],
     next_cursor: null,
     ...overrides,
   }
