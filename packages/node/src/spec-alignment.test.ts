@@ -10,8 +10,11 @@ import type {
   AuthPasswordResetResponse,
   AuthTokenRefreshResponse,
   CheckoutStateResponse,
+  CompanyMachineUserPaymentKeyList,
   CompanyMemberUpdateRequest,
   ContentWithAccessResponse,
+  PaymentKey,
+  PaymentKeyCreateRequest,
   PublicationWork,
   PurchaseResponse,
   UserApiKey,
@@ -310,6 +313,46 @@ describe('API 4c5f4a56 sync', () => {
     expectTypeOf<NonNullable<PublicationWorksParams['page_kind']>>().toEqualTypeOf<
       PublicationWork['page_kind']
     >()
+  })
+
+  it('Payment keys match the spec', () => {
+    expectTypeOf<PaymentKey>().toEqualTypeOf<SpecSchema<'PaymentKey'>>()
+    expectTypeOf<PaymentKeyCreateRequest>().toEqualTypeOf<SpecSchema<'PaymentKeyCreateRequest'>>()
+    expectTypeOf<PaymentKeyCreateRequest>().toEqualTypeOf<
+      OperationBody<'/v1/user/payment-keys', 'post'>
+    >()
+    expectTypeOf<PaymentKeyCreateRequest>().toEqualTypeOf<
+      OperationBody<'/v1/company/machine-users/{machine_user_id}/payment-keys', 'post'>
+    >()
+
+    // The Buyer's list is a bare array; the Machine user's is a { data } envelope.
+    type UserList = OperationOk<'/v1/user/payment-keys', 'get'>
+    expectTypeOf<UserList>().toEqualTypeOf<PaymentKey[]>()
+    expectTypeOf<Returns<NodeClient['user']['paymentKeys']['list']>>().toEqualTypeOf<UserList>()
+    expectTypeOf<Returns<NodeClient['user']['paymentKeys']['create']>>().toEqualTypeOf<
+      OperationOk<'/v1/user/payment-keys', 'post', 201>
+    >()
+
+    type MuList = OperationOk<'/v1/company/machine-users/{machine_user_id}/payment-keys', 'get'>
+    expectTypeOf<CompanyMachineUserPaymentKeyList>().toEqualTypeOf<MuList>()
+    expectTypeOf<MuList>().toEqualTypeOf<{ data: PaymentKey[] }>()
+    expectTypeOf<
+      Returns<NodeClient['company']['machineUsers']['paymentKeys']['list']>
+    >().toEqualTypeOf<MuList>()
+    expectTypeOf<
+      Returns<NodeClient['company']['machineUsers']['paymentKeys']['create']>
+    >().toEqualTypeOf<
+      OperationOk<'/v1/company/machine-users/{machine_user_id}/payment-keys', 'post', 201>
+    >()
+
+    // Both revokes answer 204 with no body.
+    expectTypeOf<Returns<NodeClient['user']['paymentKeys']['revoke']>>().toBeVoid()
+    expectTypeOf<
+      Returns<NodeClient['company']['machineUsers']['paymentKeys']['revoke']>
+    >().toBeVoid()
+
+    // A Payment key is public: no secret field on the record.
+    expectTypeOf<'secret' extends keyof PaymentKey ? true : false>().toEqualTypeOf<false>()
   })
 
   it('a Buyer key has no spending limit', () => {

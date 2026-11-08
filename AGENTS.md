@@ -51,7 +51,7 @@ packages/node/src/
     acquisitions.ts      ← bulk licensing: quote, authorize, corpus, signed manifest
     publications.ts      ← bulk-licensing catalog (public)
     x402.ts               ← x402 Bazaar resource discovery (public)
-    user/{api-keys,spend-cap,mcp-keys}.ts
+    user/{api-keys,spend-cap,mcp-keys,payment-keys}.ts
     company/{index,membership,invitations,members,machine-users,wallet,reports}.ts
                          ← Company wallets (byte-identical copy in browser)
 
@@ -61,7 +61,7 @@ packages/browser/src/
   session-storage-adapter.ts
   web-storage-adapter.ts ← shared impl (not exported publicly)
   resources/{auth,wallet,purchases,content,checkout}.ts
-  resources/user/{api-keys,spend-cap,mcp-keys}.ts
+  resources/user/{api-keys,spend-cap,mcp-keys,payment-keys}.ts
   resources/company/{index,membership,invitations,members,machine-users,wallet,reports}.ts
 
 packages/x402-client/src/

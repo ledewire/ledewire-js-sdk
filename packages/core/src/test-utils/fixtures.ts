@@ -30,6 +30,7 @@ type MerchantPricingRuleSchema = components['schemas']['MerchantPricingRule']
 type MerchantDomainVerificationSchema = components['schemas']['MerchantDomainVerification']
 type UserApiKeySchema = components['schemas']['UserApiKey']
 type UserApiKeyCreateResponseSchema = components['schemas']['UserApiKeyCreateResponse']
+type PaymentKeySchema = components['schemas']['PaymentKey']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type UserSpendCapSchema = components['schemas']['UserSpendCap']
 type McpApiKeySchema = components['schemas']['McpApiKey']
@@ -558,6 +559,21 @@ export function userApiKeyCreateResponseFixture(
     id: 'key-id-1',
     key: 'bktst_abc123',
     secret: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    ...overrides,
+  }
+}
+
+/**
+ * Returns a Payment key fixture. A Payment key is a public key: it has no secret.
+ */
+export function paymentKeyFixture(overrides?: Partial<PaymentKeySchema>): PaymentKeySchema {
+  return {
+    id: 'payment-key-id-1',
+    name: 'research-agent',
+    public_key: '11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo',
+    created_by_user_id: null,
+    last_used_at: null,
+    created_at: '2099-01-01T00:00:00Z',
     ...overrides,
   }
 }

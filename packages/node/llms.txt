@@ -507,7 +507,7 @@ Funding the wallet does NOT clear it — see [Error classes](#error-classes).
 A Company member's cap is set by a Company admin (`company.members.update()`),
 never uncapped, and always binds bulk acquisitions; `update()` throws
 `ForbiddenError` (403) for a member. A Machine user likewise gets 403 from
-`user.apiKeys` / `user.mcpKeys` create and revoke — its admins manage its keys.
+`user.apiKeys` / `user.mcpKeys` / `user.paymentKeys` create and revoke — its admins manage its keys.
 
 ### client.user.mcpKeys
 
@@ -555,6 +555,50 @@ const { key, secret } = await client.user.mcpKeys.create({
 await secretsManager.put('LEDEWIRE_MCP_CREDENTIAL', `${key}:${secret}`)
 ```
 
+### client.user.paymentKeys
+
+Payment keys are the public halves of the Ed25519 keys that sign x402 payments.
+A Payment key is never a login credential, and LedeWire never holds the private
+half: nothing secret is sent or returned, and the SDK takes no private key.
+Signing payments is `@ledewire/x402-client`'s job.
+
+```ts
+client.user.paymentKeys.list()          → Promise<PaymentKey[]>   // a bare array, newest first; not paginated
+client.user.paymentKeys.create(body)    → Promise<PaymentKey>     // 201
+client.user.paymentKeys.revoke(id)      → Promise<void>           // 204
+
+interface PaymentKeyCreateRequest {
+  name: string
+  public_key: string  // unpadded base64url of the 32 raw Ed25519 public-key bytes (43 chars)
+  proof: string       // unpadded base64url of that key's Ed25519 signature (86 chars) over
+                      // the ASCII bytes 'ledewire-payment-key:' + public_key, exactly as sent
+}
+
+interface PaymentKey {
+  id: string                        // what a Payment authorization names in `from`
+  name: string
+  public_key: string
+  created_by_user_id: string | null // the Company admin, for a Machine user's key
+  last_used_at: string | null
+  created_at: string
+}
+```
+
+- At most 10 active keys per Buyer: rotate by registering the replacement, then revoking the old key.
+- Buyer tokens only; seller and merchant tokens get 403 `Invalid Role`.
+- A Machine user can't register or revoke its own keys (403); a Company admin does, through `company.machineUsers.paymentKeys`.
+- An invalid proof, a malformed key or a duplicate key gets 422 (as does an 11th key); a blank field gets 400.
+
+```ts
+import { generateKeyPairSync, sign } from 'node:crypto'
+
+const { publicKey, privateKey } = generateKeyPairSync('ed25519')
+const public_key = publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64url')
+const proof = sign(null, Buffer.from(`ledewire-payment-key:${public_key}`, 'ascii'), privateKey).toString('base64url')
+await client.user.paymentKeys.create({ name: 'research-agent', public_key, proof })
+```
+
+
 ### client.company
 
 A Company is a shared wallet that pays for its members' purchases. Each member
@@ -587,6 +631,9 @@ client.company.machineUsers.buyerKeys.revoke(machineUserId, keyId)  → Promise<
 client.company.machineUsers.mcpKeys.list(machineUserId)             → Promise<CompanyMachineUserMcpKeyList>
 client.company.machineUsers.mcpKeys.create(machineUserId, { label, scopes }) → Promise<CompanyMachineUserMcpKeyCreateResponse> // scopes: 'mcp:search' | 'mcp:purchase'
 client.company.machineUsers.mcpKeys.revoke(machineUserId, keyId)    → Promise<void>
+client.company.machineUsers.paymentKeys.list(machineUserId)         → Promise<CompanyMachineUserPaymentKeyList> // { data: PaymentKey[] }, oldest first
+client.company.machineUsers.paymentKeys.create(machineUserId, { name, public_key, proof }) → Promise<PaymentKey> // created_by_user_id is the admin; 409 if deactivated
+client.company.machineUsers.paymentKeys.revoke(machineUserId, keyId) → Promise<void>
 
 client.company.wallet.get()                             → Promise<CompanyWallet>       // balance_cents, held_cents, pending_top_up_cents
 client.company.wallet.createPaymentSession({ amount_cents, currency? }) → Promise<WalletPaymentSessionResponse> // card or ACH

@@ -45,10 +45,11 @@ client.auth.*                   buyer auth (email, google, api-key, password res
 client.user.apiKeys.*           buyer API key management (list, create, revoke)
 client.user.spendCap.*          buyer daily spend cap (get, update — null cap_cents = uncapped)
 client.user.mcpKeys.*           buyer MCP API key management (list, create, revoke)
+client.user.paymentKeys.*       buyer Ed25519 Payment keys for x402 (list, create, revoke)
 client.company.membership.*     the buyer's own Company membership (get, leave)
 client.company.invitations.*    invite (admin), list (admin), accept (invitee, with emailed token)
 client.company.members.*        list, update role / daily Spend cap, remove (admin; membership ids)
-client.company.machineUsers.*   Machine users (list, create, deactivate) + .buyerKeys / .mcpKeys (admin)
+client.company.machineUsers.*   Machine users (list, create, deactivate) + .buyerKeys / .mcpKeys / .paymentKeys (admin)
 client.company.wallet.*         Company top-up payment session, pending top-ups (admin)
 client.company.purchases.*      everything the Company paid for, per member (admin, paginated)
 client.company.spend.*          spend per membership over a date range (admin)
@@ -97,6 +98,7 @@ lw.content.*         content with access info
 lw.user.apiKeys.*    buyer API key management (list, create, revoke)
 lw.user.spendCap.*   buyer daily spend cap (get, update — null cap_cents = uncapped)
 lw.user.mcpKeys.*    buyer MCP API key management (list, create, revoke)
+lw.user.paymentKeys.* buyer Ed25519 Payment keys for x402 (list, create, revoke)
 lw.company.*         Company wallets — same surface as client.company.*
 ```
 

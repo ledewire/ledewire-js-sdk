@@ -364,6 +364,24 @@ export type UserApiKeyCreateRequest = components['schemas']['UserApiKeyCreateReq
 export type UserApiKeyCreateResponse = components['schemas']['UserApiKeyCreateResponse']
 
 /**
+ * A Payment key: the public half of an Ed25519 key that signs x402 payments. It
+ * is never a login credential, and LedeWire never holds the private half, so a
+ * Payment key record carries no secret.
+ */
+export type PaymentKey = components['schemas']['PaymentKey']
+
+/**
+ * Request body for registering a Payment key: a name, the unpadded base64url of
+ * the 32 raw Ed25519 public-key bytes, and a proof of possession (see
+ * `user.paymentKeys.create()`).
+ */
+export type PaymentKeyCreateRequest = components['schemas']['PaymentKeyCreateRequest']
+
+/** A Machine user's active Payment keys, oldest first, in a `{ data }` envelope. */
+export type CompanyMachineUserPaymentKeyList =
+  paths['/v1/company/machine-users/{machine_user_id}/payment-keys']['get']['responses'][200]['content']['application/json']
+
+/**
  * Machine-readable reason on an API error envelope, present on refusals that carry one.
  * Branch on this rather than on `message`, which is prose and may be reworded.
  *

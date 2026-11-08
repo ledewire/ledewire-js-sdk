@@ -45,4 +45,22 @@ describe('return types match the spec operation responses', () => {
       OperationOk<'/v1/auth/password/reset', 'post'>
     >()
   })
+
+  it('Payment keys: the Buyer list is a bare array, the Machine user list an envelope', () => {
+    type UserList = OperationOk<'/v1/user/payment-keys', 'get'>
+    expectTypeOf<Returns<BrowserClient['user']['paymentKeys']['list']>>().toEqualTypeOf<UserList>()
+    expectTypeOf<Returns<BrowserClient['user']['paymentKeys']['create']>>().toEqualTypeOf<
+      OperationOk<'/v1/user/payment-keys', 'post', 201>
+    >()
+    expectTypeOf<
+      Returns<BrowserClient['company']['machineUsers']['paymentKeys']['list']>
+    >().toEqualTypeOf<
+      OperationOk<'/v1/company/machine-users/{machine_user_id}/payment-keys', 'get'>
+    >()
+    expectTypeOf<
+      Returns<BrowserClient['company']['machineUsers']['paymentKeys']['create']>
+    >().toEqualTypeOf<
+      OperationOk<'/v1/company/machine-users/{machine_user_id}/payment-keys', 'post', 201>
+    >()
+  })
 })
