@@ -517,6 +517,7 @@ describe('company.machineUsers', () => {
       const err = await makeClient()
         .company.machineUsers.paymentKeys.create('machine-user-id-1', body)
         .catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(LedewireError)
       expect((err as LedewireError).statusCode).toBe(409)
     })
 

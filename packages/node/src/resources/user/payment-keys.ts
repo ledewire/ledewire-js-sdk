@@ -56,14 +56,20 @@ export class UserPaymentKeysNamespace {
    *   `public_key` string exactly as sent, as unpadded base64url (86 characters).
    *   The API checks it and discards it.
    *
+   * The example uses Node's `crypto`. In a browser, an Ed25519 key from
+   * WebCrypto (`crypto.subtle.generateKey({ name: 'Ed25519' }, …)`) exported in
+   * `'raw'` format gives the same 32 bytes, and `crypto.subtle.sign('Ed25519', …)`
+   * the same signature.
+   *
    * A Buyer holds at most 10 active keys, so to rotate, register the
    * replacement first and then revoke the old key.
    *
    * @param body - The key's name, `public_key` and `proof`.
    * @returns The registered key. It carries no secret.
-   * @throws {ForbiddenError} When the caller is a Machine user (its Company's
-   *   admins register its keys through `company.machineUsers.paymentKeys`), or
-   *   the token is not a buyer token (`Invalid Role`).
+   * @throws {ForbiddenError} When the caller is a Machine user
+   *   (`Machine users cannot manage their own keys`; its Company's admins
+   *   register its keys through `company.machineUsers.paymentKeys`), or the
+   *   token is not a buyer token (`Invalid Role`).
    * @throws {LedewireError} With `statusCode === 422` when the proof does not
    *   verify, the key is malformed or already registered, or the caller already
    *   holds 10 active keys; with `statusCode === 400` when a field is blank.

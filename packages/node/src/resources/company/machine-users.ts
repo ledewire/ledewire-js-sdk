@@ -153,8 +153,8 @@ export class CompanyMachineUserMcpKeysNamespace {
  * A Payment key is the public half of an Ed25519 key that the Machine user's
  * agent signs x402 payments with. It is never a login credential, and LedeWire
  * never holds the private half, so nothing secret is returned. A Machine user
- * can't register its own keys: an admin does, here, and an audit event names
- * the admin (`created_by_user_id`). Build `public_key` and `proof` exactly as
+ * can't register its own keys: an admin does, here. An audit event names the
+ * admin, and `created_by_user_id` on the key records them. Build `public_key` and `proof` exactly as
  * for `user.paymentKeys.create()`, with the agent's key pair.
  *
  * A Machine user holds at most 10 active Payment keys, so rotate by registering
@@ -209,6 +209,8 @@ export class CompanyMachineUserPaymentKeysNamespace {
    *
    * @param machineUserId - The Machine user id (`CompanyMachineUser.id`).
    * @param id - The Payment key id (`PaymentKey.id`).
+   * @throws {ForbiddenError} When the caller is not a Company admin, or the
+   *   token is not a buyer token (`Invalid Role`).
    * @throws {NotFoundError} When there is no such Machine user in the caller's
    *   Company, or no such active key.
    */
