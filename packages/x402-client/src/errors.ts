@@ -1,4 +1,5 @@
 import { LedewireError } from '@ledewire/core'
+import type { LedewireRefusalCode } from './types.js'
 
 /**
  * Thrown when a `402 Payment Required` response is received but no
@@ -13,9 +14,9 @@ export class UnsupportedSchemeError extends LedewireError {
 }
 
 /**
- * Thrown when a `402 Payment Required` response contains a `ledewire-wallet`
- * entry but the `extensions.ledewire-wallet` discovery block is missing or
- * incomplete. This indicates a server misconfiguration.
+ * Thrown when a `402 Payment Required` response's `PAYMENT-REQUIRED` header
+ * is not base64 JSON, or its `ledewire-wallet` entry or `resource` is missing
+ * a field or holds one the client won't sign. Nothing was signed.
  */
 export class MalformedPaymentRequiredError extends LedewireError {
   constructor(message: string) {
@@ -25,14 +26,58 @@ export class MalformedPaymentRequiredError extends LedewireError {
 }
 
 /**
- * Thrown when the nonce in `accepts[0].extra` has expired (`expiresAt` is in
- * the past). Callers should retry the full request from the beginning to
- * obtain a fresh nonce.
+ * Thrown when the API refuses a well-formed signed payment: the paid request's
+ * `402` carries a fresh `PAYMENT-REQUIRED` whose `error` is a refusal code.
+ * `code` (and `type`) name it. Nothing was charged.
+ *
+ * The adapters re-sign once only for codes the signer's `shouldResign`
+ * accepts (`payment_authorization_expired`, and `amount_mismatch` within the
+ * configured `maxPriceCents`), and throw this for every other code, or when
+ * the re-signed payment is refused too.
+ *
+ * - `unknown_payment_key`: the key isn't registered, or was revoked
+ * - `invalid_ledewire_wallet_signature`: the signature does not verify against the key
+ * - `recipient_mismatch`, `amount_mismatch`, `resource_mismatch`: the signed
+ *   `to`, `value`/`asset` or `resource` is not what the API now asks
+ * - `payment_authorization_expired`: the validity window does not contain
+ *   the server's now; check the clock
+ * - `nonce_already_used`: this payment was already made. Check whether the
+ *   work was bought before paying again
  */
-export class NonceExpiredError extends LedewireError {
-  constructor() {
-    super('Payment nonce has expired — retry the request to obtain a fresh nonce', 402)
-    this.name = 'NonceExpiredError'
+export class PaymentRefusedError extends LedewireError {
+  static override readonly brand: string = 'PaymentRefusedError'
+
+  /** The refusal code. */
+  readonly refusal: LedewireRefusalCode
+
+  constructor(refusal: LedewireRefusalCode, message?: string) {
+    super(message ?? `Payment refused: ${refusal}`, 402, undefined, refusal)
+    this.name = 'PaymentRefusedError'
+    this.refusal = refusal
+  }
+}
+
+/**
+ * Thrown before anything is signed when a challenge's price is above the
+ * configured `maxPriceCents`, including the new price after an
+ * `amount_mismatch` refusal. Nothing was charged.
+ */
+export class PriceAboveMaximumError extends LedewireError {
+  static override readonly brand: string = 'PriceAboveMaximumError'
+
+  /** The quoted price, in cents. */
+  readonly amountCents: number
+  /** The configured maximum, in cents. */
+  readonly maxPriceCents: number
+
+  constructor(amountCents: number, maxPriceCents: number) {
+    super(
+      `Refusing to pay: the price, ${String(amountCents)} cents, is above the maximum of ${String(maxPriceCents)} cents`,
+      402,
+    )
+    this.name = 'PriceAboveMaximumError'
+    this.amountCents = amountCents
+    this.maxPriceCents = maxPriceCents
   }
 }
 

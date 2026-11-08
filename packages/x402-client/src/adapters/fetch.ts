@@ -1,7 +1,14 @@
 import type { PaymentSigner } from '../types.js'
 import { parseRetryAfter } from '@ledewire/core'
-import { throwLegacyPaymentError, throwPaymentRefusal } from '../payment-client.js'
-import { parsePaymentRefusal } from '../parse.js'
+import {
+  paymentRefusedError,
+  throwLegacyPaymentError,
+  throwPaymentRefusal,
+} from '../payment-client.js'
+import { parsePaymentRefusal, refusalCodeOf } from '../parse.js'
+
+/** One signed payment, plus at most one re-signed one after a refusal. */
+const MAX_SIGNED_ATTEMPTS = 2
 
 /**
  * Wraps a `fetch` function with automatic Ledewire x402 payment handling.
@@ -78,17 +85,36 @@ export function wrapFetchWithPayment(
       return firstResponse
     }
 
-    const paymentSignature = await client.buildPaymentSignature(paymentRequiredHeader, url)
+    // Sign, send, and, only for a refusal the signer chooses to re-sign,
+    // sign once more against the fresh challenge. A refused payment charges
+    // nothing, so at most one of these attempts can settle.
+    let challenge = paymentRequiredHeader
+    let paidResponse: Response
+    for (let attempt = 1; ; attempt++) {
+      const paymentSignature = await client.buildPaymentSignature(challenge, url)
 
-    const paidHeaders = new Headers(init?.headers)
-    paidHeaders.set('PAYMENT-SIGNATURE', paymentSignature)
+      const paidHeaders = new Headers(init?.headers)
+      paidHeaders.set('PAYMENT-SIGNATURE', paymentSignature)
 
-    // redirect: 'error' — PAYMENT-SIGNATURE is a custom header, which fetch keeps
-    // on a redirect; never let the paid retry carry it to another location.
-    const paidResponse = await fetchFn(input, { ...init, headers: paidHeaders, redirect: 'error' })
+      // redirect: 'error' — PAYMENT-SIGNATURE is a custom header, which fetch
+      // keeps on a redirect; never let the paid retry carry it elsewhere.
+      paidResponse = await fetchFn(input, { ...init, headers: paidHeaders, redirect: 'error' })
 
-    if (paidResponse.ok) {
-      return paidResponse
+      if (paidResponse.ok) {
+        return paidResponse
+      }
+
+      const freshChallenge =
+        paidResponse.status === 402 ? paidResponse.headers.get('PAYMENT-REQUIRED') : null
+      const code = refusalCodeOf(freshChallenge)
+      if (!code || !freshChallenge) break
+
+      if (attempt < MAX_SIGNED_ATTEMPTS && client.shouldResign?.(code)) {
+        challenge = freshChallenge
+        continue
+      }
+      const body: unknown = await paidResponse.json().catch(() => undefined)
+      throw paymentRefusedError(code, body)
     }
 
     // Spec form (x402 v2, api#1066): the PAID request's refusal is a

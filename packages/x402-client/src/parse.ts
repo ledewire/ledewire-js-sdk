@@ -2,58 +2,118 @@ import type {
   LedewirePaymentRefusal,
   LedewirePaymentRequired,
   LedewirePaymentRequirements,
+  LedewireRefusalCode,
   LedewireSettlementResponse,
-  LedewireWalletExtension,
 } from './types.js'
+import { decodeJsonHeader } from './encoding.js'
 import { MalformedPaymentRequiredError, UnsupportedSchemeError } from './errors.js'
 
 const SCHEME = 'ledewire-wallet'
 const NETWORK = 'ledewire:v1'
+const AMOUNT = /^(0|[1-9][0-9]*)$/
+
+/** Every refusal code a fresh challenge can name after a refused signed payment. */
+const REFUSAL_CODES: ReadonlySet<string> = new Set<LedewireRefusalCode>([
+  'unknown_payment_key',
+  'invalid_ledewire_wallet_signature',
+  'recipient_mismatch',
+  'amount_mismatch',
+  'resource_mismatch',
+  'payment_authorization_expired',
+  'nonce_already_used',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function malformed(detail: string): MalformedPaymentRequiredError {
+  return new MalformedPaymentRequiredError(`PAYMENT-REQUIRED ${detail}`)
+}
 
 /**
- * Decode and parse the raw `PAYMENT-REQUIRED` header value into a typed
- * `LedewirePaymentRequired` object.
+ * Decode and parse the raw `PAYMENT-REQUIRED` header value, checking every
+ * field the client signs: the `ledewire-wallet` entry's `amount` (a decimal
+ * string of cents that is a safe integer), `asset` (`USD`), `payTo`,
+ * `maxTimeoutSeconds` (a positive integer) and `extra` (an object, `{}` in
+ * practice), and the challenge's `resource.url`.
  *
- * @throws {UnsupportedSchemeError} When no `ledewire-wallet` scheme entry exists.
- * @throws {MalformedPaymentRequiredError} When the extension block is absent or incomplete.
+ * @throws {UnsupportedSchemeError} When no `ledewire-wallet` / `ledewire:v1` entry exists.
+ * @throws {MalformedPaymentRequiredError} When the header is not base64 JSON, or
+ *   a field the client signs is missing or malformed.
  */
 export function parsePaymentRequired(headerValue: string): {
   paymentRequired: LedewirePaymentRequired
   accepted: LedewirePaymentRequirements
-  extension: LedewireWalletExtension
 } {
-  let paymentRequired: LedewirePaymentRequired
+  let decoded: unknown
   try {
-    paymentRequired = JSON.parse(atob(headerValue)) as LedewirePaymentRequired
+    decoded = decodeJsonHeader(headerValue)
   } catch {
-    throw new MalformedPaymentRequiredError('PAYMENT-REQUIRED header is not valid base64 JSON')
+    throw malformed('header is not valid base64 JSON')
   }
+  if (!isRecord(decoded)) throw malformed('header is not a JSON object')
+  if (!Array.isArray(decoded['accepts'])) throw malformed('has no accepts array')
 
-  const accepted = paymentRequired.accepts.find((r) => r.scheme === SCHEME && r.network === NETWORK)
-  if (!accepted) {
+  const entry: unknown = decoded['accepts'].find(
+    (r: unknown) => isRecord(r) && r['scheme'] === SCHEME && r['network'] === NETWORK,
+  )
+  if (!isRecord(entry)) {
     throw new UnsupportedSchemeError(
       `No ${SCHEME}/${NETWORK} entry in PAYMENT-REQUIRED accepts array`,
     )
   }
 
-  const raw = paymentRequired.extensions?.[SCHEME]
-  if (!raw || typeof raw !== 'object') {
-    throw new MalformedPaymentRequiredError(
-      `extensions.${SCHEME} block is missing from PAYMENT-REQUIRED`,
-    )
+  const { amount, asset, payTo, maxTimeoutSeconds, extra } = entry
+  if (typeof amount !== 'string' || !AMOUNT.test(amount) || !Number.isSafeInteger(Number(amount))) {
+    throw malformed('amount is not a decimal string of cents')
   }
-  const ext = raw as Record<string, unknown>
-  if (!ext['apiBase'] || !ext['authEndpoint'] || !ext['schemeVersion'] || !ext['contentId']) {
-    throw new MalformedPaymentRequiredError(
-      `extensions.${SCHEME} is missing required fields (apiBase, authEndpoint, schemeVersion, contentId)`,
-    )
+  if (asset !== 'USD') throw malformed('asset is not USD')
+  if (typeof payTo !== 'string' || payTo === '') throw malformed('payTo is missing')
+  if (
+    typeof maxTimeoutSeconds !== 'number' ||
+    !Number.isSafeInteger(maxTimeoutSeconds) ||
+    maxTimeoutSeconds <= 0
+  ) {
+    throw malformed('maxTimeoutSeconds is not a positive integer')
+  }
+  if (!isRecord(extra)) throw malformed('extra is not an object')
+
+  const resource = decoded['resource']
+  if (!isRecord(resource) || typeof resource['url'] !== 'string' || resource['url'] === '') {
+    throw malformed('resource.url is missing')
   }
 
+  // Every field the client reads is checked above; the rest pass through as sent.
+  const paymentRequired: unknown = decoded
+  const accepted: unknown = entry
   return {
-    paymentRequired,
-    accepted,
-    extension: raw as LedewireWalletExtension,
+    paymentRequired: paymentRequired as LedewirePaymentRequired,
+    accepted: accepted as LedewirePaymentRequirements,
   }
+}
+
+/**
+ * The refusal code of a paid request's `402`: the `error` of its fresh
+ * `PAYMENT-REQUIRED` challenge, when that is one of the seven refusal codes.
+ * Tolerant: returns `null` for an absent or undecodable header, or any other
+ * `error`, and never throws.
+ *
+ * @param headerValue - Raw `PAYMENT-REQUIRED` value of the paid request's response.
+ */
+export function refusalCodeOf(headerValue: string | null | undefined): LedewireRefusalCode | null {
+  if (!headerValue) return null
+  let decoded: unknown
+  try {
+    decoded = decodeJsonHeader(headerValue)
+  } catch {
+    return null
+  }
+  if (!isRecord(decoded)) return null
+  const error = decoded['error']
+  return typeof error === 'string' && REFUSAL_CODES.has(error)
+    ? (error as LedewireRefusalCode)
+    : null
 }
 
 /**
@@ -65,7 +125,7 @@ export function parsePaymentResponse(
 ): Pick<LedewireSettlementResponse, 'accessToken'> | null {
   if (!headerValue) return null
   try {
-    return JSON.parse(atob(headerValue)) as Pick<LedewireSettlementResponse, 'accessToken'>
+    return decodeJsonHeader(headerValue) as Pick<LedewireSettlementResponse, 'accessToken'>
   } catch {
     return null
   }
@@ -91,7 +151,7 @@ export function parsePaymentRefusal(headerValue: string | null): LedewirePayment
 
   let decoded: unknown
   try {
-    decoded = JSON.parse(atob(headerValue))
+    decoded = decodeJsonHeader(headerValue)
   } catch {
     return null
   }

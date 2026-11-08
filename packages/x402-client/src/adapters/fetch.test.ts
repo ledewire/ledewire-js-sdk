@@ -4,7 +4,21 @@ import { setupServer } from 'msw/node'
 import { wrapFetchWithPayment } from './fetch.js'
 import type { PaymentSigner } from '../types.js'
 import { LedewirePaymentClient } from '../payment-client.js'
-import { InsufficientFundsError } from '../errors.js'
+import { InsufficientFundsError, PaymentRefusedError, PriceAboveMaximumError } from '../errors.js'
+import type { LedewirePaymentPayload, LedewireRefusalCode } from '../types.js'
+import {
+  API_BASE,
+  ORIGIN_URL,
+  PAY_TO,
+  PAYMENT_KEY,
+  PAYMENT_REQUIRED_HEADER,
+  THIRD_PARTY_URL,
+  challenge,
+  decodeSignature,
+  refusalBody,
+  refusalChallenge,
+  signatureVerifies,
+} from '../x402.test-helpers.js'
 import {
   AuthError,
   ForbiddenError,
@@ -35,50 +49,7 @@ const CAP_BODY = {
   bulk_exempt: false,
 }
 
-const API_BASE = 'http://api.test'
-const NOW_SECONDS = Math.floor(Date.now() / 1000)
-const CONTENT_ID = 'content-uuid-1'
-/** A paid resource on the configured Ledewire API origin. */
-const ORIGIN_URL = `${API_BASE}/v1/x402/contents/${CONTENT_ID}`
-/** A resource on some other origin — a real client never pays or authenticates for it. */
-const THIRD_PARTY_URL = 'https://blog.example.com/posts/article'
-
-const PAYMENT_REQUIRED_HEADER = btoa(
-  JSON.stringify({
-    x402Version: 2,
-    resource: { url: ORIGIN_URL },
-    accepts: [
-      {
-        scheme: 'ledewire-wallet',
-        network: 'ledewire:v1',
-        amount: '100',
-        asset: 'USD',
-        payTo: 'store:uuid-1',
-        maxTimeoutSeconds: 60,
-        extra: { nonce: 'n', expiresAt: NOW_SECONDS + 120, contentId: CONTENT_ID },
-      },
-    ],
-    extensions: {
-      'ledewire-wallet': {
-        apiBase: API_BASE,
-        authEndpoint: '/v1/auth/login/buyer-api-key',
-        schemeVersion: 'ledewire:v1',
-        contentId: CONTENT_ID,
-      },
-    },
-  }),
-)
-
-const server = setupServer(
-  http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
-    HttpResponse.json({
-      token_type: 'Bearer',
-      access_token: 'buyer-jwt',
-      refresh_token: 'r',
-      expires_at: new Date(Date.now() + 1800_000).toISOString(),
-    }),
-  ),
-)
+const server = setupServer()
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' })
@@ -90,33 +61,43 @@ afterAll(() => {
   server.close()
 })
 
-const makeClient = () => new LedewirePaymentClient({ key: 'bk', secret: 's', apiBase: API_BASE })
+const makeClient = (overrides: { maxPriceCents?: number } = {}) =>
+  new LedewirePaymentClient({ paymentKey: PAYMENT_KEY, apiBase: API_BASE, ...overrides })
 
-/** A PAYMENT-REQUIRED header whose discovery block names `apiBase`. */
-function paymentRequiredNaming(apiBase: string): string {
-  const decoded = JSON.parse(atob(PAYMENT_REQUIRED_HEADER)) as {
-    extensions: { 'ledewire-wallet': Record<string, unknown> }
-  }
-  decoded.extensions['ledewire-wallet']['apiBase'] = apiBase
-  return btoa(JSON.stringify(decoded))
-}
-
-/** Records every buyer-key login against the configured API base. */
-function recordLogins(): string[] {
-  const logins: string[] = []
+/**
+ * Serves ORIGIN_URL: the first challenge to an unpaid request, then, for each
+ * paid request in turn, the next of `paid` (the last one repeats). Records
+ * every PAYMENT-SIGNATURE it receives, decoded.
+ */
+function serveContent(paid: (() => Response)[]): LedewirePaymentPayload[] {
+  const payments: LedewirePaymentPayload[] = []
   server.use(
-    http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, ({ request }) => {
-      logins.push(request.url)
-      return HttpResponse.json({
-        token_type: 'Bearer',
-        access_token: 'buyer-jwt',
-        refresh_token: 'r',
-        expires_at: new Date(Date.now() + 1800_000).toISOString(),
-      })
+    http.get(ORIGIN_URL, ({ request }) => {
+      const sig = request.headers.get('PAYMENT-SIGNATURE')
+      if (!sig) {
+        return new HttpResponse(null, {
+          status: 402,
+          headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+        })
+      }
+      payments.push(decodeSignature(sig))
+      const next = paid[Math.min(payments.length, paid.length) - 1]
+      return next ? next() : HttpResponse.json({ data: 'content' })
     }),
   )
-  return logins
+  return payments
 }
+
+/** A refused paid request: 402, a fresh challenge naming `code`, and the matching body. */
+function refused(code: LedewireRefusalCode, accepts: Record<string, unknown> = {}): () => Response {
+  return () =>
+    HttpResponse.json(refusalBody(code), {
+      status: 402,
+      headers: { 'PAYMENT-REQUIRED': refusalChallenge(code, accepts) },
+    })
+}
+
+const settled = (): Response => HttpResponse.json({ data: 'content' })
 
 describe('wrapFetchWithPayment', () => {
   it('passes through non-402 responses unchanged', async () => {
@@ -182,9 +163,10 @@ describe('wrapFetchWithPayment', () => {
     const res = await fetch(ORIGIN_URL)
     expect(res.status).toBe(200)
     expect(capturedSigs).toHaveLength(1)
-    // Signature is valid base64 JSON
-    const payload = JSON.parse(atob(capturedSigs[0]!)) as { payload: { token: string } }
-    expect(payload.payload.token).toBe('buyer-jwt')
+    // The header is a signed Payment authorization, not a session token
+    const payment = decodeSignature(capturedSigs[0]!)
+    expect(await signatureVerifies(payment)).toBe(true)
+    expect(JSON.stringify(payment)).not.toContain('token')
   })
 
   it('delegates to client.buildPaymentSignature — works with a mock client', async () => {
@@ -282,31 +264,6 @@ describe('wrapFetchWithPayment', () => {
     const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
     expect(error).toBeInstanceOf(RateLimitError)
     expect(error).toMatchObject({ statusCode: 429, retryAfter: undefined })
-  })
-
-  it('throws RateLimitError when the buyer-key login is rate-limited', async () => {
-    server.use(
-      http.post(`${API_BASE}/v1/auth/login/buyer-api-key`, () =>
-        HttpResponse.json(
-          { error: { code: 429, message: 'Too many requests' } },
-          { status: 429, headers: { 'Retry-After': '45' } },
-        ),
-      ),
-      http.get(
-        ORIGIN_URL,
-        () =>
-          new HttpResponse(null, {
-            status: 402,
-            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
-          }),
-      ),
-    )
-    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
-
-    const error = await fetch(ORIGIN_URL).catch((err: unknown) => err)
-    expect(error).toBeInstanceOf(RateLimitError)
-    expect(error).not.toBeInstanceOf(AuthError)
-    expect(error).toMatchObject({ statusCode: 429, retryAfter: 45 })
   })
 
   it('accepts a URL object as input', async () => {
@@ -515,8 +472,7 @@ describe('wrapFetchWithPayment', () => {
   })
 
   describe('payment origin restriction', () => {
-    it('returns a 402 from another origin as-is, with no login and no paid retry', async () => {
-      const logins = recordLogins()
+    it('returns a 402 from another origin as-is, with no paid retry', async () => {
       const signatures: (string | null)[] = []
       server.use(
         http.get(THIRD_PARTY_URL, ({ request }) => {
@@ -533,7 +489,6 @@ describe('wrapFetchWithPayment', () => {
       expect(res.headers.get('PAYMENT-REQUIRED')).toBe(PAYMENT_REQUIRED_HEADER)
       await expect(res.json()).resolves.toEqual({ reason: 'pay me' })
       expect(signatures).toEqual([null])
-      expect(logins).toEqual([])
     })
 
     it('returns the very same Response object for a refused origin', async () => {
@@ -547,31 +502,34 @@ describe('wrapFetchWithPayment', () => {
       expect(inner).toHaveBeenCalledOnce()
     })
 
-    it('never contacts an apiBase named in the challenge; logs in at the configured base and pays', async () => {
+    it('pays only the configured origin, whatever host the challenge names', async () => {
       const otherHostHits: string[] = []
-      const logins = recordLogins()
-      const header = paymentRequiredNaming('https://evil.example')
-      const signatures: string[] = []
+      const header = challenge(
+        { payTo: PAY_TO },
+        {
+          resource: { url: ORIGIN_URL, description: 'x', mimeType: 'application/json' },
+          extensions: { 'ledewire-wallet': { apiBase: 'https://evil.example' } },
+        },
+      )
+      const paidUrls: string[] = []
       server.use(
         http.all('https://evil.example/*', ({ request }) => {
           otherHostHits.push(request.url)
           return HttpResponse.error()
         }),
         http.get(ORIGIN_URL, ({ request }) => {
-          const sig = request.headers.get('PAYMENT-SIGNATURE')
-          if (!sig) {
+          if (!request.headers.get('PAYMENT-SIGNATURE')) {
             return new HttpResponse(null, { status: 402, headers: { 'PAYMENT-REQUIRED': header } })
           }
-          signatures.push(sig)
+          paidUrls.push(request.url)
           return HttpResponse.json({ data: 'content' })
         }),
       )
       const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
       const res = await fetch(ORIGIN_URL)
       expect(res.status).toBe(200)
-      expect(signatures).toHaveLength(1)
+      expect(paidUrls).toEqual([ORIGIN_URL])
       expect(otherHostHits).toEqual([])
-      expect(logins).toEqual([`${API_BASE}/v1/auth/login/buyer-api-key`])
     })
 
     it('pays a third-party 402 through a custom signer that has no allowsPaymentTo', async () => {
@@ -611,5 +569,178 @@ describe('wrapFetchWithPayment', () => {
       expect(allowsSpy).toHaveBeenCalledWith(ORIGIN_URL)
       expect(buildSpy).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('wrapFetchWithPayment: the signed payment the API receives', () => {
+  it('sends { x402Version: 2, accepted, payload: { signature, authorization } } matching the challenge', async () => {
+    const payments = serveContent([settled])
+    const res = await wrapFetchWithPayment(globalThis.fetch, makeClient())(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(payments).toHaveLength(1)
+
+    const payment = payments[0]!
+    const raw: Record<string, unknown> = { ...payment }
+    expect(Object.keys(raw).sort()).toEqual(['accepted', 'payload', 'x402Version'])
+    expect(payment.x402Version).toBe(2)
+    expect(payment.accepted).toMatchObject({ scheme: 'ledewire-wallet', network: 'ledewire:v1' })
+    expect(payment.payload.authorization).toMatchObject({
+      from: PAYMENT_KEY.id,
+      to: PAY_TO,
+      value: '250',
+      asset: 'USD',
+      resource: ORIGIN_URL,
+    })
+    expect(raw).not.toHaveProperty('nonce')
+    expect(payment.payload).not.toHaveProperty('token')
+    expect(payment.payload).not.toHaveProperty('contentId')
+    expect(await signatureVerifies(payment)).toBe(true)
+  })
+
+  it('gives two payments two different nonces, each 64 lowercase hex characters', async () => {
+    const payments = serveContent([settled])
+    const fetch = wrapFetchWithPayment(globalThis.fetch, makeClient())
+    await fetch(ORIGIN_URL)
+    await fetch(ORIGIN_URL)
+    const nonces = payments.map((p) => p.payload.authorization.nonce)
+    expect(nonces).toHaveLength(2)
+    for (const nonce of nonces) expect(nonce).toMatch(/^[0-9a-f]{64}$/)
+    expect(nonces[0]).not.toBe(nonces[1])
+  })
+})
+
+describe('wrapFetchWithPayment: refusals', () => {
+  it.each([
+    'invalid_ledewire_wallet_signature',
+    'unknown_payment_key',
+    'recipient_mismatch',
+    'resource_mismatch',
+    'nonce_already_used',
+  ] as const)(
+    'surfaces %s as a PaymentRefusedError naming it, without re-sending',
+    async (code) => {
+      const payments = serveContent([refused(code)])
+      const err = await wrapFetchWithPayment(
+        globalThis.fetch,
+        makeClient({ maxPriceCents: 1000 }),
+      )(ORIGIN_URL).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(PaymentRefusedError)
+      expect(err).toBeInstanceOf(LedewireError)
+      expect(err).toMatchObject({ refusal: code, type: code, statusCode: 402 })
+      expect((err as Error).message).toBe(`Refused: ${code}`)
+      expect(payments).toHaveLength(1)
+    },
+  )
+
+  it('re-signs payment_authorization_expired once, with a fresh window and nonce', async () => {
+    const payments = serveContent([refused('payment_authorization_expired'), settled])
+    const res = await wrapFetchWithPayment(globalThis.fetch, makeClient())(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(payments).toHaveLength(2)
+    const [first, second] = payments.map((p) => p.payload.authorization)
+    expect(second!.nonce).not.toBe(first!.nonce)
+    expect(second!.validAfter).toBeGreaterThanOrEqual(first!.validAfter)
+  })
+
+  it('re-signs payment_authorization_expired only once', async () => {
+    const payments = serveContent([refused('payment_authorization_expired')])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient(),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentRefusedError)
+    expect(err).toMatchObject({ refusal: 'payment_authorization_expired' })
+    expect(payments).toHaveLength(2)
+  })
+
+  it("re-signs amount_mismatch at the fresh challenge's price when it is within maxPriceCents", async () => {
+    const payments = serveContent([refused('amount_mismatch', { amount: '300' }), settled])
+    const res = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient({ maxPriceCents: 300 }),
+    )(ORIGIN_URL)
+    expect(res.status).toBe(200)
+    expect(payments.map((p) => p.payload.authorization.value)).toEqual(['250', '300'])
+  })
+
+  it('throws PriceAboveMaximumError for amount_mismatch above maxPriceCents, sending nothing more', async () => {
+    const payments = serveContent([refused('amount_mismatch', { amount: '301' })])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient({ maxPriceCents: 300 }),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PriceAboveMaximumError)
+    expect(err).toMatchObject({ amountCents: 301, maxPriceCents: 300 })
+    expect(payments).toHaveLength(1)
+  })
+
+  it('surfaces amount_mismatch when no maxPriceCents is configured', async () => {
+    const payments = serveContent([refused('amount_mismatch', { amount: '300' })])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient(),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toMatchObject({ refusal: 'amount_mismatch' })
+    expect(payments).toHaveLength(1)
+  })
+
+  it('signs at most twice even when every refusal could be re-signed', async () => {
+    const payments = serveContent([
+      refused('payment_authorization_expired'),
+      refused('amount_mismatch', { amount: '250' }),
+    ])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient({ maxPriceCents: 1000 }),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toMatchObject({ refusal: 'amount_mismatch' })
+    expect(payments).toHaveLength(2)
+  })
+
+  it('never re-signs for a custom signer without shouldResign', async () => {
+    const buildSpy = vi.fn().mockResolvedValue(btoa('{"mock":true}'))
+    let paid = 0
+    server.use(
+      http.get(ORIGIN_URL, ({ request }) => {
+        if (!request.headers.get('PAYMENT-SIGNATURE')) {
+          return new HttpResponse(null, {
+            status: 402,
+            headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+          })
+        }
+        paid++
+        return refused('payment_authorization_expired')()
+      }),
+    )
+    const err = await wrapFetchWithPayment(globalThis.fetch, { buildPaymentSignature: buildSpy })(
+      ORIGIN_URL,
+    ).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(PaymentRefusedError)
+    expect(buildSpy).toHaveBeenCalledOnce()
+    expect(paid).toBe(1)
+  })
+
+  it('uses a generic message when the refusal body carries none', async () => {
+    serveContent([
+      () =>
+        new HttpResponse(null, {
+          status: 402,
+          headers: { 'PAYMENT-REQUIRED': refusalChallenge('nonce_already_used') },
+        }),
+    ])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient(),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect((err as Error).message).toBe('Payment refused: nonce_already_used')
+  })
+
+  it('maps a paid 402 spend-cap body with no PAYMENT-REQUIRED to SpendCapReachedError', async () => {
+    serveContent([() => HttpResponse.json(CAP_BODY, { status: 402 })])
+    const err = await wrapFetchWithPayment(
+      globalThis.fetch,
+      makeClient(),
+    )(ORIGIN_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(SpendCapReachedError)
   })
 })

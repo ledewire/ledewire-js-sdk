@@ -5,19 +5,29 @@ import {
   RateLimitError,
   spendCapErrorFromBody,
 } from '@ledewire/core'
-import { LedewireAuthManager } from './auth.js'
+import { encodeJsonHeader, toHex } from './encoding.js'
 import {
   InsufficientFundsError,
-  NonceExpiredError,
+  MalformedPaymentRequiredError,
   PaymentOriginNotAllowedError,
+  PaymentRefusedError,
+  PriceAboveMaximumError,
   extractApiErrorMessage,
 } from './errors.js'
 import { parsePaymentRequired } from './parse.js'
+import { assertPrivateKey, importPaymentKey, signAuthorization } from './signing.js'
+import type { SigningKey } from './signing.js'
 import type {
   LedewireFetchConfig,
+  LedewirePaymentAuthorization,
   LedewirePaymentPayload,
   LedewirePaymentRefusal,
+  LedewireRefusalCode,
 } from './types.js'
+
+const DEFAULT_API_BASE = 'https://api.ledewire.com'
+/** The longest window the scheme allows; a challenge cannot widen it. */
+const MAX_WINDOW_SECONDS = 300
 
 /**
  * Maps an HTTP status code from a paid-request retry to a typed SDK error.
@@ -115,15 +125,27 @@ export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unkno
 }
 
 /**
- * Core Ledewire x402 payment client. Holds buyer credentials, manages the
- * JWT lifecycle, and builds `PAYMENT-SIGNATURE` header values.
+ * The {@link PaymentRefusedError} for a refused signed payment, carrying the
+ * API's message from the `402` body when it has one.
  *
- * The client authenticates only against its configured `apiBase` and pays
- * only for requests to that same origin (see {@link allowsPaymentTo}). A
- * `PAYMENT-REQUIRED` challenge cannot change either.
+ * @param code - The refusal code from the fresh `PAYMENT-REQUIRED` challenge.
+ * @param body - Parsed JSON body of the same response, if any.
+ */
+export function paymentRefusedError(code: LedewireRefusalCode, body: unknown): PaymentRefusedError {
+  return new PaymentRefusedError(code, extractApiErrorMessage(body, `Payment refused: ${code}`))
+}
+
+/**
+ * Core Ledewire x402 payment client. Holds a Payment key and builds
+ * `PAYMENT-SIGNATURE` header values: each one a fresh Payment authorization
+ * signed with that key, with its own random nonce. No session token or API key
+ * is ever sent.
+ *
+ * The client pays only for requests to its configured `apiBase` origin (see
+ * {@link allowsPaymentTo}); a `PAYMENT-REQUIRED` challenge cannot change it.
  *
  * Use this directly when integrating with HTTP clients other than `fetch`
- * (e.g. Axios, ky, got). For a drop-in `fetch` replacement use
+ * (e.g. ky, got). For a drop-in `fetch` replacement use
  * {@link createLedewireFetch}; for an Axios instance use
  * {@link wrapAxiosWithPayment}.
  *
@@ -131,7 +153,10 @@ export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unkno
  * ```ts
  * import { LedewirePaymentClient } from '@ledewire/x402-client'
  *
- * const client = new LedewirePaymentClient({ key, secret })
+ * const client = new LedewirePaymentClient({
+ *   paymentKey: { id: process.env.LEDEWIRE_PAYMENT_KEY_ID, privateKey: process.env.LEDEWIRE_PAYMENT_KEY },
+ *   maxPriceCents: 500,
+ * })
  *
  * // In a ky `afterResponse` hook or any other HTTP client interceptor:
  * if (response.status === 402 && client.allowsPaymentTo(request.url)) {
@@ -139,26 +164,42 @@ export function throwPaymentRefusal(refusal: LedewirePaymentRefusal, body: unkno
  *     response.headers.get('PAYMENT-REQUIRED'),
  *     request.url,
  *   )
- *   // retry with PAYMENT-SIGNATURE: sig
+ *   // retry once with PAYMENT-SIGNATURE: sig, and redirects off
  * }
  * ```
  */
 export class LedewirePaymentClient {
-  /** @internal */
-  readonly auth: LedewireAuthManager
+  /** The configured Ledewire API base URL, fixed at construction. */
+  readonly apiBase: string
+
+  readonly #keyId: string
+  readonly #maxPriceCents: number | undefined
+  #privateKey: string | null
+  #signingKey: Promise<SigningKey> | null = null
 
   /**
-   * @param config - Buyer credentials and optional overrides. The `fetch`
-   *   field, when provided, is used only for authentication requests to the
-   *   Ledewire API — not for fetching content.
+   * @param config - The Payment key and optional overrides. `config.fetch` is
+   *   not used for payments (the adapters take their own); it is accepted so
+   *   one config object serves {@link createLedewireFetch} too.
+   * @throws {TypeError} When `paymentKey.id` is empty or not printable ASCII,
+   *   `paymentKey.privateKey` is not unpadded base64url of 32 bytes, or
+   *   `maxPriceCents` is not a non-negative integer. No message contains the
+   *   private key.
    */
   constructor(config: LedewireFetchConfig) {
-    this.auth = new LedewireAuthManager(
-      config.key,
-      config.secret,
-      config.apiBase ?? 'https://api.ledewire.com',
-      config.fetch,
-    )
+    const { id, privateKey } = config.paymentKey
+    if (typeof id !== 'string' || !/^[\x21-\x7e]+$/.test(id)) {
+      throw new TypeError('paymentKey.id must be the registered Payment key id')
+    }
+    assertPrivateKey(privateKey)
+    const max = config.maxPriceCents
+    if (max !== undefined && (!Number.isSafeInteger(max) || max < 0)) {
+      throw new TypeError('maxPriceCents must be a non-negative integer number of cents')
+    }
+    this.apiBase = config.apiBase ?? DEFAULT_API_BASE
+    this.#keyId = id
+    this.#privateKey = privateKey
+    this.#maxPriceCents = max
   }
 
   /**
@@ -173,62 +214,99 @@ export class LedewirePaymentClient {
    */
   allowsPaymentTo(url: string): boolean {
     const origin = originOf(url)
-    return origin !== null && origin === originOf(this.auth.apiBase)
+    return origin !== null && origin === originOf(this.apiBase)
   }
 
   /**
-   * Parses a raw `PAYMENT-REQUIRED` header value, authenticates with the
-   * buyer API key, and returns the base64-encoded `PAYMENT-SIGNATURE` string
-   * ready to set as a request header.
+   * Whether the adapters should sign once more after the API refuses a
+   * payment with `code`: `payment_authorization_expired` always (a fresh
+   * window), and `amount_mismatch` only when `maxPriceCents` is set (the new
+   * price is then checked against it). Every other code is surfaced.
    *
-   * Pays only for URLs on the configured Ledewire API origin — check
-   * {@link allowsPaymentTo} first to leave other `402`s unpaid. The buyer-key
-   * login always goes to the configured `apiBase`; the challenge's
-   * `extensions.ledewire-wallet.apiBase` is not used.
+   * @param code - The refusal code from the fresh challenge.
+   */
+  shouldResign(code: LedewireRefusalCode): boolean {
+    if (code === 'payment_authorization_expired') return true
+    if (code === 'amount_mismatch') return this.#maxPriceCents !== undefined
+    return false
+  }
+
+  /**
+   * Parses a raw `PAYMENT-REQUIRED` header value, signs a Payment
+   * authorization for it, and returns the base64-encoded `PAYMENT-SIGNATURE`
+   * string ready to set as a request header.
    *
-   * A stable UUID is generated per call and included in the payload when the
-   * server advertises `payment-identifier` support — enabling safe retries
-   * without double-charging.
+   * The authorization pays the challenge's `payTo` its `amount` in `asset`, for
+   * its `resource.url`, from this client's Payment key, valid from now for
+   * `maxTimeoutSeconds` (at most 300), with a fresh 32-byte random nonce. Every
+   * call signs a new authorization, so every call that is sent is a separate
+   * payment: send each one at most once.
    *
    * @param paymentRequiredHeader - Raw value of the `PAYMENT-REQUIRED` response header.
    * @param url - Full URL of the resource being purchased.
    *
    * @throws {PaymentOriginNotAllowedError} `url` is not on the configured
-   *   Ledewire API origin. Thrown before any parsing or login.
+   *   Ledewire API origin. Thrown before the challenge is read.
    * @throws {UnsupportedSchemeError} No `ledewire-wallet` entry in the `accepts` array.
-   * @throws {MalformedPaymentRequiredError} Extension block is absent or malformed.
-   * @throws {NonceExpiredError} Nonce `expiresAt` is in the past.
-   * @throws {AuthError} Buyer API key credentials are invalid.
+   * @throws {MalformedPaymentRequiredError} The challenge is not base64 JSON,
+   *   or a field the client signs is missing or malformed.
+   * @throws {PriceAboveMaximumError} The price is above `maxPriceCents`.
    */
   async buildPaymentSignature(paymentRequiredHeader: string, url: string): Promise<string> {
     if (!this.allowsPaymentTo(url)) {
       throw new PaymentOriginNotAllowedError(
         originOf(url) ?? url,
-        originOf(this.auth.apiBase) ?? this.auth.apiBase,
+        originOf(this.apiBase) ?? this.apiBase,
       )
     }
 
-    const { paymentRequired, accepted, extension } = parsePaymentRequired(paymentRequiredHeader)
+    const { paymentRequired, accepted } = parsePaymentRequired(paymentRequiredHeader)
 
-    if (Date.now() / 1000 > accepted.extra.expiresAt) {
-      throw new NonceExpiredError()
+    const amountCents = Number(accepted.amount)
+    if (this.#maxPriceCents !== undefined && amountCents > this.#maxPriceCents) {
+      throw new PriceAboveMaximumError(amountCents, this.#maxPriceCents)
     }
 
-    const token = await this.auth.getAccessToken()
+    const validAfter = Math.floor(Date.now() / 1000)
+    const authorization: LedewirePaymentAuthorization = {
+      from: this.#keyId,
+      to: accepted.payTo,
+      value: accepted.amount,
+      asset: accepted.asset,
+      resource: paymentRequired.resource.url,
+      validAfter,
+      validBefore: validAfter + Math.min(accepted.maxTimeoutSeconds, MAX_WINDOW_SECONDS),
+      nonce: toHex(crypto.getRandomValues(new Uint8Array(32))),
+    }
 
-    const supportsPaymentIdentifier = paymentRequired.extensions?.['payment-identifier'] != null
+    let signature: string
+    try {
+      signature = await signAuthorization(await this.#key(), authorization)
+    } catch (err) {
+      // canonicalAuthorization refuses a value outside the scheme's domain
+      // (e.g. a non-ASCII payTo); the API would refuse it as malformed too.
+      if (err instanceof TypeError) {
+        throw new MalformedPaymentRequiredError(`PAYMENT-REQUIRED cannot be signed: ${err.message}`)
+      }
+      throw err
+    }
 
     const paymentPayload: LedewirePaymentPayload = {
       x402Version: 2,
-      resource: { url },
       accepted,
-      payload: { token, contentId: extension.contentId },
-      ...(supportsPaymentIdentifier
-        ? { extensions: { 'payment-identifier': crypto.randomUUID() } }
-        : undefined),
+      payload: { signature, authorization },
     }
+    return encodeJsonHeader(paymentPayload)
+  }
 
-    return btoa(JSON.stringify(paymentPayload))
+  /** Imports the private key once, as a non-extractable key, and drops the string. */
+  #key(): Promise<SigningKey> {
+    if (!this.#signingKey) {
+      const privateKey = this.#privateKey ?? ''
+      this.#privateKey = null
+      this.#signingKey = importPaymentKey(privateKey)
+    }
+    return this.#signingKey
   }
 }
 
